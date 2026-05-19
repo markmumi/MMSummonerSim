@@ -32,36 +32,21 @@ function convertCard(j) {
 
 function loadCardDB() {
   return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', 'OGcarddbseal/cards_metadata.json?v=' + Date.now(), true);
-    xhr.onload = () => {
-      if(xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)){
-        try {
-          const data = JSON.parse(xhr.responseText);
-          CARD_DB = data.cards.map(convertCard);
-          console.log(`Loaded ${CARD_DB.length} cards from JSON`);
-          resolve();
-        } catch(e){ reject(e); }
-      } else { reject(new Error('HTTP '+xhr.status)); }
-    };
-    xhr.onerror = reject;
-    xhr.send();
+    const s = document.createElement('script');
+    s.src = 'OGcarddbseal/cards_metadata.js?v=' + Date.now();
+    s.onload = () => { CARD_DB = CARDS_METADATA.cards.map(convertCard); console.log(`Loaded ${CARD_DB.length} cards`); resolve(); };
+    s.onerror = reject;
+    document.head.appendChild(s);
   });
 }
 
 function loadMysticDB(){
   return new Promise(resolve=>{
-    const xhr=new XMLHttpRequest();
-    xhr.open('GET','OGcarddbseal/mystics_metadata.json?v='+Date.now(),true);
-    xhr.onload=()=>{
-      if(xhr.status===0||(xhr.status>=200&&xhr.status<300)){
-        try{const data=JSON.parse(xhr.responseText);MYSTIC_DB=data.mystics;console.log(`Loaded ${MYSTIC_DB.length} mystic cards`);}
-        catch(e){MYSTIC_DB=_MYSTIC_DB_FALLBACK;}
-      } else {MYSTIC_DB=_MYSTIC_DB_FALLBACK;}
-      resolve();
-    };
-    xhr.onerror=()=>{MYSTIC_DB=_MYSTIC_DB_FALLBACK;resolve();};
-    xhr.send();
+    const s = document.createElement('script');
+    s.src = 'OGcarddbseal/mystics_metadata.js?v=' + Date.now();
+    s.onload = () => { MYSTIC_DB = MYSTICS_METADATA.mystics; console.log(`Loaded ${MYSTIC_DB.length} mystic cards`); resolve(); };
+    s.onerror = () => { MYSTIC_DB = _MYSTIC_DB_FALLBACK; resolve(); };
+    document.head.appendChild(s);
   });
 }
 

@@ -1,4 +1,4 @@
-{
+const CARDS_METADATA = {
   "set_name": "Dividing of 4 Kingdoms",
   "set_code": "DFK",
   "total_in_set": 95,
@@ -128,7 +128,7 @@
         "darkness"
       ],
       "tribe": [
-        "Beast"
+        "evil"
       ],
       "fusions": [
         {
@@ -1172,7 +1172,7 @@
       "collector_number": "53/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": "[Skill]- เมื่อผู้เล่นฝ่ายตรงข้ามสั่ง Seal รวมร่าง นำ Gale Garuda เข้ามาที่ At Line จากมือ จากนั้นสั่ง Gale Garuda โจมตี Seal ที่กำลังรวมร่าง Interfere (Mp 4)"
-    {
+    },  {
       "id": 54,
       "name": "Titania",
       "path": "OGcarddbseal/card_54.jpg",
@@ -1464,14 +1464,14 @@
       "mp_deploy": 3,
       "mp_attack": 1,
       "element": [
-        "fire"
+        "wind"
       ],
       "tribe": [
         "Beast"
       ],
       "fusions": [
         {
-          "require": "fire",
+          "require": "wind",
           "require_type": "element",
           "count": 1,
           "atk_name": "Thunder Tail",
@@ -1481,7 +1481,7 @@
           "atk_all": false
         },
         {
-          "require": "fire",
+          "require": "wind",
           "require_type": "element",
           "count": 2,
           "atk_name": "Electric Crest",
@@ -2403,4 +2403,4 @@
       "ability_text": ""
     }
   ]
-}
+};

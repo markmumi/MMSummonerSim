@@ -3,14 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Summoner Master</title>
+<title>MMSummonerMasterSim</title>
 <link rel="stylesheet" href="css/game.css">
 </head>
 <body>
 
 <div id="header">
   <div style="display:flex;gap:10px;align-items:center">
-    <span style="font-size:14px;font-weight:bold;color:#fbbf24">⚔ Summoner Master</span>
+    <a href="index.html" style="font-size:11px;padding:2px 8px;background:#374151;border-radius:4px;color:#9ca3af;text-decoration:none;border:1px solid #4b5563" title="กลับ Menu">← Menu</a>
+    <span style="font-size:14px;font-weight:bold;color:#fbbf24">⚔ MMSummonerMasterSim</span>
     <span id="phase-label" style="font-size:11px;padding:2px 8px;background:#7c3aed;border-radius:4px">-</span>
   </div>
 </div>
@@ -66,12 +67,12 @@
     <div class="zone">
       <div class="line line-at" id="player-at"></div>
       <div class="line line-df" id="player-df"></div>
-      <div id="player-area-mystics" style="display:none;flex-direction:row;flex-wrap:wrap;gap:4px;padding:4px 6px;margin-top:4px;background:#1e1b4b55;border-radius:6px;align-items:center"></div>
     </div>
 
     <div class="divider"></div>
 
     <div id="hand-area">
+      <div id="player-area-mystics" style="display:none;flex-direction:row;flex-wrap:wrap;gap:4px;padding:2px 6px;background:#1e1b4b88;border-radius:6px;align-items:center"></div>
       <div id="player-info-bar" style="display:flex;flex-direction:row;align-items:center;background:#1f293799;border-radius:6px;padding:5px 10px;gap:8px;font-size:11px">
         <div style="display:flex;align-items:center;gap:10px;flex:1">
           <span style="font-weight:bold;color:#34d399">👤 Player</span>
@@ -145,7 +146,7 @@
   <div onclick="event.stopPropagation()" style="background:#1f2937;border:2px solid #374151;border-radius:14px;padding:24px;max-width:570px;width:92%;position:relative;margin:auto">
     <button onclick="closeCardViewer()" style="position:absolute;top:10px;right:14px;background:none;border:none;color:#9ca3af;font-size:24px;cursor:pointer">✕</button>
     <div style="display:flex;gap:20px;align-items:flex-start">
-      <img id="cv-img" src="" style="width:180px;border-radius:10px;flex-shrink:0;object-fit:cover">
+      <img id="cv-img" src="" style="width:280px;border-radius:10px;flex-shrink:0;object-fit:cover">
       <div style="flex:1;font-size:13px;line-height:1.7;min-width:0">
         <div id="cv-name" style="font-size:18px;font-weight:bold;color:#f9fafb;margin-bottom:5px"></div>
         <div id="cv-tribe" style="color:#9ca3af;margin-bottom:3px"></div>

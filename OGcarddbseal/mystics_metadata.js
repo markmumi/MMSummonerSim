@@ -1,4 +1,4 @@
-﻿{
+const MYSTICS_METADATA = {
   "mystics": [
     {
       "id": 17,
@@ -403,3 +403,4 @@
   ]
 }
 
+;

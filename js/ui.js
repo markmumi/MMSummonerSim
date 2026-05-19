@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════
 function cancelAction(){
   attackerSeal=null;pendingAttackIdx=null;pendingDeploy=null;pendingSacrifice=null;
-  fusionMode=false;fusionMainFC=null;handTargetMode=false;skillMode=null;handDiscardMode=null;handPickMode=null;mysticPlayMode=null;
+  fusionMode=false;fusionMainFC=null;handTargetMode=false;skillMode=null;handDiscardMode=null;handPickMode=null;mysticPlayMode=null;sacrificeTargetMode=null;
   closeAtkPanel();closeDeployModal();closeFAModal();
   render();
 }
@@ -69,6 +69,7 @@ function cardEl(fc,pi,lineKey,isField){
   if(attackerSeal&&pi===1)div.classList.add('targetable');
   if(fusionMode&&pi===0&&canBeFusionMaterial(fc))div.classList.add('fusion-target');
   if(skillMode&&isSkillTarget(fc))div.classList.add('skill-target');
+  if(sacrificeTargetMode&&!(sacrificeTargetMode.mysticCard.exception_tribes||[]).includes(fc.card.tribe))div.classList.add('skill-target');
   if(mysticPlayMode&&canAttachMystic(mysticPlayMode.mysticCard,fc))div.classList.add('mystic-attach');
   if(pendingCb&&pi===0&&!fc.hasUsedSkill&&getCardSkills(fc).some(s=>s.interfere&&G.players[0].mp>=s.mp&&G.players[0].hand.length>0))div.classList.add('interfere-avail');
   if(fc.fused)div.classList.add('fused');
@@ -98,20 +99,14 @@ function cardEl(fc,pi,lineKey,isField){
     <img src="${c.img}" alt="${c.name}" onerror="this.style.background='${ec}22';this.style.height='70px'">
     <div class="card-info">
       <div class="card-name">${c.name}</div>
-      <div class="card-stats"><span style="color:${ec}">◆${c.el[0].toUpperCase()}</span><span>At${c.at}</span><span>Df${c.df}</span><span style="color:#fbbf24">ตี${c.ma||1}</span></div>
+      <div class="card-stats"><span style="color:${EL_COLOR[getEffectiveEl(fc)]||ec}">${fc.magicalEl?'✦':'◆'}${getEffectiveEl(fc)[0].toUpperCase()}</span><span${getEffectiveAt(fc)!==c.at?' style="color:#fde68a"':''}>At${getEffectiveAt(fc)}</span><span${getEffectiveDf(fc)!==c.df?' style="color:#fde68a"':''}>Df${getEffectiveDf(fc)}</span><span style="color:#fbbf24">ตี${fc.fused?getActiveAtks(fc).length:c.ma||1}</span></div>
     </div>
     ${fc.fused?`<div class="fused-badge">⚡${fc.fusionStack.length}</div>`:''}
     ${newFromHand(fc)?`<div style="position:absolute;bottom:26px;right:2px;background:#6b7280;color:#fff;font-size:7px;font-weight:bold;border-radius:2px;padding:0 3px;z-index:5">NEW</div>`:''}
     ${fc.hitsLeft>0?`<div style="position:absolute;top:1px;left:2px;background:#ef4444;color:#fff;font-size:8px;font-weight:bold;border-radius:2px;padding:0 3px;z-index:5">×${fc.hitsLeft}</div>`:''}
-    ${curseBadges?`<div style="position:absolute;bottom:26px;left:2px;display:flex;gap:2px;z-index:5;font-size:7px;font-weight:bold">${curseBadges}</div>`:''}
+    ${curseBadges?`<div style="position:absolute;top:2px;left:2px;display:flex;gap:2px;z-index:5;font-size:10px;font-weight:bold;flex-wrap:wrap">${curseBadges}</div>`:''}
     ${getActiveMystics(fc).length?`<div class="mystic-on-seal">✦${getActiveMystics(fc).length}</div>`:''}
   `;
-  if(fc.fused&&fc.fusionStack.length){
-    const matImg=document.createElement('img');
-    matImg.src=fc.fusionStack[0].card.img;
-    matImg.className='mat-peek';
-    div.appendChild(matImg);
-  }
   div.onclick=()=>clickFieldSeal(fc,pi,lineKey);
   div.ondblclick=e=>{e.stopPropagation();openCardViewer(c,fc);};
   if(pi===0){
@@ -142,14 +137,34 @@ function cardEl(fc,pi,lineKey,isField){
       :(c.fuse||[]).map(f=>`+${fuseReqLabel(f)} → ${f.atk.name}`);
     const atks=atkLines.join('<br>');
     const effAt=getEffectiveAt(fc), effDf=getEffectiveDf(fc), effSp=getEffectiveSp(fc);
-    const atStr=fc.fused&&effAt!==c.at?`<span style="color:#fde68a">At${effAt}</span>`:(`At${c.at}`);
-    const dfStr=fc.fused&&effDf!==c.df?`<span style="color:#fde68a">Df${effDf}</span>`:(`Df${c.df}`);
-    const spStr=fc.fused&&effSp!==c.sp?`<span style="color:#fde68a">Sp${effSp}</span>`:(`Sp${c.sp}`);
+    const atStr=effAt!==c.at?`<span style="color:#fde68a">At${effAt}</span>`:`At${c.at}`;
+    const dfStr=effDf!==c.df?`<span style="color:#fde68a">Df${effDf}</span>`:`Df${c.df}`;
+    const spStr=effSp!==c.sp?`<span style="color:#fde68a">Sp${effSp}</span>`:`Sp${c.sp}`;
     tip.innerHTML=`<b>${c.name}</b><br>Lv${c.lv}|${c.tribe}|${c.el}<br>${atStr} ${dfStr} ${spStr}<br>ลง:${c.mc} ตี:${c.ma||1} Mp<br>${atks}${fc.fused?'<br><span style="color:#fde68a">⚡FUSED</span>':''}`;
     tip.style.display='block';moveTip(e);
   };
   div.onmousemove=moveTip;
   div.onmouseleave=()=>{document.getElementById('tip').style.display='none';};
+  if(fc.fused&&fc.fusionStack.length){
+    const wrap=document.createElement('div');
+    wrap.className='fused-wrap';
+    const n=fc.fusionStack.length;
+    const peekStep=22;
+    wrap.style.width=(88+n*peekStep)+'px';
+    fc.fusionStack.forEach((sfc,i,arr)=>{
+      const peek=document.createElement('img');
+      peek.src=sfc.card.img;
+      peek.className='stack-peek';
+      const rot=arr.length===1?-8:-14+i*(14/(arr.length-1));
+      peek.style.left=(i*peekStep)+'px';
+      peek.style.transform=`rotate(${rot}deg)`;
+      peek.style.zIndex=i+1;
+      wrap.appendChild(peek);
+    });
+    div.style.left=(n*peekStep)+'px';
+    wrap.appendChild(div);
+    return wrap;
+  }
   return div;
 }
 
@@ -210,15 +225,41 @@ function moveTip(e){
 function renderLine(id,seals,pi,lineKey){
   const line=document.getElementById(id);
   line.innerHTML='';
-  const totalSlots=Math.max(seals.length+1,3);
-  const emptyCount=totalSlots-seals.length;
-  // Distribute empties: multiple→split evenly; single→alternate left/right per seal count
-  const emptyLeft=emptyCount>1?Math.floor(emptyCount/2):(seals.length%2===0?1:0);
-  const emptyRight=emptyCount-emptyLeft;
   const mkEmpty=()=>{const s=document.createElement('div');s.className='slot-empty';s.textContent='—';return s;};
-  for(let i=0;i<emptyLeft;i++)line.appendChild(mkEmpty());
-  seals.forEach(fc=>line.appendChild(cardEl(fc,pi,lineKey,true)));
-  for(let i=0;i<emptyRight;i++)line.appendChild(mkEmpty());
+  if(pi===0){
+    // Player line with space: deploy slots at far left and far right
+    const mkDeploy=(insertAt)=>{
+      const s=document.createElement('div');
+      s.className='slot-empty slot-deploy';
+      s.textContent='＋';
+      s.ondragover=e=>{if(e.dataTransfer.types.includes('text/plain')){e.preventDefault();s.classList.add('drag-over');}};
+      s.ondragleave=()=>s.classList.remove('drag-over');
+      s.ondrop=e=>{
+        e.preventDefault();s.classList.remove('drag-over');
+        try{
+          const data=JSON.parse(e.dataTransfer.getData('text/plain'));
+          if(data.type!=='hand')return; // let 'field'/'mystic' bubble to LINE handler
+          e.stopPropagation(); // only block bubble for hand deploys (prevent double-deploy)
+          const card=G.players[0].hand[data.idx];
+          if(!card)return;
+          doDeployAtSlot(card,data.idx,lineKey,insertAt);
+        }catch(err){}
+      };
+      return s;
+    };
+    line.appendChild(mkDeploy(0));
+    seals.forEach(fc=>line.appendChild(cardEl(fc,pi,lineKey,true)));
+    line.appendChild(mkDeploy(-1));
+  } else {
+    // AI lines or full player line
+    const totalSlots=Math.max(seals.length,3);
+    const emptyCount=totalSlots-seals.length;
+    const emptyLeft=Math.floor(emptyCount/2);
+    const emptyRight=emptyCount-emptyLeft;
+    for(let i=0;i<emptyLeft;i++)line.appendChild(mkEmpty());
+    seals.forEach(fc=>line.appendChild(cardEl(fc,pi,lineKey,true)));
+    for(let i=0;i<emptyRight;i++)line.appendChild(mkEmpty());
+  }
 }
 
 function render(){
@@ -266,12 +307,13 @@ function render(){
   // Mp pips
   const pips=document.getElementById('p0-mp');
   pips.innerHTML='';
-  for(let i=0;i<MAX_MP;i++){
+  const mpMax0=getEffectiveMpMax(0);
+  for(let i=0;i<mpMax0;i++){
     const d=document.createElement('div');
     d.className='pip'+(i<p0.mp?' on':'');
     pips.appendChild(d);
   }
-  document.getElementById('p0-mp-num').textContent=`${p0.mp}/${MAX_MP}`;
+  document.getElementById('p0-mp-num').textContent=`${p0.mp}/${mpMax0}`;
 
   // Shrine
   const s0=shrineTotal(0),s1=shrineTotal(1);
@@ -280,7 +322,7 @@ function render(){
   sb.className='shrine-box'+(s0>=6?' danger':'');
   document.getElementById('p1-shrine-label').textContent=`${s1}/${MAX_SHRINE}`;
   document.getElementById('p1-mp-label').textContent=p1.mp;
-  {const ap=document.getElementById('p1-mp-pips');ap.innerHTML='';for(let i=0;i<MAX_MP;i++){const d=document.createElement('div');d.className='pip'+(i<p1.mp?' on':'');ap.appendChild(d);}}
+  {const ap=document.getElementById('p1-mp-pips');ap.innerHTML='';const mpMax1=getEffectiveMpMax(1);for(let i=0;i<mpMax1;i++){const d=document.createElement('div');d.className='pip'+(i<p1.mp?' on':'');ap.appendChild(d);}}
   document.getElementById('p1-deck-count').textContent=p1.deck.length;
   document.getElementById('p1-mystic-deck-count').textContent=(p1.mysticDeck||[]).length;
   document.getElementById('p0-deck-count').textContent=p0.deck.length;
@@ -611,7 +653,11 @@ function log(msg,type=''){
 
 // Right-click to cancel active selection modes
 document.addEventListener('contextmenu',e=>{
-  if(mysticPlayMode){
+  if(sacrificeTargetMode){
+    e.preventDefault();
+    sacrificeTargetMode=null;
+    render();
+  } else if(mysticPlayMode){
     e.preventDefault();
     mysticPlayMode=null;
     render();

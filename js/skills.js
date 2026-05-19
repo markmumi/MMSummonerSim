@@ -448,7 +448,7 @@ function executeSelfSkill(skillFC,skillIdx){
         closeFAModal();
         showActionQueue(`${skillFC.card.name} [Skill] → <b>${card.name}</b> จาก Shrine ขึ้นมือ`,()=>{
           p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-          if(p.hand.length>=HAND_MAX){log('มือเต็ม!','bad');return;}
+          if(p.hand.length>=getEffectiveHandMax(0)){log('มือเต็ม!','bad');return;}
           const si=p.shrine.indexOf(card);
           if(si>=0)p.shrine.splice(si,1);
           p.hand.push(card);
@@ -688,7 +688,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
         if(targetFC.fusionStack?.length)targetFC.fusionStack.forEach(m=>owner.shrine.push(m.card));
         // Only Main Seal returns to hand
         if(targetPi===0){
-          if(p.hand.length<HAND_MAX){p.hand.push(targetFC.card);log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} กลับสู่มือ!`,'good');}
+          if(p.hand.length<getEffectiveHandMax(0)){p.hand.push(targetFC.card);log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} กลับสู่มือ!`,'good');}
           else{p.shrine.push(targetFC.card);log(`มือเต็ม — ${targetFC.card.name} ลง Shrine`,'bad');}
         } else {
           // Enemy frozen seal returns to their hand

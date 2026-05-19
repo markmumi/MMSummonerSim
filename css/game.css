@@ -27,7 +27,7 @@ body{background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;height:100vh;
 
 /* Zones */
 .zone{padding:2px 0;min-height:0;display:flex;flex-direction:column;gap:5px;overflow:hidden}
-.line{display:flex;gap:6px;flex:1;background:rgba(255,255,255,0.04);border-radius:6px;padding:6px;align-items:center;justify-content:center;border:1px solid transparent;transition:border-color .2s;min-height:138px;position:relative}
+.line{display:flex;gap:6px;flex:1;background:rgba(255,255,255,0.04);border-radius:6px;padding:6px;align-items:center;justify-content:center;border:1px solid transparent;transition:border-color .2s;min-height:138px;position:relative;overflow-x:auto}
 #enemy-df::before{content:'AI Df ↑';position:absolute;top:4px;left:14px;font-size:9px;color:#6b7280bb;pointer-events:none}
 #enemy-at::before{content:'AI At ↓';position:absolute;top:4px;left:14px;font-size:9px;color:#6b7280bb;pointer-events:none}
 #player-at::before{content:'At Line ↑';position:absolute;top:4px;left:14px;font-size:9px;color:#6b7280bb;pointer-events:none}
@@ -52,9 +52,13 @@ body{background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;height:100vh;
 .card-stats{color:#9ca3af;display:flex;justify-content:space-between}
 .card-lv{position:absolute;top:1px;right:2px;background:#0008;font-size:8px;padding:0 2px;border-radius:2px;color:#fbbf24}
 .fused-badge{position:absolute;bottom:26px;left:2px;background:#fde68a;color:#111;font-size:7px;font-weight:bold;border-radius:2px;padding:0 3px;z-index:5}
-.mat-peek{position:absolute;bottom:-3px;left:3px;width:26px;height:35px;object-fit:cover;border-radius:3px;border:1px solid #fde68a66;opacity:0.6;z-index:1;pointer-events:none}
+.fused-wrap{position:relative;height:126px;flex-shrink:0;overflow:hidden}
+.fused-wrap>.card{position:absolute;top:0;z-index:10}
+.stack-peek{position:absolute;top:4px;width:72px;height:103px;object-fit:cover;border-radius:5px;border:2px solid #fde68a88;filter:brightness(0.55) saturate(0.7);pointer-events:none;transform-origin:bottom center}
 .card.enemy .card-info{display:none}
 .slot-empty{width:88px;height:126px;border:2px dashed #2d3748;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#374151;font-size:10px;flex-shrink:0}
+.slot-deploy{border-color:#34d39944;color:#34d39966;font-size:20px;transition:border-color .15s,background .15s}
+.slot-deploy.drag-over{border-color:#34d399!important;background:rgba(52,211,153,0.12)!important;color:#34d399!important}
 
 @keyframes blink{0%,100%{box-shadow:0 0 4px #ef4444}50%{box-shadow:0 0 14px #ef4444}}
 @keyframes blink-purple{0%,100%{box-shadow:0 0 4px #a78bfa}50%{box-shadow:0 0 14px #a78bfa}}
@@ -108,6 +112,7 @@ body{background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;height:100vh;
 
 /* ── HAND ── */
 #hand-area{display:flex;flex-direction:column;gap:2px;min-height:0}
+#player-area-mystics{flex-shrink:0}
 #hand{display:flex;gap:5px;align-items:center;flex-wrap:nowrap;padding:4px 2px;overflow-x:auto;min-width:0}
 .hand-card.playable{border-color:#34d399}
 
@@ -162,3 +167,11 @@ body{background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;height:100vh;
 #hand::-webkit-scrollbar-track{background:#111827;border-radius:2px}
 #hand::-webkit-scrollbar-thumb{background:#374151;border-radius:2px}
 #hand::-webkit-scrollbar-thumb:hover{background:#4b5563}
+.line::-webkit-scrollbar{height:4px}
+.line::-webkit-scrollbar-track{background:transparent}
+.line::-webkit-scrollbar-thumb{background:#374151;border-radius:2px}
+.line::-webkit-scrollbar-thumb:hover{background:#4b5563}
+#log::-webkit-scrollbar{width:4px}
+#log::-webkit-scrollbar-track{background:transparent}
+#log::-webkit-scrollbar-thumb{background:#374151;border-radius:2px}
+#log::-webkit-scrollbar-thumb:hover{background:#4b5563}

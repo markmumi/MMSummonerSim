@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Deck Builder — MMSummonerMasterSim</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f172a;color:#f1f5f9;font-family:'Segoe UI',Tahoma,sans-serif;font-size:13px;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+
+/* ── Header ── */
+#hdr{
+  display:flex;align-items:center;gap:12px;padding:8px 14px;
+  background:#1e293b;border-bottom:1px solid #334155;flex-shrink:0;
+}
+#hdr a{color:#94a3b8;text-decoration:none;font-size:13px;padding:4px 10px;border-radius:6px;border:1px solid #334155;}
+#hdr a:hover{background:#334155;}
+#hdr h1{font-size:15px;font-weight:700;color:#fbbf24;flex:1;}
+.deck-counters{display:flex;gap:12px;align-items:center;font-size:12px;}
+.ctr{padding:3px 10px;border-radius:20px;background:#0f172a;border:1px solid #334155;}
+.ctr.ok{border-color:#16a34a;color:#86efac;}
+.ctr.bad{border-color:#dc2626;color:#fca5a5;}
+#btn-save{
+  padding:6px 18px;background:#7c3aed;border:none;border-radius:8px;
+  color:#fff;font-weight:700;font-size:13px;cursor:pointer;transition:background .15s;
+}
+#btn-save:hover{background:#6d28d9;}
+#btn-save:disabled{background:#374151;color:#6b7280;cursor:not-allowed;}
+
+/* ── Main layout ── */
+#main{display:flex;flex:1;overflow:hidden;min-height:0;}
+
+/* ── Left: pool ── */
+#pool-pane{flex:1;display:flex;flex-direction:column;border-right:1px solid #334155;min-width:0;}
+#filters{
+  display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;
+  background:#1e293b;border-bottom:1px solid #334155;flex-shrink:0;align-items:center;
+}
+.type-toggle{display:flex;border:1px solid #334155;border-radius:7px;overflow:hidden;}
+.type-toggle button{
+  padding:4px 14px;background:transparent;border:none;color:#94a3b8;
+  font-size:12px;cursor:pointer;transition:all .12s;
+}
+.type-toggle button.on{background:#7c3aed;color:#fff;font-weight:700;}
+.f-input{
+  padding:4px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;
+  color:#f1f5f9;font-size:12px;width:130px;
+}
+.f-input:focus{outline:none;border-color:#7c3aed;}
+.f-sel{
+  padding:4px 6px;background:#0f172a;border:1px solid #334155;border-radius:6px;
+  color:#f1f5f9;font-size:11px;cursor:pointer;
+}
+.f-sel:focus{outline:none;}
+#pool-count{font-size:10px;color:#475569;margin-left:auto;}
+#pool-grid{
+  flex:1;overflow-y:auto;padding:8px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;
+  align-content:start;
+}
+/* Card tile */
+.card-tile{
+  background:#1e293b;border:1px solid #334155;border-radius:8px;
+  display:flex;flex-direction:column;cursor:default;transition:border-color .12s;overflow:hidden;position:relative;
+}
+.card-tile:hover{border-color:#7c3aed;}
+.card-tile img{width:100%;aspect-ratio:5/7;object-fit:cover;display:block;cursor:pointer;}
+.card-tile .ct-body{padding:4px 5px 5px;}
+.card-tile .ct-name{font-size:9px;font-weight:600;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;}
+.card-tile .ct-info{font-size:8px;color:#64748b;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.card-tile .ct-el{font-size:8px;font-weight:700;margin-top:2px;}
+.card-tile .ct-count{
+  position:absolute;top:4px;right:4px;
+  background:#0f172acc;border-radius:6px;
+  display:flex;align-items:center;gap:2px;padding:1px 3px;
+}
+.card-tile .ct-count button{
+  width:16px;height:16px;border:none;border-radius:4px;cursor:pointer;
+  font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;
+  background:#334155;color:#f1f5f9;
+}
+.card-tile .ct-count button:hover{background:#7c3aed;}
+.card-tile .ct-count button:disabled{background:#1e293b;color:#475569;cursor:not-allowed;}
+.ct-num{color:#fbbf24;font-size:10px;font-weight:700;min-width:14px;text-align:center;}
+.at-limit .ct-count button:last-child{background:#7f1d1d;color:#fca5a5;}
+.at-limit{border-color:#991b1b88;}
+.in-deck{border-color:#4338ca88;}
+#pool-empty{display:none;text-align:center;padding:40px;color:#475569;grid-column:1/-1;}
+
+/* ── Right: deck ── */
+#deck-pane{width:280px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;}
+.deck-section{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;}
+.deck-section+.deck-section{border-top:1px solid #334155;}
+.deck-hdr{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;
+  background:#1e293b;border-bottom:1px solid #334155;flex-shrink:0;font-size:12px;font-weight:700;
+}
+.deck-hdr .count{margin-left:auto;font-size:11px;padding:1px 8px;border-radius:10px;background:#0f172a;}
+.deck-hdr .count.ok{color:#86efac;background:#14532d;}
+.deck-hdr .count.bad{color:#fca5a5;background:#7f1d1d;}
+#deck-seals,#deck-mystics{flex:1;overflow-y:auto;padding:4px;}
+.deck-entry{
+  display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:6px;
+  transition:background .1s;
+}
+.deck-entry:hover{background:#1e293b;}
+.deck-entry img{width:32px;height:45px;object-fit:cover;border-radius:4px;flex-shrink:0;cursor:pointer;}
+.de-info{flex:1;min-width:0;}
+.de-name{font-size:10px;font-weight:600;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.de-sub{font-size:9px;color:#64748b;}
+.de-cnt{display:flex;align-items:center;gap:2px;flex-shrink:0;}
+.de-cnt button{
+  width:16px;height:16px;border:none;border-radius:3px;cursor:pointer;
+  font-size:10px;background:#334155;color:#f1f5f9;display:flex;align-items:center;justify-content:center;
+}
+.de-cnt button:hover{background:#7c3aed;}
+.de-cnt button:disabled{background:#1e293b;color:#475569;cursor:not-allowed;}
+.de-cnt span{color:#fbbf24;font-size:10px;font-weight:700;min-width:12px;text-align:center;}
+.deck-empty{padding:12px 8px;color:#475569;font-size:11px;text-align:center;}
+
+/* scrollbars */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:#0f172a;}
+::-webkit-scrollbar-thumb{background:#334155;border-radius:2px;}
+::-webkit-scrollbar-thumb:hover{background:#475569;}
+
+/* element colors */
+.el-fire{color:#f97316;}.el-water{color:#38bdf8;}.el-earth{color:#a16207;}
+.el-wind{color:#4ade80;}.el-light{color:#fde68a;}.el-darkness{color:#c084fc;}.el-neutral{color:#94a3b8;}
+
+/* card viewer */
+#cv{display:none;position:fixed;inset:0;background:#000b;z-index:300;align-items:center;justify-content:center;}
+#cv.on{display:flex;}
+.cv-box{
+  background:#1e293b;border:1px solid #475569;border-radius:14px;
+  padding:20px;max-width:520px;width:92%;display:flex;gap:16px;position:relative;
+  animation:pop .15s ease;max-height:90vh;overflow-y:auto;
+}
+@keyframes pop{from{transform:scale(.94);opacity:0}to{transform:scale(1);opacity:1}}
+.cv-box img{width:170px;border-radius:8px;flex-shrink:0;object-fit:cover;align-self:flex-start;}
+.cv-info{flex:1;font-size:12px;line-height:1.7;min-width:0;}
+.cv-name{font-size:16px;font-weight:700;color:#f9fafb;margin-bottom:4px;}
+.cv-close{position:absolute;top:10px;right:12px;background:none;border:none;color:#64748b;font-size:20px;cursor:pointer;}
+.cv-close:hover{color:#f1f5f9;}
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <a href="index.html">← Menu</a>
+  <h1>🃏 Deck Builder</h1>
+  <div class="deck-counters">
+    <span class="ctr bad" id="ctr-seal">Seal 0</span>
+    <span class="ctr bad" id="ctr-mystic">Mystic 0</span>
+  </div>
+  <button id="btn-save" onclick="saveDeck()" disabled>💾 Save Deck</button>
+</div>
+
+<div id="main">
+  <div id="pool-pane">
+    <div id="filters">
+      <div class="type-toggle">
+        <button id="tab-seal" class="on" onclick="setTab('seal')">🃏 Seal</button>
+        <button id="tab-mystic" onclick="setTab('mystic')">✦ Mystic</button>
+      </div>
+      <input class="f-input" id="f-search" placeholder="🔍 ค้นหาชื่อ…" oninput="renderPool()">
+
+      <!-- Seal filters -->
+      <select class="f-sel seal-f" id="f-el" onchange="renderPool()">
+        <option value="">ทุก Element</option>
+        <option value="fire">🔥 Fire</option>
+        <option value="water">💧 Water</option>
+        <option value="earth">🌿 Earth</option>
+        <option value="wind">🌬 Wind</option>
+        <option value="light">☀️ Light</option>
+        <option value="darkness">🌑 Darkness</option>
+        <option value="neutral">⚪ Neutral</option>
+      </select>
+      <select class="f-sel seal-f" id="f-tribe" onchange="renderPool()">
+        <option value="">ทุก Tribe</option>
+      </select>
+      <select class="f-sel seal-f" id="f-lv" onchange="renderPool()">
+        <option value="">ทุก Lv</option>
+        <option value="1">Lv 1</option>
+        <option value="2">Lv 2</option>
+        <option value="3">Lv 3</option>
+        <option value="4">Lv 4</option>
+      </select>
+
+      <!-- Mystic filters -->
+      <select class="f-sel mystic-f" id="f-pasted" onchange="renderPool()" style="display:none">
+        <option value="">ทุกประเภท</option>
+        <option value="PS">PS (ติด Seal)</option>
+        <option value="PA">PA (Area)</option>
+        <option value="nonP">nonP (ครั้งเดียว)</option>
+      </select>
+      <select class="f-sel mystic-f" id="f-rarity" onchange="renderPool()" style="display:none">
+        <option value="">ทุก Rarity</option>
+        <option value="Common">Common</option>
+        <option value="Uncommon">Uncommon</option>
+        <option value="Rare">Rare</option>
+      </select>
+
+      <!-- Sort (shared) -->
+      <select class="f-sel" id="f-sort" onchange="renderPool()">
+        <option value="name-asc">เรียง: ชื่อ A→Z</option>
+        <option value="lv-asc">เรียง: Lv ↑</option>
+        <option value="lv-desc">เรียง: Lv ↓</option>
+        <option value="at-desc">เรียง: At ↑</option>
+        <option value="df-desc">เรียง: Df ↑</option>
+        <option value="mc-asc">เรียง: MC ↑</option>
+        <option value="in-deck">เรียง: ในเด็คก่อน</option>
+      </select>
+
+      <span id="pool-count"></span>
+    </div>
+    <div id="pool-grid">
+      <div id="pool-empty">กำลังโหลดการ์ด…</div>
+    </div>
+  </div>
+
+  <div id="deck-pane">
+    <div class="deck-section">
+      <div class="deck-hdr">
+        🃏 Seal Deck <small style="font-weight:400;color:#64748b;font-size:10px">(ขั้นต่ำ 25)</small>
+        <span class="count bad" id="seal-count">0</span>
+      </div>
+      <div id="deck-seals"><div class="deck-empty">ยังไม่มีการ์ด</div></div>
+    </div>
+    <div class="deck-section">
+      <div class="deck-hdr">
+        ✦ Mystic Deck <small style="font-weight:400;color:#64748b;font-size:10px">(ขั้นต่ำ 20)</small>
+        <span class="count bad" id="mystic-count">0</span>
+      </div>
+      <div id="deck-mystics"><div class="deck-empty">ยังไม่มีการ์ด</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Card viewer -->
+<div id="cv" onclick="closeCv()">
+  <div class="cv-box" onclick="event.stopPropagation()">
+    <button class="cv-close" onclick="closeCv()">✕</button>
+    <img id="cv-img" src="">
+    <div class="cv-info">
+      <div class="cv-name" id="cv-name"></div>
+      <div id="cv-tribe" style="color:#94a3b8;margin-bottom:2px"></div>
+      <div id="cv-el" style="margin-bottom:6px"></div>
+      <div id="cv-stats" style="background:#0f172a;border-radius:6px;padding:5px 8px;margin-bottom:6px"></div>
+      <div id="cv-text" style="font-size:11px;color:#94a3b8;line-height:1.7"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const EL_COLOR={fire:'#f97316',water:'#38bdf8',earth:'#a16207',wind:'#4ade80',light:'#fde68a',darkness:'#c084fc',neutral:'#94a3b8'};
+const SEAL_MIN=25, SEAL_COPY=3, MYSTIC_MIN=20, MYSTIC_COPY=2;
+
+let SEAL_DB=[], MYSTIC_DB_LOCAL=[];
+let sealCounts={}, mysticCounts={};
+let currentTab='seal';
+
+/* ── Load DBs ── */
+function loadScript(src){
+  return new Promise((ok,err)=>{const s=document.createElement('script');s.src=src+'?v='+Date.now();s.onload=ok;s.onerror=err;document.head.appendChild(s);});
+}
+
+async function init(){
+  await loadScript('OGcarddbseal/cards_metadata.js');
+  SEAL_DB=CARDS_METADATA.cards.map(cvt);
+  await loadScript('OGcarddbseal/mystics_metadata.js');
+  MYSTIC_DB_LOCAL=MYSTICS_METADATA.mystics;
+
+  const tribes=[...new Set(SEAL_DB.map(c=>c.tribe))].sort();
+  const fs=document.getElementById('f-tribe');
+  tribes.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;fs.appendChild(o);});
+
+  loadSaved();
+  renderPool();
+  renderDeck();
+}
+
+function cvt(j){
+  return{id:j.id,name:j.name,img:j.path,lv:j.lv,at:j.at,df:j.df,sp:j.spd,mc:j.mp_deploy,ma:j.mp_attack,el:j.element[0],tribe:j.tribe[0],skill_text:j.skill_text||null,ability_text:j.ability_text||null};
+}
+
+/* ── Tab ── */
+function setTab(t){
+  currentTab=t;
+  document.getElementById('tab-seal').className=t==='seal'?'on':'';
+  document.getElementById('tab-mystic').className=t==='mystic'?'on':'';
+  document.querySelectorAll('.seal-f').forEach(el=>el.style.display=t==='seal'?'':'none');
+  document.querySelectorAll('.mystic-f').forEach(el=>el.style.display=t==='mystic'?'':'none');
+
+  // swap sort options
+  const sort=document.getElementById('f-sort');
+  const prev=sort.value;
+  sort.innerHTML=t==='seal'
+    ?`<option value="name-asc">เรียง: ชื่อ A→Z</option>
+      <option value="lv-asc">เรียง: Lv ↑</option>
+      <option value="lv-desc">เรียง: Lv ↓</option>
+      <option value="at-desc">เรียง: At ↑</option>
+      <option value="df-desc">เรียง: Df ↑</option>
+      <option value="mc-asc">เรียง: MC ↑</option>
+      <option value="in-deck">เรียง: ในเด็คก่อน</option>`
+    :`<option value="name-asc">เรียง: ชื่อ A→Z</option>
+      <option value="mc-asc">เรียง: MC ↑</option>
+      <option value="rarity-asc">เรียง: Rarity Common→Rare</option>
+      <option value="rarity-desc">เรียง: Rarity Rare→Common</option>
+      <option value="in-deck">เรียง: ในเด็คก่อน</option>`;
+  if([...sort.options].some(o=>o.value===prev))sort.value=prev;
+
+  document.getElementById('f-search').value='';
+  renderPool();
+}
+
+/* ── Sort ── */
+const rarOrder={Common:0,Uncommon:1,Rare:2};
+function sortCards(cards){
+  const s=document.getElementById('f-sort').value;
+  const isSeal=currentTab==='seal';
+  const counts=isSeal?sealCounts:mysticCounts;
+  return [...cards].sort((a,b)=>{
+    switch(s){
+      case 'name-asc': return a.name.localeCompare(b.name);
+      case 'lv-asc':  return (a.lv||a.mc||0)-(b.lv||b.mc||0);
+      case 'lv-desc': return (b.lv||b.mc||0)-(a.lv||a.mc||0);
+      case 'at-desc': return (b.at||0)-(a.at||0);
+      case 'df-desc': return (b.df||0)-(a.df||0);
+      case 'mc-asc':  return (a.mc||0)-(b.mc||0);
+      case 'rarity-asc':  return (rarOrder[a.rarity]||0)-(rarOrder[b.rarity]||0);
+      case 'rarity-desc': return (rarOrder[b.rarity]||0)-(rarOrder[a.rarity]||0);
+      case 'in-deck': return ((counts[b.id]||0)>0?1:0)-((counts[a.id]||0)>0?1:0)||(a.name.localeCompare(b.name));
+      default: return 0;
+    }
+  });
+}
+
+/* ── Pool render ── */
+function renderPool(){
+  const search=document.getElementById('f-search').value.toLowerCase();
+  const el=document.getElementById('f-el').value;
+  const tribe=document.getElementById('f-tribe').value;
+  const lv=document.getElementById('f-lv').value;
+  const pasted=document.getElementById('f-pasted').value;
+  const rarity=document.getElementById('f-rarity').value;
+  const grid=document.getElementById('pool-grid');
+  const empty=document.getElementById('pool-empty');
+
+  let cards;
+  if(currentTab==='seal'){
+    cards=SEAL_DB.filter(c=>{
+      if(search&&!c.name.toLowerCase().includes(search))return false;
+      if(el&&c.el!==el)return false;
+      if(tribe&&c.tribe!==tribe)return false;
+      if(lv&&c.lv!==parseInt(lv))return false;
+      return true;
+    });
+  }else{
+    cards=MYSTIC_DB_LOCAL.filter(c=>{
+      if(search&&!c.name.toLowerCase().includes(search))return false;
+      if(pasted&&c.pasted!==pasted)return false;
+      if(rarity&&c.rarity!==rarity)return false;
+      return true;
+    });
+  }
+  cards=sortCards(cards);
+
+  [...grid.querySelectorAll('.card-tile')].forEach(x=>x.remove());
+  document.getElementById('pool-count').textContent=`${cards.length} ใบ`;
+
+  if(!cards.length){empty.style.display='block';}
+  else{empty.style.display='none';cards.forEach(c=>grid.appendChild(makeTile(c)));}
+}
+
+function makeTile(c){
+  const isSeal=currentTab==='seal';
+  const counts=isSeal?sealCounts:mysticCounts;
+  const maxCopy=isSeal?SEAL_COPY:MYSTIC_COPY;
+  const cnt=counts[c.id]||0;
+  const canAdd=cnt<maxCopy;
+  const canSub=cnt>0;
+
+  const div=document.createElement('div');
+  let cls='card-tile';
+  if(cnt>=maxCopy)cls+=' at-limit';
+  else if(cnt>0)cls+=' in-deck';
+  div.className=cls;
+  div.title=c.name;
+
+  const elCls='el-'+(c.el||'neutral');
+  const elLabel=c.el?c.el.charAt(0).toUpperCase()+c.el.slice(1):'–';
+  const infoLine=isSeal?`Lv${c.lv} · At${c.at}/Df${c.df}`:`MC:${c.mc} · ${c.rarity||''}`;
+
+  div.innerHTML=`
+    <img src="${c.img}" loading="lazy" onerror="this.src='cardback/seal.jpg'" onclick="showCv(${c.id},'${isSeal?'seal':'mystic'}')">
+    <div class="ct-count">
+      <button onclick="modCount('${isSeal?'seal':'mystic'}',${c.id},-1)" ${canSub?'':'disabled'}>−</button>
+      <span class="ct-num">${cnt}</span>
+      <button onclick="modCount('${isSeal?'seal':'mystic'}',${c.id},1)" ${canAdd?'':'disabled'} title="${cnt}/${maxCopy}">+</button>
+    </div>
+    <div class="ct-body">
+      <div class="ct-name">${c.name}</div>
+      <div class="ct-info">${infoLine}</div>
+      <div class="ct-el ${elCls}">◆ ${elLabel}</div>
+    </div>`;
+  return div;
+}
+
+/* ── Deck render ── */
+function renderDeck(){
+  renderSection('seal');
+  renderSection('mystic');
+  updateCounters();
+}
+
+function renderSection(type){
+  const isSeal=type==='seal';
+  const counts=isSeal?sealCounts:mysticCounts;
+  const db=isSeal?SEAL_DB:MYSTIC_DB_LOCAL;
+  const cont=document.getElementById(isSeal?'deck-seals':'deck-mystics');
+  const maxCopy=isSeal?SEAL_COPY:MYSTIC_COPY;
+
+  const entries=Object.entries(counts).filter(([,v])=>v>0).map(([id,cnt])=>{
+    const c=db.find(x=>x.id===parseInt(id));
+    return c?{c,cnt}:null;
+  }).filter(Boolean).sort((a,b)=>a.c.name.localeCompare(b.c.name));
+
+  if(!entries.length){cont.innerHTML='<div class="deck-empty">ยังไม่มีการ์ด</div>';return;}
+  cont.innerHTML='';
+  entries.forEach(({c,cnt})=>{
+    const div=document.createElement('div');
+    div.className='deck-entry';
+    div.innerHTML=`
+      <img src="${c.img}" onerror="this.src='cardback/seal.jpg'" onclick="showCv(${c.id},'${type}')">
+      <div class="de-info">
+        <div class="de-name">${c.name}</div>
+        <div class="de-sub">${isSeal?`Lv${c.lv} · ${c.tribe} · ◆${c.el}`:`MC:${c.mc} · ${c.rarity||''}`}</div>
+      </div>
+      <div class="de-cnt">
+        <button onclick="modCount('${type}',${c.id},-1)">−</button>
+        <span>×${cnt}</span>
+        <button onclick="modCount('${type}',${c.id},1)" ${cnt>=maxCopy?'disabled':''}>+</button>
+      </div>`;
+    cont.appendChild(div);
+  });
+}
+
+function updateCounters(){
+  const sc=sealTotal(), mc=mysticTotal();
+  const sc_ok=sc>=SEAL_MIN, mc_ok=mc>=MYSTIC_MIN;
+  const el1=document.getElementById('ctr-seal'),el2=document.getElementById('ctr-mystic');
+  const es=document.getElementById('seal-count'),em=document.getElementById('mystic-count');
+  el1.textContent=`Seal ${sc}${sc_ok?' ✓':` / ${SEAL_MIN}`}`;el1.className='ctr '+(sc_ok?'ok':'bad');
+  el2.textContent=`Mystic ${mc}${mc_ok?' ✓':` / ${MYSTIC_MIN}`}`;el2.className='ctr '+(mc_ok?'ok':'bad');
+  es.textContent=`${sc}${sc_ok?' ✓':` / ${SEAL_MIN}`}`;es.className='count '+(sc_ok?'ok':'bad');
+  em.textContent=`${mc}${mc_ok?' ✓':` / ${MYSTIC_MIN}`}`;em.className='count '+(mc_ok?'ok':'bad');
+  document.getElementById('btn-save').disabled=!(sc_ok&&mc_ok);
+}
+
+/* ── Counts ── */
+function sealTotal(){return Object.values(sealCounts).reduce((a,b)=>a+b,0);}
+function mysticTotal(){return Object.values(mysticCounts).reduce((a,b)=>a+b,0);}
+
+function modCount(type,id,delta){
+  const isSeal=type==='seal';
+  const counts=isSeal?sealCounts:mysticCounts;
+  const maxCopy=isSeal?SEAL_COPY:MYSTIC_COPY;
+  const cur=counts[id]||0;
+  if(delta>0&&cur>=maxCopy)return;
+  if(delta<0&&cur<=0)return;
+  counts[id]=cur+delta;
+  if(counts[id]<=0)delete counts[id];
+  renderDeck();
+  renderPool();
+}
+
+/* ── Save / Load ── */
+function saveDeck(){
+  if(sealTotal()<SEAL_MIN||mysticTotal()<MYSTIC_MIN){
+    alert(`Deck ยังไม่ครบ!\nSeal: ${sealTotal()}/${SEAL_MIN}, Mystic: ${mysticTotal()}/${MYSTIC_MIN}`);
+    return;
+  }
+  const data={
+    seals:Object.entries(sealCounts).map(([id,count])=>({id:parseInt(id),count})),
+    mystics:Object.entries(mysticCounts).map(([id,count])=>({id:parseInt(id),count}))
+  };
+  localStorage.setItem('mm_playerDeck',JSON.stringify(data));
+  const btn=document.getElementById('btn-save');
+  btn.textContent='✓ Saved!';btn.style.background='#16a34a';
+  setTimeout(()=>{btn.textContent='💾 Save Deck';btn.style.background='';},2000);
+}
+
+function loadSaved(){
+  const s=localStorage.getItem('mm_playerDeck');
+  if(!s)return;
+  try{
+    const d=JSON.parse(s);
+    sealCounts={};(d.seals||[]).forEach(e=>{if(e.count>0)sealCounts[e.id]=e.count;});
+    mysticCounts={};(d.mystics||[]).forEach(e=>{if(e.count>0)mysticCounts[e.id]=e.count;});
+  }catch(e){}
+}
+
+/* ── Card viewer ── */
+function showCv(id,type){
+  const isSeal=type==='seal';
+  const c=isSeal?SEAL_DB.find(x=>x.id===id):MYSTIC_DB_LOCAL.find(x=>x.id===id);
+  if(!c)return;
+  document.getElementById('cv-img').src=c.img;
+  document.getElementById('cv-name').textContent=c.name;
+  if(isSeal){
+    document.getElementById('cv-tribe').textContent=`${c.tribe} · Lv${c.lv}`;
+    document.getElementById('cv-el').innerHTML=`<span style="color:${EL_COLOR[c.el]||'#fff'}">◆ ${c.el}</span>`;
+    document.getElementById('cv-stats').innerHTML=`At <b>${c.at}</b> &nbsp; Df <b>${c.df}</b> &nbsp; Sp <b>${c.sp}</b> &nbsp; 〔ลง ${c.mc} · ตี ${c.ma||1}〕`;
+    const txt=[];
+    if(c.skill_text)c.skill_text.forEach(t=>txt.push(t));
+    if(c.ability_text)c.ability_text.forEach(t=>txt.push(t));
+    document.getElementById('cv-text').innerHTML=txt.map(t=>`<div style="margin-bottom:3px">• ${t}</div>`).join('')||'<div style="color:#475569">—</div>';
+  }else{
+    document.getElementById('cv-tribe').textContent=`${c.subtype_name||''} · ${c.pasted||''} · ${c.rarity||''}`;
+    document.getElementById('cv-el').textContent='';
+    document.getElementById('cv-stats').innerHTML=`MC: <b>${c.mc}</b> &nbsp; Turns: <b>${c.turns===999?'∞':c.turns}</b> &nbsp; Interfere: <b>${c.interfere?'✔':'✘'}</b>`;
+    document.getElementById('cv-text').innerHTML=(c.ability_text||[]).map(t=>`<div style="margin-bottom:3px">• ${t}</div>`).join('')||'<div style="color:#475569">—</div>';
+  }
+  document.getElementById('cv').classList.add('on');
+}
+function closeCv(){document.getElementById('cv').classList.remove('on');}
+
+init();
+</script>
+</body>
+</html>
