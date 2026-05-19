@@ -144,8 +144,7 @@ function getCardSkills(fc){
   if(fc.card.id===47){
     const p=G.players[0];
     const hasBeast=p.hand.some(c=>c.tribe==='Beast');
-    const hasSpace=p.atLine.length<LINE_MAX||p.dfLine.length<LINE_MAX;
-    if(hasBeast&&hasSpace){
+    if(hasBeast){
       return [{label:'✦ [Skill] นำ [Beast] 1 ใบจากมือเข้าสนาม (Mp 2)',mp:2,type:'handPickBeast',effect:'handPickBeast'}];
     }
     return[];
@@ -297,6 +296,55 @@ function getCardSkills(fc){
     }
     return[];
   }
+  // ── Black Wiser (id=41): Interfere Mp drain ──
+  if(fc.card.id===41){
+    const skills=[];
+    skills.push({label:'✦ [Skill/Interfere] ฝ่ายตรงข้าม Mp -1 (Mp 2)',mp:2,type:'selfSkill',effect:'opponentMpDrain',drainAmt:1,interfere:true});
+    const fusedWithHellish=(fc.fused&&fc.fusionStack.some(m=>m.card.id===44))||fc.willMind;
+    if(fusedWithHellish)skills.push({label:'✦ [Skill/Interfere] ฝ่ายตรงข้าม Mp -2 (รวมกับ Hellish Bird) (Mp 3)',mp:3,type:'selfSkill',effect:'opponentMpDrain',drainAmt:2,interfere:true});
+    return skills;
+  }
+  // ── Hellish Bird (id=44): Last Dance Curse At+2/3T (Dark) or At+3/2T (Black Wiser) — At Line ──
+  if(fc.card.id===44){
+    const skills=[];
+    const fusedWithBW=(fc.fused&&fc.fusionStack.some(m=>m.card.id===41))||fc.willMind;
+    const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind;
+    if(fusedWithBW&&isOnAtLine(fc))skills.push({label:'✦ [Skill] Last Dance Curse At+3 / 2 Turn (Black Wiser) (Mp 3)',mp:3,type:'fieldTarget',effect:'lastDanceCurse',atBonus:3,turns:2,filter:t=>{const ai=G.players[1];return[...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance');}});
+    if(fusedWithDark&&isOnAtLine(fc))skills.push({label:'✦ [Skill] Last Dance Curse At+2 / 3 Turn (Dark) (Mp 2)',mp:2,type:'fieldTarget',effect:'lastDanceCurse',atBonus:2,turns:3,filter:t=>{const ai=G.players[1];return[...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance');}});
+    return skills;
+  }
+  // ── Succubus (id=45): Charm Curse 1 Turn — fused + At Line, non-Light ──
+  if(fc.card.id===45){
+    if((fc.fused||fc.willMind)&&isOnAtLine(fc))return[{label:'✦ [Skill] Charm Curse 1 Turn — Seal ที่ไม่ใช่ [Light] (Mp 2)',mp:2,type:'fieldTarget',effect:'charmCurse',turns:1,filter:t=>{const ai=G.players[1];return[...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&t.card.el!=='light'&&!t.curses?.some(c=>c.type==='charm');}}];
+    return[];
+  }
+  // ── Medusa (id=48): Stone ∞ (Earth,Mp3) or Poison 3T (Water,Mp2) — fused ──
+  if(fc.card.id===48){
+    const skills=[];
+    const fusedWithEarth=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='earth'))||fc.willMind;
+    const fusedWithWater=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='water'))||fc.willMind;
+    if(fusedWithEarth)skills.push({label:'✦ [Skill] Stone Curse ∞ — Seal ศัตรู Sp 1-4 (Mp 3)',mp:3,type:'fieldTarget',effect:'stoneCurse',turns:Infinity,filter:t=>{const ai=G.players[1];return[...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone');}});
+    if(fusedWithWater)skills.push({label:'✦ [Skill] Poison Curse 3 Turn — Seal ศัตรู Sp 1-3 (Mp 2)',mp:2,type:'fieldTarget',effect:'poisonCurse',turns:3,filter:t=>{const ai=G.players[1];return[...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison');}});
+    return skills;
+  }
+  // ── Siren (id=58): Charm Curse 2 Turn — fused+Dark+At Line, Sp 3-5 ──
+  if(fc.card.id===58){
+    const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind;
+    if(fusedWithDark&&isOnAtLine(fc))return[{label:'✦ [Skill] Charm Curse 2 Turn — Seal ศัตรู Sp 3-5 (Mp 2)',mp:2,type:'fieldTarget',effect:'charmCurse',turns:2,filter:t=>{const ai=G.players[1];return[...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='charm');}}];
+    return[];
+  }
+  // ── Harison, Knight of Pentacles (id=88): destroy Stone-cursed Seal — At Line, Mp 3 ──
+  if(fc.card.id===88){
+    const allField=[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
+    if(isOnAtLine(fc)&&allField.some(t=>t.uid!==fc.uid&&t.curses?.some(c=>c.type==='stone')))return[{label:'✦ [Skill] ทำลาย Seal ที่ติด Stone Curse (Mp 3)',mp:3,type:'fieldTarget',effect:'destroyTarget',filter:t=>t.uid!==fc.uid&&t.curses?.some(c=>c.type==='stone')}];
+    return[];
+  }
+  // ── Zadin, Knight of Wands (id=91): Dragon Strike ×2 At=8 — fused+Dragon+At Line, Mp 4 ──
+  if(fc.card.id===91){
+    const fusedWithDragon=(fc.fused&&fc.fusionStack.some(m=>m.card.tribe==='Dragon'))||fc.willMind;
+    if(fusedWithDragon&&isOnAtLine(fc)&&[...G.players[1].atLine,...G.players[1].dfLine].length>0)return[{label:'✦ [Skill] Dragon Strike ×2 At=8 (Mp 4)',mp:4,type:'selfSkill',effect:'zadinDoubleAttack'}];
+    return[];
+  }
   return[];
 }
 
@@ -315,17 +363,19 @@ function isSkillTarget(fc){
 
 function startSkillMode(fc,skillIdx){
   skillMode={fc,skillIdx};
+  playSound('Skill');
   log(`${fc.card.name} — เลือกเป้าหมายสกิล (คลิก ${getCardSkills(fc)[skillIdx]?.label||'Skill'})`,'hi');
   render();
 }
 
 function getInterfereSkills(){
   const p=G.players[0];
-  return [...p.atLine,...p.dfLine].flatMap(fc=>{
+  const charmedEnemy=[...G.players[1].atLine,...G.players[1].dfLine].filter(fc=>fc.charmed);
+  return [...p.atLine,...p.dfLine,...charmedEnemy].flatMap(fc=>{
     if(fc.hasUsedSkill)return[];
     return getCardSkills(fc)
       .map((skill,idx)=>({fc,skillIdx:idx,skill}))
-      .filter(({skill})=>skill.interfere&&p.mp>=skill.mp&&p.hand.length>0);
+      .filter(({skill})=>skill.interfere&&p.mp>=skill.mp&&(skill.type!=='handDiscard'||p.hand.length>0));
   });
 }
 
@@ -340,14 +390,12 @@ function executeHandPickBeast(card,idx){
   const {fc,skillIdx}=handPickMode;
   const p=G.players[0];
   const skill=getCardSkills(fc)[skillIdx];
-  if(!skill||p.mp<skill.mp){log('Mp ไม่พอ','bad');handPickMode=null;render();return;}
-  if(card.tribe!=='Beast'){log('ต้องเลือก [Beast] เท่านั้น','bad');return;}
-  const target=p.atLine.length<LINE_MAX?p.atLine:p.dfLine;
-  if(target.length>=LINE_MAX){log('สนามเต็ม!','bad');handPickMode=null;render();return;}
+  if(!skill||p.mp<skill.mp){logErr('Mp ไม่พอ');handPickMode=null;render();return;}
+  if(card.tribe!=='Beast'){logErr('ต้องเลือก [Beast] เท่านั้น');return;}
   showActionQueue(`${fc.card.name} [Skill] → นำ <b>${card.name}</b> ลงสนาม`,()=>{
     p.mp-=skill.mp;fc.hasUsedSkill=true;
     p.hand.splice(idx,1);
-    target.push(makeFieldCard(card,true));
+    p.atLine.push(makeFieldCard(card,true));
     log(`${fc.card.name} [Skill]: ${card.name} ลงสนามจากมือ!`,'good');
     handPickMode=null;checkLose();render();
   });
@@ -362,6 +410,7 @@ function openInterferePicker(){
 
 function startInterfereSkill(fc,skillIdx){
   handDiscardMode={fc,skillIdx};
+  playSound('Skill');
   log(`${fc.card.name} [Interfere] — เลือก Seal ในมือเพื่อทิ้ง`,'hi');
   render();
 }
@@ -371,12 +420,13 @@ function executeInterfere(card){
   const {fc,skillIdx}=handDiscardMode;
   const p=G.players[0];
   const skill=getCardSkills(fc)[skillIdx];
-  if(!skill||p.mp<skill.mp){log('Mp ไม่พอ','bad');handDiscardMode=null;render();return;}
+  if(!skill||p.mp<skill.mp){logErr('Mp ไม่พอ');handDiscardMode=null;render();return;}
   p.mp-=skill.mp;
   fc.hasUsedSkill=true;
   const hi=p.hand.indexOf(card);
   if(hi>=0)p.hand.splice(hi,1);
   p.shrine.push(card);
+  playSound('Flip');
   fc.atBoosts=(fc.atBoosts||[]);
   fc.atBoosts.push({amount:card.lv, expiresBeforeSubTurn: subTurnNum+2});
   log(`${fc.card.name} [Interfere]: ทิ้ง ${card.name} (Lv${card.lv}) → At +${card.lv} turn นี้!`,'good');
@@ -384,10 +434,30 @@ function executeInterfere(card){
   checkLose();render();
 }
 
+// Inline executor for interfere selfSkill — does NOT nest showActionQueue.
+// Called when pendingCb is already set (we're inside an action queue window).
+function executeInterfereSelfSkill(skillFC,skillIdx){
+  const p=G.players[0];
+  const skill=getCardSkills(skillFC)[skillIdx];
+  if(!skill||p.mp<skill.mp){logErr('Mp ไม่พอ');return;}
+  if(skill.effect==='opponentMpDrain'){
+    const amt=skill.drainAmt||1;
+    p.mp-=skill.mp;skillFC.hasUsedSkill=true;
+    playSound('Skill');
+    G.players[1].mp=Math.max(0,G.players[1].mp-amt);
+    log(`${skillFC.card.name} [Interfere]: ฝ่ายตรงข้าม Mp -${amt}!`,'good');
+    checkLose();render();
+    return;
+  }
+  // Fallback: effects that need a queue can't run inline — notify user
+  logErr(`${skillFC.card.name} [Interfere]: ใช้ได้เฉพาะนอก Action Queue`);
+}
+
 function executeSelfSkill(skillFC,skillIdx){
   const p=G.players[0];
   const skill=getCardSkills(skillFC)[skillIdx];
-  if(!skill||p.mp<skill.mp){log('Mp ไม่พอ','bad');return;}
+  if(!skill||p.mp<skill.mp){logErr('Mp ไม่พอ');return;}
+  playSound('Skill');
   if(skill.effect==='drawCard'){
     showActionQueue(`${skillFC.card.name} [Skill] จั่วการ์ด 1 ใบ`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
@@ -402,11 +472,7 @@ function executeSelfSkill(skillFC,skillIdx){
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
       // Return support seals to field
-      skillFC.fusionStack.forEach(mfc=>{
-        if(p.atLine.length<LINE_MAX)p.atLine.push(mfc);
-        else if(p.dfLine.length<LINE_MAX)p.dfLine.push(mfc);
-        else p.shrine.push(mfc.card);
-      });
+      skillFC.fusionStack.forEach(mfc=>{p.atLine.push(mfc);});
       // Remove Ghost Ship from field
       const rmA=p.atLine.findIndex(x=>x.uid===skillFC.uid);
       if(rmA>=0)p.atLine.splice(rmA,1);
@@ -428,10 +494,12 @@ function executeSelfSkill(skillFC,skillIdx){
         t.curses=(t.curses||[]);
         if(!t.curses.some(c=>c.type==='freeze'))t.curses.push({type:'freeze',expiresAtSubTurn:subTurnNum+2});
       });
+      playSound('Freeze');
       // Move frozen At Line seals to Df Line
       [...ai.atLine].forEach(t=>{
         const i=ai.atLine.findIndex(x=>x.uid===t.uid);
-        if(i>=0&&ai.dfLine.length<LINE_MAX){ai.atLine.splice(i,1);ai.dfLine.push(t);}
+        if(i<0)return;
+        ai.atLine.splice(i,1);ai.dfLine.push(t);
       });
       log(`${skillFC.card.name} [Skill]: ศัตรูทุกตัว (${allEnemy.length}) ติด Freeze Curse 1 Turn!`,'good');
       checkLose();render();
@@ -439,16 +507,16 @@ function executeSelfSkill(skillFC,skillIdx){
     return;
   }
   if(skill.effect==='shrineToHand'){
-    if(!p.shrine.length){log('Shrine ว่างเปล่า','bad');return;}
+    if(!p.shrine.length){logErr('Shrine ว่างเปล่า');return;}
     // Show shrine picker via fa-modal
     document.getElementById('fa-title').textContent=`${skillFC.card.name}: เลือกจาก Shrine`;
     const opts=document.getElementById('fa-opts');opts.innerHTML='';
-    p.shrine.forEach((card,i)=>{
+    p.shrine.forEach((card)=>{
       addFAOpt(`${card.name} (Lv${card.lv} At${card.at})`,()=>{
         closeFAModal();
         showActionQueue(`${skillFC.card.name} [Skill] → <b>${card.name}</b> จาก Shrine ขึ้นมือ`,()=>{
           p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-          if(p.hand.length>=getEffectiveHandMax(0)){log('มือเต็ม!','bad');return;}
+          if(p.hand.length>=getEffectiveHandMax(0)){logErr('มือเต็ม!');return;}
           const si=p.shrine.indexOf(card);
           if(si>=0)p.shrine.splice(si,1);
           p.hand.push(card);
@@ -465,7 +533,7 @@ function executeSelfSkill(skillFC,skillIdx){
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       const toMove=[...p.dfLine];
       p.dfLine.length=0;
-      toMove.forEach(fc=>{if(p.atLine.length<LINE_MAX)p.atLine.push(fc);else p.dfLine.push(fc);});
+      toMove.forEach(fc=>{p.atLine.push(fc);});
       log(`${skillFC.card.name} [Skill]: Seal ทุกใบย้ายไป At Line!`,'good');
       checkLose();render();
     });
@@ -506,14 +574,56 @@ function executeSelfSkill(skillFC,skillIdx){
         const owner=G.players[pi];
         const toPlay=[...owner.hand];
         owner.hand=[];
-        toPlay.forEach(card=>{
-          if(owner.atLine.length<LINE_MAX)owner.atLine.push(makeFieldCard(card,true));
-          else if(owner.dfLine.length<LINE_MAX)owner.dfLine.push(makeFieldCard(card,true));
-          else owner.hand.push(card);
-        });
+        toPlay.forEach(card=>{owner.atLine.push(makeFieldCard(card,true));});
       }
       log(`${skillFC.card.name} [Skill]: Reset สนาม! Seal ทุกใบกลับกองและวางใหม่จากมือ!`,'good');
       checkLose();render();
+    });
+    return;
+  }
+  // ── Black Wiser (41): drain opponent Mp ──
+  if(skill.effect==='opponentMpDrain'){
+    const amt=skill.drainAmt||1;
+    showActionQueue(`${skillFC.card.name} [Skill] ฝ่ายตรงข้าม Mp -${amt}`,()=>{
+      p.mp-=skill.mp;skillFC.hasUsedSkill=true;
+      G.players[1].mp=Math.max(0,G.players[1].mp-amt);
+      log(`${skillFC.card.name} [Skill]: ฝ่ายตรงข้าม Mp -${amt}!`,'good');
+      checkLose();render();
+    });
+    return;
+  }
+  // ── Zadin (91): double attack At=8 vs any enemy seal ──
+  if(skill.effect==='zadinDoubleAttack'){
+    function zadinDoHit(hitNum,done){
+      const current=[
+        ...G.players[1].atLine.map(fc=>({fc,line:'at'})),
+        ...G.players[1].dfLine.map(fc=>({fc,line:'df'}))
+      ];
+      if(!current.length){done();return;}
+      document.getElementById('fa-title').textContent=`Zadin [Skill] เลือกเป้าหมายครั้งที่ ${hitNum}/2`;
+      const opts=document.getElementById('fa-opts');opts.innerHTML='';
+      current.forEach(t=>{
+        addFAOpt(`${t.fc.card.name} [${t.line==='at'?'At':'Df'} Line]`,()=>{
+          closeFAModal();
+          showActionQueue(`${skillFC.card.name} [Skill] (${hitNum}/2) → ⚔ ${t.fc.card.name} [At=8]`,()=>{
+            combatAnim(skillFC,t.fc,8,t.line,false,()=>{
+              dealDamage(skillFC,t.fc,8,'Zadin Skill',0,1,t.line);
+              checkLose();render();done();
+            });
+          });
+        });
+      });
+      document.getElementById('fa-modal').classList.add('show');
+    }
+    showActionQueue(`${skillFC.card.name} [Skill] → Dragon Strike ×2 (At=8)`,()=>{
+      p.mp-=skill.mp;skillFC.hasUsedSkill=true;
+      zadinDoHit(1,()=>{
+        zadinDoHit(2,()=>{
+          skillFC.exhausted=true;skillFC.hasAttacked=true;
+          log(`${skillFC.card.name} [Skill]: โจมตีสำเร็จ 2 ครั้ง!`,'good');
+          checkLose();render();
+        });
+      });
     });
     return;
   }
@@ -533,7 +643,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
   const skills=getCardSkills(skillFC);
   const skill=skills[skillIdx];
   if(!skill)return;
-  if(p.mp<skill.mp){log('Mp ไม่พอ','bad');skillMode=null;render();return;}
+  if(p.mp<skill.mp){logErr('Mp ไม่พอ');skillMode=null;render();return;}
   skillMode=null;
 
   if(skill.effect==='healCurse'){
@@ -551,7 +661,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     showActionQueue(`${skillFC.card.name} [Skill] → ทำลาย <b>${targetFC.card.name}</b>`,()=>{
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
-      sendToShrine(targetFC,targetPi);
+      destroyByEffect(targetFC,targetPi);
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ถูกทำลาย!`,'good');
       checkLose();render();
     });
@@ -562,7 +672,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     showActionQueue(`${skillFC.card.name} [Skill] → ☠ Death Curse <b>${targetFC.card.name}</b>`,()=>{
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
-      sendToShrine(targetFC,targetPi);
+      destroyByEffect(targetFC,targetPi);
       log(`${skillFC.card.name} [Skill]: ☠ Death Curse → ${targetFC.card.name} ถูกทำลายทันที!`,'good');
       checkLose();render();
     });
@@ -576,6 +686,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);
       targetFC.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+(turns*2)});
+      playSound('Poison');
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ติด Poison Curse ${turns} Turn!`,'good');
       checkLose();render();
     });
@@ -584,12 +695,14 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
 
   if(skill.effect==='stoneCurse'){
     const turns=skill.turns||1;
-    showActionQueue(`${skillFC.card.name} [Skill] → <b>${targetFC.card.name}</b> ติด 🪨Stone Curse ${turns} Turn`,()=>{
+    const turnsLabel=turns===Infinity?'∞':`${turns}`;
+    showActionQueue(`${skillFC.card.name} [Skill] → <b>${targetFC.card.name}</b> ติด 🪨Stone Curse ${turnsLabel} Turn`,()=>{
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);
-      targetFC.curses.push({type:'stone',expiresAtSubTurn:subTurnNum+(turns*2)});
-      log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ติด Stone Curse ${turns} Turn — สั่งการไม่ได้!`,'good');
+      targetFC.curses.push({type:'stone',expiresAtSubTurn:turns===Infinity?Infinity:subTurnNum+(turns*2)});
+      playSound('Stone');
+      log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ติด Stone Curse ${turnsLabel} Turn — สั่งการไม่ได้!`,'good');
       checkLose();render();
     });
     return;
@@ -602,11 +715,12 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);
       targetFC.curses.push({type:'freeze',expiresAtSubTurn:subTurnNum+(turns*2)});
+      playSound('Freeze');
       // Force to Df Line
       const owner=G.players[targetPi];
       if(targetLine==='at'){
         const i=owner.atLine.findIndex(x=>x.uid===targetFC.uid);
-        if(i>=0){owner.atLine.splice(i,1);if(owner.dfLine.length<LINE_MAX)owner.dfLine.push(targetFC);}
+        if(i>=0){owner.atLine.splice(i,1);owner.dfLine.push(targetFC);}
       }
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ติด Freeze Curse ${turns} Turn — ถูกย้ายไป Df Line!`,'good');
       checkLose();render();
@@ -622,6 +736,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);
       targetFC.curses.push({type:'lastDance',atBonus,expiresAtSubTurn:subTurnNum+(turns*2)});
+      playSound('Skill');
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} Last Dance Curse — At+${atBonus} แล้วถูกทำลายใน ${turns} Turn!`,'good');
       checkLose();render();
     });
@@ -637,6 +752,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       targetFC.curses=(targetFC.curses||[]);
       targetFC.curses.push({type:'charm',expiresAtSubTurn:subTurnNum+(turns*2)});
       targetFC.exhausted=false;targetFC.hasUsedSkill=false;
+      playSound('Charm');
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ติด Charm Curse — อยู่ภายใต้การควบคุมของเรา ${turns} Turn!`,'good');
       checkLose();render();
     });
@@ -725,7 +841,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     const mc=targetFC.card.mc;
     showActionQueue(`${skillFC.card.name} [Skill] → Sacrifice <b>${targetFC.card.name}</b> (Mc=${mc})`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      sendToShrine(targetFC,0);
+      destroyByEffect(targetFC,0);
       pendingSacrifice={skillFC,mc};
       skillMode={fc:skillFC,skillIdx:-99};
       log(`${skillFC.card.name} [Skill]: Sacrifice ${targetFC.card.name}! เลือก Seal ที่จะ +At${mc} (1 Turn)...`,'hi');
@@ -754,7 +870,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
 
 function clickAIHandCard(idx){
   if(!handTargetMode||!attackerSeal)return;
-  if(handAttackedThisTurn){log('โจมตีมือได้แค่ครั้งเดียวต่อเทิร์น','bad');cancelAction();return;}
+  if(handAttackedThisTurn){logErr('โจมตีมือได้แค่ครั้งเดียวต่อเทิร์น');cancelAction();return;}
   const ai=G.players[1];
   if(idx>=ai.hand.length)return;
   const card=ai.hand[idx];

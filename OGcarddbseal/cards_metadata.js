@@ -74,7 +74,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text[": ["[Skill]- รักษา Curse ทุกชนิดให้กับ Seal 1 ใบ (Mp 1)"],
+      "skill_text[": [
+        "[Skill]- รักษา Curse ทุกชนิดให้กับ Seal 1 ใบ (Mp 1)"
+      ],
       "collector_number": "2/95",
       "illustrator": "Poripol Rakboonyuang",
       "ability_text": ""
@@ -107,9 +109,10 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text":["[Skill]- นำ [Dark] 1 ใบในสนามเข้ากองการ์ด จากนั้นสลับกองการ์ดนั้น (Mp 2)",
-
-"[Skill]- นำ [Dark] และ/หรือ [Evil] 1 ใบในสนามเข้ากองการ์ด จากนั้นสลับกองการ์ดนั้น เมื่อ Fairy Music Box รวมร่าง (Mp 2)"],
+      "skill_text": [
+        "[Skill]- นำ [Dark] 1 ใบในสนามเข้ากองการ์ด จากนั้นสลับกองการ์ดนั้น (Mp 2)",
+        "[Skill]- นำ [Dark] และ/หรือ [Evil] 1 ใบในสนามเข้ากองการ์ด จากนั้นสลับกองการ์ดนั้น เมื่อ Fairy Music Box รวมร่าง (Mp 2)"
+      ],
       "collector_number": "3/95",
       "illustrator": "Sopon Pinsarai",
       "ability_text": ""
@@ -155,7 +158,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "4/95",
       "illustrator": "Poripol Rakboonyuang",
-      "ability_text": ["ผลของ Mystic Card ประเภท [Tarot]: The Moon ที่ติดบน White Werewolf ให้ผล 2 เท่า"]
+      "ability_text": [
+        "ผลของ Mystic Card ประเภท [Tarot]: The Moon ที่ติดบน White Werewolf ให้ผล 2 เท่า"
+      ]
     },
     {
       "id": 5,
@@ -195,7 +200,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- ทำลาย [Evil] 1 ใบในสนาม (At Line) (Mp 3)"],
+      "skill_text": [
+        "[Skill]- ทำลาย [Evil] 1 ใบในสนาม (At Line) (Mp 3)"
+      ],
       "collector_number": "5/95",
       "illustrator": "Poripol Rakboonyuang",
       "ability_text": ""
@@ -238,7 +245,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- Seal 1 ใบที่มี Sp 3, 4, 5 ติด Last Dance Curse At +2 / 2 Turn เมื่อ Infernos รวมร่างกับ [Dark] (At Line) (Mp 2)"],
+      "skill_text": [
+        "[Skill]- Seal 1 ใบที่มี Sp 3, 4, 5 ติด Last Dance Curse At +2 / 2 Turn เมื่อ Infernos รวมร่างกับ [Dark] (At Line) (Mp 2)"
+      ],
       "collector_number": "6/95",
       "illustrator": "Pongtham Nantapan",
       "ability_text": ""
@@ -281,7 +290,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text":["[Skill]- Seal 1 ใบที่มี Sp 3, 4, 5 ติด Poison Curse 3 Turn เมื่อ Desert Chimara รวมร่างกับ [Dark] (At Line) (Mp 2)"],
+      "skill_text": [
+        "[Skill]- Seal 1 ใบที่มี Sp 3, 4, 5 ติด Poison Curse 3 Turn เมื่อ Desert Chimara รวมร่างกับ [Dark] (At Line) (Mp 2)"
+      ],
       "collector_number": "7/95",
       "illustrator": "Pongtham Nantapan",
       "ability_text": ""
@@ -327,7 +338,52 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "8/95",
       "illustrator": "Pongtham Nantapan",
-      "ability_text":["เมื่อ Volcanic Minotaur ตก Shrine จากสนาม Seal ทุกใบในสนามฝ่ายตรงข้ามแยกการรวมร่าง"]
+      "ability_text": [
+        "เมื่อ Volcanic Minotaur ตก Shrine จากสนาม Seal ทุกใบในสนามฝ่ายตรงข้ามแยกการรวมร่าง"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Centaur Ranger",
+      "path": "OGcarddbseal/card_9.jpg",
+      "lv": 2,
+      "at": 7,
+      "df": 8,
+      "spd": 4,
+      "mp_deploy": 3,
+      "mp_attack": 1,
+      "element": [
+        "earth"
+      ],
+      "tribe": [
+        "Knight"
+      ],
+      "fusions": [
+        {
+          "require": "earth",
+          "require_type": "element",
+          "count": 1,
+          "atk_name": "Rushing Stub",
+          "atk_at": 9,
+          "atk_df": null,
+          "atk_mp": 2,
+          "atk_all": false
+        },
+        {
+          "require": "earth",
+          "require_type": "element",
+          "count": 2,
+          "atk_name": "Meteoric Pierce",
+          "atk_at": 10,
+          "atk_df": null,
+          "atk_mp": 3,
+          "atk_all": false
+        }
+      ],
+      "skill_text": null,
+      "ability_text": [
+        "ขณะที่ Centaur Ranger ต่อสู้กับ Seal ที่มี Sp น้อยกว่า Centaur Ranger Centaur Ranger At +2"
+      ]
     },
     {
       "id": 10,
@@ -370,7 +426,10 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "10/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["เมื่อ Scalo โจมตี Seal ที่รวมร่าง เราสามารถใช้ Df ของ Scalo เทียบกับค่าพลังของ Seal ที่ถูกโจมตี","Scalo สามารถโจมตีจาก Df Line ได้"]
+      "ability_text": [
+        "เมื่อ Scalo โจมตี Seal ที่รวมร่าง เราสามารถใช้ Df ของ Scalo เทียบกับค่าพลังของ Seal ที่ถูกโจมตี",
+        "Scalo สามารถโจมตีจาก Df Line ได้"
+      ]
     },
     {
       "id": 11,
@@ -410,7 +469,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- Seal 1 ใบที่มี Sp 1, 2, 3, 4 ติด Stone Curse 1 Turn เมื่อ Cockatrice รวมร่าง (Mp 2)"],
+      "skill_text": [
+        "[Skill]- Seal 1 ใบที่มี Sp 1, 2, 3, 4 ติด Stone Curse 1 Turn เมื่อ Cockatrice รวมร่าง (Mp 2)"
+      ],
       "collector_number": "11/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": ""
@@ -453,8 +514,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- Seal 1 ใบที่มี Sp 1, 2, 3 ติด Charm Curse 3 Turn เมื่อ Jiu Wei Hu Le รวมร่างกับ [Dark] (Mp 2)"]
-      ,
+      "skill_text": [
+        "[Skill]- Seal 1 ใบที่มี Sp 1, 2, 3 ติด Charm Curse 3 Turn เมื่อ Jiu Wei Hu Le รวมร่างกับ [Dark] (Mp 2)"
+      ],
       "collector_number": "12/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": ""
@@ -500,7 +562,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "13/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["ขณะที่ Magamouth ต่อสู้กับ Seal ที่รวมร่าง Magamouth Df +1"]
+      "ability_text": [
+        "ขณะที่ Magamouth ต่อสู้กับ Seal ที่รวมร่าง Magamouth Df +1"
+      ]
     },
     {
       "id": 14,
@@ -543,7 +607,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "14/95",
       "illustrator": "Menai Rakhboonyuang",
-      "ability_text": ["ตราบเท่าที่มี Coy Crab ตั้งแต่ 2 ใบขึ้นไปในสนามฝ่ายเรา Seal ทุกใบในสนามฝ่ายตรงข้าม Sp = 0"]
+      "ability_text": [
+        "ตราบเท่าที่มี Coy Crab ตั้งแต่ 2 ใบขึ้นไปในสนามฝ่ายเรา Seal ทุกใบในสนามฝ่ายตรงข้าม Sp = 0"
+      ]
     },
     {
       "id": 15,
@@ -583,7 +649,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- Seal 1 ใบที่มี Sp 2, 3, 4 ติด Freeze Curse 1 Turn เมื่อ Armadillon รวมร่าง (At Line) (Mp 2)"],
+      "skill_text": [
+        "[Skill]- Seal 1 ใบที่มี Sp 2, 3, 4 ติด Freeze Curse 1 Turn เมื่อ Armadillon รวมร่าง (At Line) (Mp 2)"
+      ],
       "collector_number": "15/95",
       "illustrator": "Pongtham Nantapan",
       "ability_text": ""
@@ -626,7 +694,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- นำ Ghost Ship กลับเข้ากองการ์ด จากนั้นสลับกองการ์ดนั้น เมื่อ Ghost Ship อยู่ในท่า Double Combination (Mp 0)"],
+      "skill_text": [
+        "[Skill]- นำ Ghost Ship กลับเข้ากองการ์ด จากนั้นสลับกองการ์ดนั้น เมื่อ Ghost Ship อยู่ในท่า Double Combination (Mp 0)"
+      ],
       "collector_number": "16/95",
       "illustrator": "Pongtham Nantapan",
       "ability_text": ""
@@ -670,10 +740,12 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- ผู้เล่นฝ่ายตรงข้าม 1 คน ทิ้ง Mystic Card 1 ใบในมือแบบสุ่ม เมื่อ Francessca, the Angel of Swords รวมร่าง (At Line) (Mp 3)"],
+      "skill_text": [
+        "[Skill]- ผู้เล่นฝ่ายตรงข้าม 1 คน ทิ้ง Mystic Card 1 ใบในมือแบบสุ่ม เมื่อ Francessca, the Angel of Swords รวมร่าง (At Line) (Mp 3)"
+      ],
       "collector_number": "20/95",
       "illustrator": "Kasaemsun Boorijongruk",
-      "ability_text":""
+      "ability_text": ""
     },
     {
       "id": 22,
@@ -713,7 +785,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- ผู้เล่น 1 คนจั่วการ์ด 1 ใบ (Df Line) (Mp 3)"],
+      "skill_text": [
+        "[Skill]- ผู้เล่น 1 คนจั่วการ์ด 1 ใบ (Df Line) (Mp 3)"
+      ],
       "collector_number": "22/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": ""
@@ -759,7 +833,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "23/95",
       "illustrator": "Pongtham Nantapan",
-      "ability_text": ["ตราบเท่าที่ Akim รวมร่าง Seal ทุกใบในสนามฝ่ายเรา Sp = 4"]
+      "ability_text": [
+        "ตราบเท่าที่ Akim รวมร่าง Seal ทุกใบในสนามฝ่ายเรา Sp = 4"
+      ]
     },
     {
       "id": 28,
@@ -799,10 +875,56 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- Seal 1 ใบที่มี Sp 1, 2, 3 ติด Death Curse เมื่อ Benshee รวมร่างกับ [Dark] (At Line) (Mp 3)"],
+      "skill_text": [
+        "[Skill]- Seal 1 ใบที่มี Sp 1, 2, 3 ติด Death Curse เมื่อ Benshee รวมร่างกับ [Dark] (At Line) (Mp 3)"
+      ],
       "collector_number": "28/95",
       "illustrator": "Poripol Rakboonyuang",
       "ability_text": ""
+    },
+    {
+      "id": 41,
+      "name": "Black Wiser",
+      "path": "OGcarddbseal/card_41.jpg",
+      "lv": 2,
+      "at": 6,
+      "df": 7,
+      "spd": 3,
+      "mp_deploy": 2,
+      "mp_attack": 1,
+      "element": [
+        "darkness"
+      ],
+      "tribe": [
+        "Mage"
+      ],
+      "fusions": [
+        {
+          "require": "darkness",
+          "require_type": "element",
+          "count": 1,
+          "atk_name": "Dark Purpose",
+          "atk_at": 9,
+          "atk_df": null,
+          "atk_mp": 2,
+          "atk_all": false
+        },
+        {
+          "require": "Hellish Bird",
+          "require_type": "card",
+          "count": 1,
+          "atk_name": "Dark Damn ( )",
+          "atk_at": 7,
+          "atk_df": null,
+          "atk_mp": 3,
+          "atk_all": true
+        }
+      ],
+      "skill_text": [
+        "[Skill]- ผู้เล่นฝ่ายตรงข้าม 1 คน Mp -1 Interfere (Mp 2)",
+        "[Skill]- ผู้เล่นฝ่ายตรงข้าม 1 คน Mp -2 เมื่อ Black Wiser รวมร่างกับ Hellish Bird Interfere (Mp 3)"
+      ],
+      "ability_text": null
     },
     {
       "id": 42,
@@ -832,10 +954,14 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- Seal 1 ใบที่มี Sp 2, 3, 4, 5 ติด Poison Curse 1 Turn เมื่อ Mysterious Elephant รวมร่าง (At Line) (Mp 3)"],
+      "skill_text": [
+        "[Skill]- Seal 1 ใบที่มี Sp 2, 3, 4, 5 ติด Poison Curse 1 Turn เมื่อ Mysterious Elephant รวมร่าง (At Line) (Mp 3)"
+      ],
       "collector_number": "42/95",
       "illustrator": "Pongtham Nantapan",
-      "ability_text": ["ผู้เล่นไม่สามารถสั่ง Seal ที่รวมร่างโจมตี Mysterious Elephant ได้"]
+      "ability_text": [
+        "ผู้เล่นไม่สามารถสั่ง Seal ที่รวมร่างโจมตี Mysterious Elephant ได้"
+      ]
     },
     {
       "id": 43,
@@ -878,7 +1004,96 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "43/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text":["เมื่อ Stone Lizard โจมตีสำเร็จ Stone Lizard ติด Stone Curse จนจบ Subturn โจมตีต่อไปของเรา"]
+      "ability_text": [
+        "เมื่อ Stone Lizard โจมตีสำเร็จ Stone Lizard ติด Stone Curse จนจบ Subturn โจมตีต่อไปของเรา"
+      ]
+    },
+    {
+      "id": 44,
+      "name": "Hellish Bird",
+      "path": "OGcarddbseal/card_44.jpg",
+      "lv": 1,
+      "at": 6,
+      "df": 6,
+      "spd": 4,
+      "mp_deploy": 2,
+      "mp_attack": 1,
+      "element": [
+        "darkness"
+      ],
+      "tribe": [
+        "Evil"
+      ],
+      "fusions": [
+        {
+          "require": "darkness",
+          "require_type": "element",
+          "count": 1,
+          "atk_name": "Dark Dance",
+          "atk_at": 8,
+          "atk_df": null,
+          "atk_mp": 2,
+          "atk_all": false
+        },
+        {
+          "require": "Black Wiser",
+          "require_type": "card",
+          "count": 1,
+          "atk_name": "End Energy",
+          "atk_at": 9,
+          "atk_df": null,
+          "atk_mp": 2,
+          "atk_all": false
+        }
+      ],
+      "skill_text": [
+        "[Skill]- Seal 1 ใบที่มี Sp 1, 2, 3, 4 ติด Last Dance Curse At +2 / 3 Turn เมื่อ Hellish Bird รวมร่างกับ [Dark] (At Line) (Mp 2)",
+        "[Skill]- Seal 1 ใบที่มี Sp 1, 2, 3 ติด Last Dance Curse At +3 / 2 Turn เมื่อ Hellish Bird รวมร่างกับ Black Wiser (At Line) (Mp 3)"
+      ],
+      "ability_text": null
+    },
+    {
+      "id": 45,
+      "name": "Succubus",
+      "path": "OGcarddbseal/card_45.jpg",
+      "lv": 2,
+      "at": 6,
+      "df": 6,
+      "spd": 3,
+      "mp_deploy": 2,
+      "mp_attack": 1,
+      "element": [
+        "darkness"
+      ],
+      "tribe": [
+        "Evil"
+      ],
+      "fusions": [
+        {
+          "require": "darkness",
+          "require_type": "element",
+          "count": 1,
+          "atk_name": "My Desire",
+          "atk_at": 8,
+          "atk_df": null,
+          "atk_mp": 2,
+          "atk_all": false
+        },
+        {
+          "require": "darkness",
+          "require_type": "element",
+          "count": 2,
+          "atk_name": "More Desire",
+          "atk_at": 9,
+          "atk_df": null,
+          "atk_mp": 2,
+          "atk_all": false
+        }
+      ],
+      "skill_text": [
+        "[Skill]- Seal ที่ไม่ใช่ [Light] 1 ใบที่มี Sp 1, 2, 3, 4, 5 ติด Charm Curse 1 Turn เมื่อ Succubus รวมร่าง (At Line) (Mp 2)"
+      ],
+      "ability_text": null
     },
     {
       "id": 46,
@@ -908,7 +1123,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text":["[Skill]- Seal 1 ใบฝ่ายตรงข้ามที่มี At น้อยที่สุด ติด Death Curse เมื่อมี Seal ตั้งแต่ 2 ใบขึ้นไปในสนามฝ่ายตรงข้าม (At Line) (Mp 2)"],
+      "skill_text": [
+        "[Skill]- Seal 1 ใบฝ่ายตรงข้ามที่มี At น้อยที่สุด ติด Death Curse เมื่อมี Seal ตั้งแต่ 2 ใบขึ้นไปในสนามฝ่ายตรงข้าม (At Line) (Mp 2)"
+      ],
       "collector_number": "46/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": ""
@@ -951,10 +1168,56 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- นำ [Beast] 1 ใบเข้ามาในสนามจากมือเรา (Mp 2)"],
+      "skill_text": [
+        "[Skill]- นำ [Beast] 1 ใบเข้ามาในสนามจากมือเรา (Mp 2)"
+      ],
       "collector_number": "47/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": ""
+    },
+    {
+      "id": 48,
+      "name": "Medusa",
+      "path": "OGcarddbseal/card_48.jpg",
+      "lv": 2,
+      "at": 4,
+      "df": 5,
+      "spd": 2,
+      "mp_deploy": 1,
+      "mp_attack": 1,
+      "element": [
+        "earth"
+      ],
+      "tribe": [
+        "Monster"
+      ],
+      "fusions": [
+        {
+          "require": "earth",
+          "require_type": "element",
+          "count": 1,
+          "atk_name": "Stone Sight",
+          "atk_at": null,
+          "atk_df": 6,
+          "atk_mp": 1,
+          "atk_all": false
+        },
+        {
+          "require": "water",
+          "require_type": "element",
+          "count": 1,
+          "atk_name": "Venom Hair",
+          "atk_at": 7,
+          "atk_df": null,
+          "atk_mp": 1,
+          "atk_all": false
+        }
+      ],
+      "skill_text": [
+        "[Skill]- Seal 1 ใบที่มี Sp 1, 2, 3, 4 ติด Stone Curse Infinity Turn เมื่อ Medusa รวมร่างกับ [Earth] (Mp 3)",
+        "[Skill]- Seal 1 ใบที่มี Sp 1, 2, 3 ติด Poison Curse 3 Turn เมื่อ Medusa รวมร่างกับ [Water] (Mp 2)"
+      ],
+      "ability_text": null
     },
     {
       "id": 49,
@@ -967,7 +1230,7 @@ const CARDS_METADATA = {
       "mp_deploy": 3,
       "mp_attack": 2,
       "element": [
-        "water"
+        "darkness"
       ],
       "tribe": [
         "Beast"
@@ -999,7 +1262,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "49/95",
       "illustrator": "",
-      "ability_text": ["Cerberus สามารถโจมตี Seal ใบรองรวมร่างได้"]
+      "ability_text": [
+        "Cerberus สามารถโจมตี Seal ใบรองรวมร่างได้"
+      ]
     },
     {
       "id": 50,
@@ -1039,10 +1304,14 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- Seal 1 ใบที่มี Sp 3, 4, 5 ติด Poison Curse 2 Turn เมื่อ Hydra of Warok รวมร่าง (At Line) (Mp 2)"],
+      "skill_text": [
+        "[Skill]- Seal 1 ใบที่มี Sp 3, 4, 5 ติด Poison Curse 2 Turn เมื่อ Hydra of Warok รวมร่าง (At Line) (Mp 2)"
+      ],
       "collector_number": "50/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["ขณะที่ Hydra of Warok ต่อสู้กับ [Earth] Hydra of Warok At -3"]
+      "ability_text": [
+        "ขณะที่ Hydra of Warok ต่อสู้กับ [Earth] Hydra of Warok At -3"
+      ]
     },
     {
       "id": 51,
@@ -1085,7 +1354,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "51/95",
       "illustrator": "Phenomenon Party",
-      "ability_text": ["Seal ที่มี Sp น้อยกว่า Brigitte, the Valkyrie ไม่สามารถโจมตี Brigitte, the Valkyrie ได้"]
+      "ability_text": [
+        "Seal ที่มี Sp น้อยกว่า Brigitte, the Valkyrie ไม่สามารถโจมตี Brigitte, the Valkyrie ได้"
+      ]
     },
     {
       "id": 52,
@@ -1128,7 +1399,10 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "52/95",
       "illustrator": "Poripol Rakboonyuang",
-      "ability_text": ["ตราบเท่าที่ Centaur Scout อยู่ที่ At Line ต้องโจมตีข้ามไปยัง Seal ฝ่ายตรงข้ามที่อยู่ใน Df Line","ตราบเท่าที่ Centaur Scout อยู่ที่ Df Line ต้องโจมตีข้ามไปยัง Seal ฝ่ายตรงข้ามที่อยู่ใน At Line"]
+      "ability_text": [
+        "ตราบเท่าที่ Centaur Scout อยู่ที่ At Line ต้องโจมตีข้ามไปยัง Seal ฝ่ายตรงข้ามที่อยู่ใน Df Line",
+        "ตราบเท่าที่ Centaur Scout อยู่ที่ Df Line ต้องโจมตีข้ามไปยัง Seal ฝ่ายตรงข้ามที่อยู่ใน At Line"
+      ]
     },
     {
       "id": 53,
@@ -1172,7 +1446,8 @@ const CARDS_METADATA = {
       "collector_number": "53/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": "[Skill]- เมื่อผู้เล่นฝ่ายตรงข้ามสั่ง Seal รวมร่าง นำ Gale Garuda เข้ามาที่ At Line จากมือ จากนั้นสั่ง Gale Garuda โจมตี Seal ที่กำลังรวมร่าง Interfere (Mp 4)"
-    },  {
+    },
+    {
       "id": 54,
       "name": "Titania",
       "path": "OGcarddbseal/card_54.jpg",
@@ -1210,10 +1485,55 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text":["[Skill]- ทำลาย Mystic Card 1 ใบในสนาม เมื่อ Titania รวมร่างกับ [Light] (Mp 2)"],
+      "skill_text": [
+        "[Skill]- ทำลาย Mystic Card 1 ใบในสนาม เมื่อ Titania รวมร่างกับ [Light] (Mp 2)"
+      ],
       "collector_number": "54/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": ""
+    },
+    {
+      "id": 55,
+      "name": "Black Night Griffin",
+      "path": "OGcarddbseal/card_55.jpg",
+      "lv": 2,
+      "at": 7,
+      "df": 8,
+      "spd": 3,
+      "mp_deploy": 3,
+      "mp_attack": 1,
+      "element": [
+        "darkness"
+      ],
+      "tribe": [
+        "Beast"
+      ],
+      "fusions": [
+        {
+          "require": "darkness",
+          "require_type": "element",
+          "count": 1,
+          "atk_name": "Shadow Scratch",
+          "atk_at": 9,
+          "atk_df": null,
+          "atk_mp": 2,
+          "atk_all": false
+        },
+        {
+          "require": "wind",
+          "require_type": "element",
+          "count": 1,
+          "atk_name": "Misty Wing",
+          "atk_at": 10,
+          "atk_df": null,
+          "atk_mp": 3,
+          "atk_all": false
+        }
+      ],
+      "skill_text": null,
+      "ability_text": [
+        "[Beast] ใบอื่นทุกใบในสนามฝ่ายเรา At +1"
+      ]
     },
     {
       "id": 56,
@@ -1256,7 +1576,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "56/95",
       "illustrator": "Nutt Punkabutz",
-      "ability_text":["เมื่อเข้าสู่ Mp Clean Up Step ของฝ่ายตรงข้าม เรา +Mp ตาม Mp ที่เหลือของฝ่ายตรงข้าม(ถ้ามี Vioria, the Frigid Witch ตั้งแต่ 2 ใบขึ้นไปในสนามฝ่ายเราให้เลือก Ability นี้ทำงานได้เพียง 1 ใบเท่านั้น)"]
+      "ability_text": [
+        "เมื่อเข้าสู่ Mp Clean Up Step ของฝ่ายตรงข้าม เรา +Mp ตาม Mp ที่เหลือของฝ่ายตรงข้าม(ถ้ามี Vioria, the Frigid Witch ตั้งแต่ 2 ใบขึ้นไปในสนามฝ่ายเราให้เลือก Ability นี้ทำงานได้เพียง 1 ใบเท่านั้น)"
+      ]
     },
     {
       "id": 57,
@@ -1299,7 +1621,52 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "57/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["เมื่อ Mor Mercenary โจมตี เราสามารถเลือกให้ Mor Mercenary เทียบค่าพลังของ Mor Mercenary กับ At หรือ Df ของ Seal ที่ถูกโจมตี"]
+      "ability_text": [
+        "เมื่อ Mor Mercenary โจมตี เราสามารถเลือกให้ Mor Mercenary เทียบค่าพลังของ Mor Mercenary กับ At หรือ Df ของ Seal ที่ถูกโจมตี"
+      ]
+    },
+    {
+      "id": 58,
+      "name": "Siren",
+      "path": "OGcarddbseal/card_58.jpg",
+      "lv": 1,
+      "at": 4,
+      "df": 5,
+      "spd": 3,
+      "mp_deploy": 1,
+      "mp_attack": 1,
+      "element": [
+        "water"
+      ],
+      "tribe": [
+        "Beast"
+      ],
+      "fusions": [
+        {
+          "require": "darkness",
+          "require_type": "element",
+          "count": 1,
+          "atk_name": "Enchanting Song",
+          "atk_at": 6,
+          "atk_df": null,
+          "atk_mp": 1,
+          "atk_all": false
+        },
+        {
+          "require": "water",
+          "require_type": "element",
+          "count": 2,
+          "atk_name": "Sonic Wave",
+          "atk_at": 9,
+          "atk_df": null,
+          "atk_mp": 2,
+          "atk_all": false
+        }
+      ],
+      "skill_text": [
+        "[Skill]- Seal 1 ใบที่มี Sp 3, 4, 5 ติด Charm Curse 2 Turn เมื่อ Siren รวมร่างกับ [Dark] (At Line) (Mp 2)"
+      ],
+      "ability_text": null
     },
     {
       "id": 59,
@@ -1339,10 +1706,14 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- Seal 1 ใบในสนาม Sp +1 จนจบ Subturn Interfere (Mp 2)"],
+      "skill_text": [
+        "[Skill]- Seal 1 ใบในสนาม Sp +1 จนจบ Subturn Interfere (Mp 2)"
+      ],
       "collector_number": "59/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["[Beast] ใบอื่นทุกใบในสนามฝ่ายเรา Sp +1"]
+      "ability_text": [
+        "[Beast] ใบอื่นทุกใบในสนามฝ่ายเรา Sp +1"
+      ]
     },
     {
       "id": 60,
@@ -1382,7 +1753,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- สั่ง Felasia Dragoon โจมตี 2 ครั้ง ★ ครั้งที่ 1 At = 9 ★ ครั้งที่ 2 At ปกติของ [Dragon] ที่เป็น Seal ใบรองรวมร่างของ Felasia Dragoon เมื่อ Felasia Dragoon รวมร่างกับ [Dragon] (At Line) (Mp 3)"],
+      "skill_text": [
+        "[Skill]- สั่ง Felasia Dragoon โจมตี 2 ครั้ง ★ ครั้งที่ 1 At = 9 ★ ครั้งที่ 2 At ปกติของ [Dragon] ที่เป็น Seal ใบรองรวมร่างของ Felasia Dragoon เมื่อ Felasia Dragoon รวมร่างกับ [Dragon] (At Line) (Mp 3)"
+      ],
       "collector_number": "60/95",
       "illustrator": "Pongtham Nantapan",
       "ability_text": []
@@ -1418,7 +1791,10 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "62/95",
       "illustrator": "Britana Eaimchan",
-      "ability_text": ["ตราบเท่าที่ Seal ในสนามฝ่ายตรงข้ามมากกว่าเรา Evil Fire Warrior At +3","ตราบเท่าที่ Seal ในสนามฝ่ายตรงข้ามน้อยกว่าเรา Evil Fire Warrior At -3"]
+      "ability_text": [
+        "ตราบเท่าที่ Seal ในสนามฝ่ายตรงข้ามมากกว่าเรา Evil Fire Warrior At +3",
+        "ตราบเท่าที่ Seal ในสนามฝ่ายตรงข้ามน้อยกว่าเรา Evil Fire Warrior At -3"
+      ]
     },
     {
       "id": 63,
@@ -1451,7 +1827,10 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "63/95",
       "illustrator": "Pongtham Nantapan",
-      "ability_text": ["Dread Knight สามารถโจมตีข้ามไปยัง Df Line ได้","ผู้เล่นไม่สามารถกำหนด Line ให้ Dread Knight อยู่ที่ Df Line ได้"]
+      "ability_text": [
+        "Dread Knight สามารถโจมตีข้ามไปยัง Df Line ได้",
+        "ผู้เล่นไม่สามารถกำหนด Line ให้ Dread Knight อยู่ที่ Df Line ได้"
+      ]
     },
     {
       "id": 64,
@@ -1494,7 +1873,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "64/95",
       "illustrator": "Poripol Rakboonyuang",
-      "ability_text": ["ตราบเท่าที่ Thunderix รวมร่าง [Beast] ที่ไม่ได้รวมร่างทุกใบในสนาม นับว่าอยู่ในสภาพ Double Combination"]
+      "ability_text": [
+        "ตราบเท่าที่ Thunderix รวมร่าง [Beast] ที่ไม่ได้รวมร่างทุกใบในสนาม นับว่าอยู่ในสภาพ Double Combination"
+      ]
     },
     {
       "id": 65,
@@ -1534,7 +1915,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- ผู้เล่นทุกคนนำ Seal และ Mystic Card ทั้งหมดในสนามเข้ากองการ์ดแล้วสลับกองการ์ดนั้น จากนั้นผู้เล่นทุกคนนำ Seal ทุกใบเข้ามาในสนามจากมือ เมื่อ Sphinx รวมร่างกับ [Light] (At Line) (Mp 4)"],
+      "skill_text": [
+        "[Skill]- ผู้เล่นทุกคนนำ Seal และ Mystic Card ทั้งหมดในสนามเข้ากองการ์ดแล้วสลับกองการ์ดนั้น จากนั้นผู้เล่นทุกคนนำ Seal ทุกใบเข้ามาในสนามจากมือ เมื่อ Sphinx รวมร่างกับ [Light] (At Line) (Mp 4)"
+      ],
       "collector_number": "65/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": ""
@@ -1580,7 +1963,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "67/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["Seal ทุกใบในสนามฝ่ายเรายกเลิก Mystic Card (At Line)"]
+      "ability_text": [
+        "Seal ทุกใบในสนามฝ่ายเรายกเลิก Mystic Card (At Line)"
+      ]
     },
     {
       "id": 72,
@@ -1613,7 +1998,10 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "72/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["เมื่อ Dark Destiny เข้ามาในสนาม เราสามารถนำ Mystic Card 1 ใบใน Shrine เราขึ้นมือ","เมื่อ Dark Destiny ตก Shrine เราต้องทิ้ง Mystic Card 1 ใบในมือเรา"]
+      "ability_text": [
+        "เมื่อ Dark Destiny เข้ามาในสนาม เราสามารถนำ Mystic Card 1 ใบใน Shrine เราขึ้นมือ",
+        "เมื่อ Dark Destiny ตก Shrine เราต้องทิ้ง Mystic Card 1 ใบในมือเรา"
+      ]
     },
     {
       "id": 73,
@@ -1656,7 +2044,10 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "73/95",
       "illustrator": "Pongtham Nantapan",
-      "ability_text": ["เมื่อ Python, Kerebanda's Guardian ถูกโจมตี เทียบ Df ของ Python, Kerebanda's Guardian กับค่าพลังของ Seal ที่โจมตี Python, Kerebanda's Guardian จนออกจากการโจมตีนั้น","ขณะที่ Python, Kerebanda's Guardian ต่อสู้กับ [Wind] Python, Kerebanda's Guardian At -3"]
+      "ability_text": [
+        "เมื่อ Python, Kerebanda's Guardian ถูกโจมตี เทียบ Df ของ Python, Kerebanda's Guardian กับค่าพลังของ Seal ที่โจมตี Python, Kerebanda's Guardian จนออกจากการโจมตีนั้น",
+        "ขณะที่ Python, Kerebanda's Guardian ต่อสู้กับ [Wind] Python, Kerebanda's Guardian At -3"
+      ]
     },
     {
       "id": 74,
@@ -1696,7 +2087,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- Sacrifice Seal 1 ใบ; Seal 1 ใบ +At ตาม Mp ค่าร่ายของ Seal ที่ถูก Sacrifice 1 Turn (Mp 2)"],
+      "skill_text": [
+        "[Skill]- Sacrifice Seal 1 ใบ; Seal 1 ใบ +At ตาม Mp ค่าร่ายของ Seal ที่ถูก Sacrifice 1 Turn (Mp 2)"
+      ],
       "collector_number": "74/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": ""
@@ -1742,7 +2135,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "75/95",
       "illustrator": "Poripol Rakboonyuang",
-      "ability_text":["[Beast] ทุกใบในมือเรา Mp ค่าร่าย -1 (Ability นี้จะไม่ทำงานถ้ามี Albino Gryphon ตั้งแต่ 2 ใบขึ้นไปในสนาม)"]
+      "ability_text": [
+        "[Beast] ทุกใบในมือเรา Mp ค่าร่าย -1 (Ability นี้จะไม่ทำงานถ้ามี Albino Gryphon ตั้งแต่ 2 ใบขึ้นไปในสนาม)"
+      ]
     },
     {
       "id": 76,
@@ -1785,7 +2180,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "76/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["ตราบเท่าที่ฝ่ายตรงข้ามมี Seal ที่ At Line นำ Thor, the Thunder God ในสนาม ไปที่ At Line เสมอ"]
+      "ability_text": [
+        "ตราบเท่าที่ฝ่ายตรงข้ามมี Seal ที่ At Line นำ Thor, the Thunder God ในสนาม ไปที่ At Line เสมอ"
+      ]
     },
     {
       "id": 77,
@@ -1815,10 +2212,14 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- นำ Seal 1 ใบใน Shrine เราขึ้นมือ เมื่อ Yggdrasil รวมร่าง (Mp 3)"],
+      "skill_text": [
+        "[Skill]- นำ Seal 1 ใบใน Shrine เราขึ้นมือ เมื่อ Yggdrasil รวมร่าง (Mp 3)"
+      ],
       "collector_number": "77/95",
       "illustrator": "Britana Eaimchan",
-      "ability_text": ["Seal ที่อยู่ข้าง Yggdrasil Df =11 Sp =0 (Df Line)"]
+      "ability_text": [
+        "Seal ที่อยู่ข้าง Yggdrasil Df =11 Sp =0 (Df Line)"
+      ]
     },
     {
       "id": 78,
@@ -1858,7 +2259,9 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- นำ Phoenix เข้ามาในสนามจาก Shrine เรา Interfere (Mp 2) (Skill นี้สามารถถูกสั่งการได้ แม้ Phoenix อยู่ใน Shrine และ Skill นี้ถูกสั่งการได้ 1 ครั้งใน 1 เกม)"],
+      "skill_text": [
+        "[Skill]- นำ Phoenix เข้ามาในสนามจาก Shrine เรา Interfere (Mp 2) (Skill นี้สามารถถูกสั่งการได้ แม้ Phoenix อยู่ใน Shrine และ Skill นี้ถูกสั่งการได้ 1 ครั้งใน 1 เกม)"
+      ],
       "collector_number": "78/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": ""
@@ -1894,7 +2297,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "79/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["Golden Fur Griffin +At และ -Df ตามจำนวน [Beast] ใบอื่นในสนามฝ่ายเรา"]
+      "ability_text": [
+        "Golden Fur Griffin +At และ -Df ตามจำนวน [Beast] ใบอื่นในสนามฝ่ายเรา"
+      ]
     },
     {
       "id": 80,
@@ -1934,10 +2339,14 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- นำ Wool Wyvern เข้ามาในสนามจากมือ Interfere (Mp 4)"],
+      "skill_text": [
+        "[Skill]- นำ Wool Wyvern เข้ามาในสนามจากมือ Interfere (Mp 4)"
+      ],
       "collector_number": "80/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["ขณะที่ Wool Wyvern ต่อสู้กับ [Fire] Wool Wyvern At -2"]
+      "ability_text": [
+        "ขณะที่ Wool Wyvern ต่อสู้กับ [Fire] Wool Wyvern At -2"
+      ]
     },
     {
       "id": 81,
@@ -1980,7 +2389,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "81/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["Seal ใบอื่นทุกใบในสนามฝ่ายเรา At +1 Df +2"]
+      "ability_text": [
+        "Seal ใบอื่นทุกใบในสนามฝ่ายเรา At +1 Df +2"
+      ]
     },
     {
       "id": 82,
@@ -2023,7 +2434,10 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "82/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["เมื่อ Heaven Knight อยู่ในสนาม ครบ 3 Turn นำ Heaven Knight เข้ากองการ์ดจากนั้นสลับกองการ์ดนั้น","Heaven Knight ยกเลิก Curse ของผู้เล่นทุกคนและ Mystic Card ฝ่ายตรงข้าม"]
+      "ability_text": [
+        "เมื่อ Heaven Knight อยู่ในสนาม ครบ 3 Turn นำ Heaven Knight เข้ากองการ์ดจากนั้นสลับกองการ์ดนั้น",
+        "Heaven Knight ยกเลิก Curse ของผู้เล่นทุกคนและ Mystic Card ฝ่ายตรงข้าม"
+      ]
     },
     {
       "id": 83,
@@ -2066,7 +2480,10 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "83/95",
       "illustrator": "Pongtham Nantapan",
-      "ability_text": ["Salamandara +At ตามจำนวน Seal ที่อยู่ใน At Line ฝ่ายเรา","Salamandara -At ตามจำนวน Seal ที่อยู่ใน At Line ฝ่ายตรงข้าม"]
+      "ability_text": [
+        "Salamandara +At ตามจำนวน Seal ที่อยู่ใน At Line ฝ่ายเรา",
+        "Salamandara -At ตามจำนวน Seal ที่อยู่ใน At Line ฝ่ายตรงข้าม"
+      ]
     },
     {
       "id": 84,
@@ -2106,10 +2523,14 @@ const CARDS_METADATA = {
           "atk_all": true
         }
       ],
-      "skill_text": ["[Skill]- Freeze Curse (All) 1 Turn เมื่อ Jormungand รวมร่างกับ [Water] (At Line) (Mp 4)"],
+      "skill_text": [
+        "[Skill]- Freeze Curse (All) 1 Turn เมื่อ Jormungand รวมร่างกับ [Water] (At Line) (Mp 4)"
+      ],
       "collector_number": "84/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["ขณะที่ Jormungand ต่อสู้กับ [Earth] Jormungand At -3"]
+      "ability_text": [
+        "ขณะที่ Jormungand ต่อสู้กับ [Earth] Jormungand At -3"
+      ]
     },
     {
       "id": 85,
@@ -2149,10 +2570,14 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- ทิ้ง Seal 1 ใบในมือเรา; Tiamat, the Black Dragon + At ตาม Lv ของ Seal ใบนั้น 1 Turn Interfere (Mp 2)"],
+      "skill_text": [
+        "[Skill]- ทิ้ง Seal 1 ใบในมือเรา; Tiamat, the Black Dragon + At ตาม Lv ของ Seal ใบนั้น 1 Turn Interfere (Mp 2)"
+      ],
       "collector_number": "85/95",
       "illustrator": "Panon R. & Pongtham N.",
-      "ability_text": ["ขณะที่ Tiamat, the Black Dragon ต่อสู้กับ [Light] Tiamat, the Black Dragon At -3"]
+      "ability_text": [
+        "ขณะที่ Tiamat, the Black Dragon ต่อสู้กับ [Light] Tiamat, the Black Dragon At -3"
+      ]
     },
     {
       "id": 86,
@@ -2195,7 +2620,10 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "86/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["Divine Dragon +At ตามจำนวน Seal ในสนามฝ่ายตรงข้าม","ขณะที่ Divine Dragon ต่อสู้กับ [Knight] Divine Dragon At -2"]
+      "ability_text": [
+        "Divine Dragon +At ตามจำนวน Seal ในสนามฝ่ายตรงข้าม",
+        "ขณะที่ Divine Dragon ต่อสู้กับ [Knight] Divine Dragon At -2"
+      ]
     },
     {
       "id": 87,
@@ -2225,10 +2653,194 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": ["[Skill]- Seal 1 ใบ At +1 จนจบ Subturn (Mp 1)"],
+      "skill_text": [
+        "[Skill]- Seal 1 ใบ At +1 จนจบ Subturn (Mp 1)"
+      ],
       "collector_number": "87/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": ""
+    },
+    {
+      "id": 88,
+      "name": "Harison, Knight of Pentacles",
+      "path": "OGcarddbseal/card_88.jpg",
+      "lv": 3,
+      "at": 8,
+      "df": 11,
+      "spd": 3,
+      "mp_deploy": 4,
+      "mp_attack": 2,
+      "element": [
+        "earth"
+      ],
+      "tribe": [
+        "Knight"
+      ],
+      "fusions": [
+        {
+          "require": "earth",
+          "require_type": "element",
+          "count": 1,
+          "atk_name": "Geo Fist",
+          "atk_at": 10,
+          "atk_df": null,
+          "atk_mp": 3,
+          "atk_all": false
+        },
+        {
+          "require": "earth",
+          "require_type": "element",
+          "count": 2,
+          "atk_name": "Geo Meditation",
+          "atk_at": 11,
+          "atk_df": 13,
+          "atk_mp": 4,
+          "atk_all": false
+        }
+      ],
+      "skill_text": [
+        "[Skill]- ทำลาย Seal ที่ติด Stone Curse 1 ใบ (At Line) (Mp 3)"
+      ],
+      "ability_text": null
+    },
+    {
+      "id": 89,
+      "name": "Sigmund 3rd, Knight of Swords",
+      "path": "OGcarddbseal/card_89.jpg",
+      "lv": 3,
+      "at": 9,
+      "df": 10,
+      "spd": 4,
+      "mp_deploy": 4,
+      "mp_attack": 3,
+      "element": [
+        "wind"
+      ],
+      "tribe": [
+        "Knight"
+      ],
+      "fusions": [
+        {
+          "require": "Beast",
+          "require_type": "tribe",
+          "count": 1,
+          "atk_name": "Flash Slash",
+          "atk_at": 11,
+          "atk_df": null,
+          "atk_mp": 3,
+          "atk_all": false
+        },
+        {
+          "require": "wind",
+          "require_type": "element",
+          "count": 2,
+          "atk_name": "Felasia Sword",
+          "atk_at": 12,
+          "atk_df": null,
+          "atk_mp": 4,
+          "atk_all": false
+        }
+      ],
+      "skill_text": null,
+      "ability_text": [
+        "เมื่อ Sigmund 3rd, Knight of Swords โจมตี Seal ที่มี Sp น้อยกว่า Sigmund 3rd, Knight of Swords Seal ที่ถูกโจมตี Df -2 จนออกจากการโจมตีนั้น"
+      ]
+    },
+    {
+      "id": 90,
+      "name": "Andre, Knight of Cups",
+      "path": "OGcarddbseal/card_90.jpg",
+      "lv": 3,
+      "at": 9,
+      "df": 10,
+      "spd": 4,
+      "mp_deploy": 4,
+      "mp_attack": 3,
+      "element": [
+        "water"
+      ],
+      "tribe": [
+        "Knight"
+      ],
+      "fusions": [
+        {
+          "require": "water",
+          "require_type": "element",
+          "count": 1,
+          "atk_name": "Crystal Cleave",
+          "atk_at": 10,
+          "atk_df": null,
+          "atk_mp": 3,
+          "atk_all": false
+        },
+        {
+          "require": "water",
+          "require_type": "element",
+          "count": 2,
+          "atk_name": "Iced Blade",
+          "atk_at": 12,
+          "atk_df": null,
+          "atk_mp": 3,
+          "atk_all": false
+        }
+      ],
+      "skill_text": null,
+      "ability_text": [
+        "เมื่อ Andre, Knight of Cups เข้ามาในสนาม นำ Seal ทุกใบในสนามที่มี Sp น้อยกว่า Andre, Knight of Cups ไปที่ Df Line (ผลจาก Ability นี้ไม่นับว่าเป็นการกำหนด Line)"
+      ]
+    },
+    {
+      "id": 91,
+      "name": "Zadin, Knight of Wands",
+      "path": "OGcarddbseal/card_91.jpg",
+      "lv": 4,
+      "at": 10,
+      "df": 10,
+      "spd": 3,
+      "mp_deploy": 5,
+      "mp_attack": 3,
+      "element": [
+        "fire"
+      ],
+      "tribe": [
+        "Knight"
+      ],
+      "fusions": [
+        {
+          "require": "fire",
+          "require_type": "element",
+          "count": 1,
+          "atk_name": "Flame Hit",
+          "atk_at": 11,
+          "atk_df": null,
+          "atk_mp": 3,
+          "atk_all": false
+        },
+        {
+          "require": "Dragon",
+          "require_type": "tribe",
+          "count": 1,
+          "atk_name": "Twice Thwack",
+          "atk_at": 10,
+          "atk_df": null,
+          "atk_mp": 3,
+          "atk_all": false
+        },
+        {
+          "require": "fire",
+          "require_type": "element",
+          "count": 2,
+          "atk_name": "Magmata Smash",
+          "atk_at": 12,
+          "atk_df": null,
+          "atk_mp": 4,
+          "atk_all": false
+        }
+      ],
+      "skill_text": [
+        "[Skill]- สั่ง Zadin, Knight of Wands โจมตี 2 ครั้งด้วย At = 8 ไปยัง Seal ที่อยู่ใน At Line หรือ Df Line ฝ่ายตรงข้าม เมื่อ Zadin, Knight of Wands รวมร่างกับ [Dragon] (At Line) (Mp 4)"
+      ],
+      "ability_text": null
     },
     {
       "id": 92,
@@ -2271,7 +2883,9 @@ const CARDS_METADATA = {
       "skill_text": "",
       "collector_number": "92/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ["[Fire] ทุกใบในสนามฝ่ายเรา At +1 Df -3 (Df Line)"]
+      "ability_text": [
+        "[Fire] ทุกใบในสนามฝ่ายเรา At +1 Df -3 (Df Line)"
+      ]
     },
     {
       "id": 93,
@@ -2311,7 +2925,9 @@ const CARDS_METADATA = {
           "atk_all": true
         }
       ],
-      "skill_text": ["[Skill]- นำ Seal ที่ติด Freeze Curse 1 ใบขึ้นมือ (At Line) (Mp 1)"],
+      "skill_text": [
+        "[Skill]- นำ Seal ที่ติด Freeze Curse 1 ใบขึ้นมือ (At Line) (Mp 1)"
+      ],
       "collector_number": "93/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": ""
@@ -2354,7 +2970,9 @@ const CARDS_METADATA = {
           "atk_all": true
         }
       ],
-      "skill_text": ["[Skill]- ผู้เล่นทุกคนนำ Seal ทุกใบในสนามฝ่ายตนไปที่ At Line เมื่อ Regina, Princess of Swords รวมร่างกับ [Wind] (At Line) (Mp 1) (ผลจาก Skill นี้ไม่นับว่าเป็นการกำหนด Line)"],
+      "skill_text": [
+        "[Skill]- ผู้เล่นทุกคนนำ Seal ทุกใบในสนามฝ่ายตนไปที่ At Line เมื่อ Regina, Princess of Swords รวมร่างกับ [Wind] (At Line) (Mp 1) (ผลจาก Skill นี้ไม่นับว่าเป็นการกำหนด Line)"
+      ],
       "collector_number": "94/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": ""
@@ -2397,7 +3015,9 @@ const CARDS_METADATA = {
           "atk_all": true
         }
       ],
-      "skill_text": ["[Skill]- Seal ใบอื่น 1 ใบ +Df ตาม Mp ค่าร่ายของ Seal นั้นจนจบ Subturn Interfere (Mp 2)"],
+      "skill_text": [
+        "[Skill]- Seal ใบอื่น 1 ใบ +Df ตาม Mp ค่าร่ายของ Seal นั้นจนจบ Subturn Interfere (Mp 2)"
+      ],
       "collector_number": "95/95",
       "illustrator": "Panon Rattanasungh",
       "ability_text": ""

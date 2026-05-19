@@ -60,7 +60,7 @@ function drawMysticCard(pi,silent=false,force=false){
   const c=p.mysticDeck.shift();
   if(!p.mysticHand)p.mysticHand=[];
   p.mysticHand.push({...c});
-  if(!silent)log(`${p.name} จั่ว Mystic: ${c.name}`,'');
+  if(!silent){log(`${p.name} จั่ว Mystic: ${c.name}`,'');playSound('Draw');}
 }
 
 function getMysticHandMax(pi){
@@ -164,5 +164,5 @@ const _MYSTIC_DB_FALLBACK = [
 ]; // _MYSTIC_DB_FALLBACK
 
 const EL_COLOR={fire:"#f97316",water:"#38bdf8",earth:"#a16207",wind:"#4ade80",light:"#fde68a",darkness:"#a78bfa",colorless:"#94a3b8"};
-const MAX_MP=8, MAX_SHRINE=15, HAND_MAX=7, LINE_MAX=4;
+const MAX_MP=8, MAX_SHRINE=12, HAND_MAX=7, LINE_MAX=4;
 

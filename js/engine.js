@@ -25,6 +25,20 @@ let sacrificeTargetMode = null; // {mysticCard, mysticIdx} — waiting to click 
 const MYSTIC_HAND_MAX = 7;
 let drawsRemaining = 0;
 
+const _SFX={};
+['Deploy','Draw','Flip','Skill','Confirm','Damage','Fusion Complete',
+ 'Card destroyed by effect','Error','Spell','Poison','Freeze','Stone','Charm'
+].forEach(n=>{const a=new Audio(`SoundEffect/${n}.wav`);a.preload='auto';_SFX[n]=a;});
+
+function playSound(name){
+  if(localStorage.getItem('bgm_muted')==='1')return;
+  const vol=parseFloat(localStorage.getItem('bgm_volume')||'0.5');
+  if(!_SFX[name]){_SFX[name]=new Audio(`SoundEffect/${name}.wav`);_SFX[name].preload='auto';}
+  const a=_SFX[name].cloneNode();
+  a.volume=vol;
+  a.play().catch(()=>{});
+}
+
 function shuffle(arr){
   for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}
   return arr;
@@ -56,10 +70,12 @@ function makeFieldCard(card, fromHand=false){
   };
 }
 
+function sealCopyMax(lv){return lv>=5?2:lv>=3?3:4;}
+
 function buildDeck(){
   const pool=[], counts={};
   while(pool.length<25){
-    const avail=CARD_DB.filter(c=>(counts[c.id]||0)<3);
+    const avail=CARD_DB.filter(c=>(counts[c.id]||0)<sealCopyMax(c.lv));
     if(!avail.length)break;
     const c=avail[Math.floor(Math.random()*avail.length)];
     pool.push({...c});
@@ -141,7 +157,7 @@ function initGame(){
   const d1=buildDeck();
   G={
     players:[
-      {deck:d0,hand:[],atLine:[],dfLine:[],shrine:[],mp:MAX_MP,name:"Player",mysticDeck:md0,mysticHand:[],areaMystics:[]},
+      {deck:d0,hand:[],atLine:[],dfLine:[],shrine:[],mp:5,name:"Player",mysticDeck:md0,mysticHand:[],areaMystics:[]},
       {deck:d1,hand:[],atLine:[],dfLine:[],shrine:[],mp:MAX_MP,name:"AI",mysticDeck:buildMysticDeck(),mysticHand:[],areaMystics:[]}
     ],
     currentPlayer:0
@@ -176,7 +192,7 @@ function drawCard(pi,silent=false,force=false){
   if(!force&&p.hand.length>=getEffectiveHandMax(pi)){if(!silent)log(`${p.name} hand full`,'');return;}
   const c=p.deck.shift();
   p.hand.push(c);
-  if(!silent)log(`${p.name} drew ${c.name}`);
+  if(!silent){log(`${p.name} drew ${c.name}`);playSound('Draw');}
 }
 
 // ══════════════════════════════════════════════
@@ -223,6 +239,7 @@ function doForcedDiscardSeal(idx){
   if(p.hand.length+(p.mysticHand||[]).length<=HAND_COMBINED_MAX&&p.hand.length<=getEffectiveHandMax(0))return;
   const card=p.hand.splice(idx,1)[0];
   p.shrine.push(card);
+  playSound('Flip');
   log(`ทิ้ง ${card.name} → Shrine (Discard Step)`,'bad');
   checkLose();
   afterForcedDiscard();
@@ -233,24 +250,18 @@ function doForcedDiscardMystic(idx){
   const p=G.players[0];
   if(p.hand.length+(p.mysticHand||[]).length<=HAND_COMBINED_MAX&&p.hand.length<=getEffectiveHandMax(0))return;
   const card=p.mysticHand.splice(idx,1)[0];
+  playSound('Flip');
   log(`ทิ้ง ${card.name} (Mystic) — Discard Step`,'bad');
   afterForcedDiscard();
 }
 
 function tickCurses(){
-  // Heaven Knight (82): while on field, cancel all curses on all seals
-  const heavenKnightActive=[0,1].some(pi=>[...G.players[pi].atLine,...G.players[pi].dfLine].some(x=>x.card.id===82));
-  if(heavenKnightActive){
-    [0,1].forEach(pi=>{
-      [...G.players[pi].atLine,...G.players[pi].dfLine].forEach(fc=>{
-        if(fc.curses?.length){
-          fc.curses=[];
-          fc.charmed=null;
-          log(`${fc.card.name}: Heaven Knight ยกเลิก Curse!`,'');
-        }
-      });
+  // Heaven Knight (82): cancel all curses on itself only
+  [0,1].forEach(pi=>{
+    [...G.players[pi].atLine,...G.players[pi].dfLine].filter(x=>x.card.id===82).forEach(hk=>{
+      if(hk.curses?.length){hk.curses=[];hk.charmed=null;log(`Heaven Knight: ยกเลิก Curse ของตัวเอง!`,'');}
     });
-  }
+  });
   let needCheck=false;
   [0,1].forEach(pi=>{
     ['atLine','dfLine'].forEach(lineKey=>{
@@ -264,6 +275,7 @@ function tickCurses(){
         // Poison / LastDance → destroy
         if(expired.some(c=>c.type==='poison'||c.type==='lastDance')){
           arr.splice(i,1);
+          playSound('Card destroyed by effect');
           if(fc.fusionStack?.length)fc.fusionStack.forEach(m=>G.players[pi].shrine.push(m.card));
           G.players[pi].shrine.push(fc.card);
           const cname=expired.find(c=>c.type==='lastDance')?'Last Dance Curse':'Poison Curse';
@@ -305,14 +317,29 @@ function endTurn(){
     setTimeout(()=>{phase='main';log('MAIN PHASE','hi');render();},400);
     render();
   } else {
-    // AI's turn: draw 2 (seal/mystic randomly), show card backs
+    // AI's turn: Draw Phase — interfere window before drawing
+    const _playerMpLeft=G.players[0].mp; // player's unspent Mp before AI turn starts
     G.players[pi].mp=getEffectiveMpMax(pi);
-    phase='main';
-    log(`AI's turn`,'hi');
+    // Vioria (56): if AI has Vioria, gain player's unspent Mp on top of normal reset
+    {const viorias=[...G.players[1].atLine,...G.players[1].dfLine].filter(x=>x.card.id===56);
+    if(viorias.length>0&&_playerMpLeft>0){
+      G.players[pi].mp=Math.min(G.players[pi].mp+_playerMpLeft,MAX_MP);
+      log(`Vioria [Ability]: Player เหลือ ${_playerMpLeft} Mp → AI +${_playerMpLeft} Mp!`,'');
+    }}
+    phase='draw';
+    log(`AI's turn — Draw Phase`,'hi');
     render();
-    aiDrawCards(pi,()=>{
-      render();
-      setTimeout(()=>aiTurn(),400);
+    showActionQueue('🤖 AI: Draw Phase', ()=>{
+      phase='main';
+      if(turnNum===1){
+        render();
+        setTimeout(()=>aiTurn(),400);
+      } else {
+        aiDrawCards(pi,()=>{
+          render();
+          setTimeout(()=>aiTurn(),400);
+        });
+      }
     });
   }
 }
@@ -419,7 +446,7 @@ function clickHandCard(card,idx){
   if(phase!=='main'&&phase!=='main2'){log('Can only deploy during Main Phase','');return;}
   if(handPickMode){executeHandPickBeast(card,idx);return;}
   const mc=getEffectiveMc(card);
-  if(G.players[0].mp<mc){log(`Not enough Mp (need ${mc}, have ${G.players[0].mp})`,'bad');return;}
+  if(G.players[0].mp<mc){logErr(`Not enough Mp (need ${mc}, have ${G.players[0].mp})`);return;}
   pendingDeploy={card,idx};
   const mcNote=mc!==card.mc?` (${card.mc}→${mc})`:'';
   document.getElementById('deploy-title').textContent=`Deploy ${card.name} (Mp ${mc}${mcNote})`;
@@ -429,21 +456,20 @@ function clickHandCard(card,idx){
 function doDeploy(line){
   if(!pendingDeploy)return;
   const {card,idx}=pendingDeploy;
-  if((phase!=='main'&&phase!=='main2')||G.currentPlayer!==0){log('Deploy ได้เฉพาะ Main Phase ของผู้เล่น','bad');closeDeployModal();return;}
+  if((phase!=='main'&&phase!=='main2')||G.currentPlayer!==0){logErr('Deploy ได้เฉพาะ Main Phase ของผู้เล่น');closeDeployModal();return;}
   const mc=getEffectiveMc(card);
-  if(G.players[0].mp<mc){log(`Mp ไม่พอ (ต้องการ ${mc})`,'bad');closeDeployModal();return;}
+  if(G.players[0].mp<mc){logErr(`Mp ไม่พอ (ต้องการ ${mc})`);closeDeployModal();return;}
   const p=G.players[0];
   // Dread Knight (63): must always be in At Line
-  if(card.id===63){
-    if(p.atLine.length>=LINE_MAX){log('At Line เต็ม — Dread Knight ต้องอยู่ใน At Line!','bad');closeDeployModal();return;}
-    line='at';
-  }
+  if(card.id===63){line='at';}
   const target=line==='at'?p.atLine:p.dfLine;
   p.hand.splice(idx,1);
   p.mp-=mc;
   target.push(makeFieldCard(card,true));
+  playSound('Deploy');
   log(`You deployed ${card.name} to ${line==='at'?'At':'Df'} Line`,'good');
   if(card.id===67&&line==='at') triggerGregoryCancel(0);
+  if(card.id===90) triggerAndreAbility(0);
   closeDeployModal();
   // Dark Destiny (72): on deploy, optionally take 1 mystic from mystic deck
   if(card.id===72&&(p.mysticDeck||[]).length>0){
@@ -464,9 +490,9 @@ function doDeploy(line){
 
 // Deploy from hand by dragging to a specific line slot position
 function doDeployAtSlot(card,cardIdx,lineKey,insertAt){
-  if((phase!=='main'&&phase!=='main2')||G.currentPlayer!==0){log('Deploy ได้เฉพาะ Main Phase ของผู้เล่น','bad');return;}
+  if((phase!=='main'&&phase!=='main2')||G.currentPlayer!==0){logErr('Deploy ได้เฉพาะ Main Phase ของผู้เล่น');return;}
   const mc=getEffectiveMc(card);
-  if(G.players[0].mp<mc){log(`Mp ไม่พอ (ต้องการ ${mc})`,'bad');return;}
+  if(G.players[0].mp<mc){logErr(`Mp ไม่พอ (ต้องการ ${mc})`);return;}
   const p=G.players[0];
   let targetLine=lineKey;
   if(card.id===63)targetLine='at';
@@ -475,8 +501,10 @@ function doDeployAtSlot(card,cardIdx,lineKey,insertAt){
   p.mp-=mc;
   const fc=makeFieldCard(card,true);
   if(insertAt===0)target.splice(0,0,fc);else target.push(fc);
+  playSound('Deploy');
   log(`You deployed ${card.name} to ${targetLine==='at'?'At':'Df'} Line`,'good');
   if(card.id===67&&targetLine==='at') triggerGregoryCancel(0);
+  if(card.id===90) triggerAndreAbility(0);
   if(card.id===72&&(p.mysticDeck||[]).length>0){
     document.getElementById('fa-title').textContent='Dark Destiny [Ability]: หยิบ Mystic จากกองการ์ด?';
     const opts=document.getElementById('fa-opts');opts.innerHTML='';
@@ -486,6 +514,27 @@ function doDeployAtSlot(card,cardIdx,lineKey,insertAt){
     return;
   }
   render();
+}
+
+function triggerAndreAbility(andrePi){
+  // Andre (90): on enter field, move ALL seals on both sides with Sp < Andre's Sp to their Df Line
+  // "สนาม" = entire field (both players). Not considered a "line switch".
+  const own=G.players[andrePi];
+  const andreFC=[...own.atLine,...own.dfLine].find(x=>x.card.id===90);
+  if(!andreFC)return;
+  const andreSp=getEffectiveSp(andreFC);
+  [0,1].forEach(pi=>{
+    const p=G.players[pi];
+    const toMove=[...p.atLine].filter(x=>x.uid!==andreFC.uid&&getEffectiveSp(x)<andreSp);
+    toMove.forEach(fc=>{
+      const i=p.atLine.findIndex(x=>x.uid===fc.uid);
+      if(i>=0){
+        p.atLine.splice(i,1);
+        p.dfLine.push(fc);
+        log(`${andreFC.card.name} [Ability]: ${fc.card.name} ย้ายไป Df Line`,'hi');
+      }
+    });
+  });
 }
 
 function closeDeployModal(){
@@ -513,9 +562,9 @@ function showFieldAction(fc,line){
     return;
   }
 
-  // Line switch: not exhausted AND deployed before this turn
+  // Line switch: not exhausted/used skill AND deployed before this turn
   const p=G.players[0];
-  const canSwitch=!fc.exhausted && fc.deployedTurn<turnNum && fc.lineSwitchedTurn<turnNum;
+  const canSwitch=!fc.exhausted && !fc.hasUsedSkill && fc.deployedTurn<turnNum && fc.lineSwitchedTurn<turnNum;
   const otherLine=line==='at'?'df':'at';
   const otherArr=otherLine==='at'?p.atLine:p.dfLine;
   const switchBtn=addFAOpt(`⟷ Move to ${otherLine==='at'?'At':'Df'} Line`,()=>{doLineSwitch(fc,line,otherLine);});
@@ -523,15 +572,15 @@ function showFieldAction(fc,line){
 
   const isCharmedCard=!!fc.charmed;
 
-  // Fuse: has fuse data and still has materials to absorb (skip for charmed enemy cards)
-  if(!isCharmedCard&&fc.card.fuse&&fc.card.fuse.length>0){
+  // Fuse: has fuse data and still has materials to absorb (skip for charmed/exhausted/used-skill)
+  if(!isCharmedCard&&!fc.exhausted&&!fc.hasUsedSkill&&fc.card.fuse&&fc.card.fuse.length>0){
     const materials=findFusionMaterials(fc);
     const fuseBtn=addFAOpt('⚡ Fuse',()=>{closeFAModal();startFusionMode(fc);});
     if(!materials.length)fuseBtn.disabled=true;
   }
 
-  // Unfuse: is fused, fused on previous turn (skip for charmed enemy cards)
-  if(!isCharmedCard&&fc.fused&&fc.fusedSinceTurn<turnNum){
+  // Unfuse: is fused, fused on previous turn, not exhausted/used-skill (skip for charmed)
+  if(!isCharmedCard&&!fc.exhausted&&!fc.hasUsedSkill&&fc.fused&&fc.fusedSinceTurn<turnNum){
     addFAOpt('↩ Unfuse',()=>{doUnfuse(fc);closeFAModal();});
   }
 
@@ -544,8 +593,8 @@ function showFieldAction(fc,line){
       if(skill.type==='handDiscard')startInterfereSkill(fc,idx);
       else if(skill.type==='selfSkill')executeSelfSkill(fc,idx);
       else if(skill.type==='handPickBeast'){handPickMode={fc,skillIdx:idx};log(`${fc.card.name} [Skill] — เลือก [Beast] ในมือเพื่อนำลงสนาม`,'hi');render();}
-      else if(skill.type==='garudaInterfere'){log(`${fc.card.name} [Interfere] ใช้ได้เฉพาะในช่วง Action Queue`,'bad');}
-      else if(skill.type==='phoenixInterfere'){log(`Phoenix [Interfere] ฟื้นจาก Shrine ได้ในช่วง Action Queue`,'bad');}
+      else if(skill.type==='garudaInterfere'){logErr(`${fc.card.name} [Interfere] ใช้ได้เฉพาะในช่วง Action Queue`);}
+      else if(skill.type==='phoenixInterfere'){logErr(`Phoenix [Interfere] ฟื้นจาก Shrine ได้ในช่วง Action Queue`);}
       else startSkillMode(fc,idx);
     });
     if(!canUse)btn.disabled=true;
@@ -569,11 +618,11 @@ function closeFAModal(){
 }
 
 function doLineSwitch(fc,fromLine,toLine){
-  if(phase!=='main'&&phase!=='main2'){log('เปลี่ยน line ได้เฉพาะ Main Phase','bad');closeFAModal();return;}
-  if(fc.exhausted){log(`${fc.card.name} inactive ไม่สามารถเปลี่ยน line ได้`,'bad');closeFAModal();return;}
-  if(fc.deployedTurn>=turnNum){log(`${fc.card.name} ลงในเทิร์นนี้ ยังเปลี่ยน line ไม่ได้`,'bad');closeFAModal();return;}
-  if(fc.lineSwitchedTurn>=turnNum){log(`${fc.card.name} เปลี่ยน line ไปแล้วในเทิร์นนี้`,'bad');closeFAModal();return;}
-  if(fc.card.id===63&&toLine==='df'){log('Dread Knight ต้องอยู่ใน At Line เสมอ!','bad');closeFAModal();return;}
+  if(phase!=='main'&&phase!=='main2'){logErr('เปลี่ยน line ได้เฉพาะ Main Phase');closeFAModal();return;}
+  if(fc.exhausted){logErr(`${fc.card.name} inactive ไม่สามารถเปลี่ยน line ได้`);closeFAModal();return;}
+  if(fc.deployedTurn>=turnNum){logErr(`${fc.card.name} ลงในเทิร์นนี้ ยังเปลี่ยน line ไม่ได้`);closeFAModal();return;}
+  if(fc.lineSwitchedTurn>=turnNum){logErr(`${fc.card.name} เปลี่ยน line ไปแล้วในเทิร์นนี้`);closeFAModal();return;}
+  if(fc.card.id===63&&toLine==='df'){logErr('Dread Knight ต้องอยู่ใน At Line เสมอ!');closeFAModal();return;}
   const owner=findFCOwner(fc);
   const p=owner?owner.p:G.players[0];
   const fromArr=fromLine==='at'?p.atLine:p.dfLine;
@@ -582,6 +631,7 @@ function doLineSwitch(fc,fromLine,toLine){
   if(i>=0)fromArr.splice(i,1);
   toArr.push(fc);
   fc.lineSwitchedTurn=turnNum;
+  playSound('Deploy');
   log(`${fc.card.name} moved to ${toLine==='at'?'At':'Df'} Line`,'good');
   if(fc.card.id===67&&toLine==='at') triggerGregoryCancel(owner?owner.pi:0);
   closeFAModal();
@@ -654,6 +704,8 @@ function findFusionMaterials(mainFC){
 function canBeFusionMaterial(fc){
   if(!fusionMode||!fusionMainFC)return false;
   if(fc.uid===fusionMainFC.uid||fc.fused||newFromHand(fc)||hasPSMystic(fc))return false;
+  if(fc.curses?.length>0)return false;
+  if(fc.wasMainFusedTurn===turnNum)return false;
   return fuseMaterialHelps(fusionMainFC,fc.card);
 }
 
@@ -665,13 +717,14 @@ function startFusionMode(fc){
 }
 
 function doFuse(mainFC,materialFC){
-  if(!fuseMaterialHelps(mainFC,materialFC.card)){log('การ์ดนี้ไม่ตรง requirement','bad');return;}
+  if(!fuseMaterialHelps(mainFC,materialFC.card)){logErr('การ์ดนี้ไม่ตรง requirement');return;}
   const p=G.players[0];
   const removeFrom=arr=>{const i=arr.findIndex(x=>x.uid===materialFC.uid);if(i>=0)arr.splice(i,1);};
   removeFrom(p.atLine);removeFrom(p.dfLine);
   mainFC.fusionStack.push(materialFC);
   mainFC.fusionAtks=getUnlockedAtks(mainFC);
   mainFC.fused=true;
+  playSound('Fusion Complete');
   if(!mainFC.fusedSinceTurn)mainFC.fusedSinceTurn=turnNum;
   const atkNames=mainFC.fusionAtks.map(a=>a.name).join(', ')||'(กำลังสะสม...)';
   log(`+${materialFC.card.name} → ${mainFC.card.name}: ${atkNames}`,'good');
@@ -687,15 +740,12 @@ function doFuse(mainFC,materialFC){
 
 function doUnfuse(fc){
   const p=G.players[0];
-  fc.fusionStack.forEach(mfc=>{
-    if(p.atLine.length<LINE_MAX)p.atLine.push(mfc);
-    else if(p.dfLine.length<LINE_MAX)p.dfLine.push(mfc);
-    else p.shrine.push(mfc.card);
-  });
+  fc.fusionStack.forEach(mfc=>{p.atLine.push(mfc);});
   fc.fusionStack=[];
   fc.fusionAtks=[];
   fc.fused=false;
   fc.fusedSinceTurn=null;
+  fc.wasMainFusedTurn=turnNum;
   log(`${fc.card.name} unfused`,'');
   render();
 }
@@ -716,13 +766,25 @@ function clickFieldSeal(fc,pi,line){
       attachPSMystic(mysticPlayMode.mysticCard,mysticPlayMode.mysticIdx,fc);
       return;
     }
-    // During action queue: allow clicking own cards with available interfere skills
+    // During action queue: show skill picker for own cards with available interfere skills
     if(!handDiscardMode&&pi===0&&!fc.hasUsedSkill){
       const p=G.players[0];
       const avail=getCardSkills(fc)
         .map((s,i)=>({s,i}))
-        .filter(({s})=>s.interfere&&p.mp>=s.mp&&p.hand.length>0);
-      if(avail.length>0)startInterfereSkill(fc,avail[0].i);
+        .filter(({s})=>s.interfere&&p.mp>=s.mp&&(s.type!=='handDiscard'||p.hand.length>0));
+      if(avail.length>0){
+        document.getElementById('fa-title').textContent=`${fc.card.name} [Interfere]`;
+        const opts=document.getElementById('fa-opts');opts.innerHTML='';
+        avail.forEach(({s,i})=>{
+          addFAOpt(s.label,()=>{
+            closeFAModal();
+            if(s.type==='selfSkill')executeInterfereSelfSkill(fc,i);
+            else startInterfereSkill(fc,i);
+          });
+        });
+        addFAOpt('✗ ยกเลิก',()=>{closeFAModal();});
+        document.getElementById('fa-modal').classList.add('show');
+      }
     }
     return;
   }
@@ -737,7 +799,7 @@ function clickFieldSeal(fc,pi,line){
   // Sacrifice field target selection
   if(sacrificeTargetMode){
     const {mysticCard,mysticIdx}=sacrificeTargetMode;
-    if((mysticCard.exception_tribes||[]).includes(fc.card.tribe)){log(`${fc.card.name} ไม่สามารถเป็นเป้าหมาย Sacrifice ได้`,'bad');return;}
+    if((mysticCard.exception_tribes||[]).includes(fc.card.tribe)){logErr(`${fc.card.name} ไม่สามารถเป็นเป้าหมาย Sacrifice ได้`);return;}
     const targetFC=fc;
     sacrificeTargetMode=null;
     const hand=G.players[0].hand;
@@ -748,15 +810,8 @@ function clickFieldSeal(fc,pi,line){
           const p=G.players[0];
           p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);
           const owner=findFCOwner(targetFC);
-          if(owner){
-            const arr=owner.line==='at'?G.players[owner.pi].atLine:G.players[owner.pi].dfLine;
-            const i=arr.findIndex(x=>x.uid===targetFC.uid);
-            if(i>=0){arr.splice(i,1);G.players[owner.pi].shrine.push(targetFC.card);}
-            if(targetFC.fused&&targetFC.fusionStack.length>0){
-              targetFC.fusionStack.forEach(mfc=>{G.players[owner.pi].shrine.push(mfc.card);log(`${mfc.card.name} also sent to shrine (fusion collapse)`,'bad');});
-            }
-          }
-          [c1,c2].forEach(c=>{const i=p.hand.indexOf(c);if(i>=0){p.hand.splice(i,1);p.shrine.push(c);}});
+          if(owner){destroyByEffect(targetFC,owner.pi);}
+          [c1,c2].forEach(c=>{const i=p.hand.indexOf(c);if(i>=0){p.hand.splice(i,1);p.shrine.push(c);playSound('Flip');}});
           log(`Sacrifice: ทำลาย ${targetFC.card.name}! ทิ้ง ${c1.name}, ${c2.name}!`,'bad');
           checkLose();render();
         });
@@ -766,7 +821,7 @@ function clickFieldSeal(fc,pi,line){
   }
 
   if(skillMode){
-    if(hasMysticProtect(fc)){log(`${fc.card.name} ถูกป้องกัน Silent Prohibitor — Skill ไม่ได้!`,'bad');return;}
+    if(hasMysticProtect(fc)){logErr(`${fc.card.name} ถูกป้องกัน Silent Prohibitor — Skill ไม่ได้!`);return;}
     if(isSkillTarget(fc)){executeSkill(skillMode.fc,skillMode.skillIdx,fc,pi,line);}
     else{cancelAction();}
     return;
@@ -779,10 +834,10 @@ function clickFieldSeal(fc,pi,line){
     if(phase==='main'||phase==='main2'){
       showFieldAction(fc,line);
     } else if(phase==='battle'){
-      if(fc.exhausted){log(`${fc.card.name} already acted`,'');return;}
-      if(fc.curses?.some(c=>c.type==='stone')){log(`${fc.card.name} ติด Stone — โจมตีไม่ได้`,'bad');return;}
-      if(fc.curses?.some(c=>c.type==='freeze')){log(`${fc.card.name} ติด Freeze — โจมตีไม่ได้`,'bad');return;}
-      if(turnNum===1){log('เทิร์นแรก ยังโจมตีไม่ได้','bad');return;}
+      if(fc.exhausted||fc.hasUsedSkill){log(`${fc.card.name} already acted`,'');return;}
+      if(fc.curses?.some(c=>c.type==='stone')){logErr(`${fc.card.name} ติด Stone — โจมตีไม่ได้`);return;}
+      if(fc.curses?.some(c=>c.type==='freeze')){logErr(`${fc.card.name} ติด Freeze — โจมตีไม่ได้`);return;}
+      if(turnNum===1){logErr('เทิร์นแรก ยังโจมตีไม่ได้');return;}
       attackerSeal={fc,pi:1,line};
       cancelAtkPanel();
       log(`💗 ${fc.card.name} [Charmed] — คลิก Seal ศัตรูของมันเพื่อสั่งโจมตี`,'hi');
@@ -800,12 +855,12 @@ function clickFieldSeal(fc,pi,line){
     if(phase==='main'||phase==='main2'){
       showFieldAction(fc,line);
     } else if(phase==='battle'){
-      if(fc.exhausted){log(`${fc.card.name} already acted this turn`,'');return;}
-      if(fc.curses?.some(c=>c.type==='stone')){log(`${fc.card.name} ติด Stone Curse — โจมตีไม่ได้`,'bad');return;}
-      if(fc.curses?.some(c=>c.type==='freeze')){log(`${fc.card.name} ติด Freeze Curse — โจมตีไม่ได้`,'bad');return;}
+      if(fc.exhausted||fc.hasUsedSkill){log(`${fc.card.name} already acted this turn`,'');return;}
+      if(fc.curses?.some(c=>c.type==='stone')){logErr(`${fc.card.name} ติด Stone Curse — โจมตีไม่ได้`);return;}
+      if(fc.curses?.some(c=>c.type==='freeze')){logErr(`${fc.card.name} ติด Freeze Curse — โจมตีไม่ได้`);return;}
       // Scalo (id=10) and Centaur Scout (id=52) can attack from Df Line
       if(line==='df'&&fc.card.id!==10&&fc.card.id!==52){log(`${fc.card.name} อยู่ใน Df Line ไม่สามารถโจมตีได้`,'');return;}
-      if(turnNum===1){log('เทิร์นแรก ยังโจมตีไม่ได้','bad');return;}
+      if(turnNum===1){logErr('เทิร์นแรก ยังโจมตีไม่ได้');return;}
       attackerSeal={fc,pi,line};
       cancelAtkPanel();
       const enemy=G.players[1];
@@ -1008,7 +1063,7 @@ function showCerberusPicker(attFC,mainFC,mainLine){
             const i=mainFC.fusionStack.findIndex(x=>x.uid===matFC.uid);
             if(i>=0){mainFC.fusionStack.splice(i,1);G.players[1].shrine.push(matFC.card);}
             mainFC.fusionAtks=getUnlockedAtks(mainFC);
-            if(mainFC.fusionStack.length===0){mainFC.fused=false;mainFC.fusedSinceTurn=null;}
+            if(mainFC.fusionStack.length===0){mainFC.fused=false;mainFC.fusedSinceTurn=null;mainFC.wasMainFusedTurn=turnNum;}
           } else {
             log(`${attFC.card.name}[At${attAt}] ≤ ${matFC.card.name}[At${defAt}] → ${attFC.card.name} Shrine!`,'bad');
             sendToShrine(attFC,0);
@@ -1169,6 +1224,7 @@ function combatAnim(attFC,defFC,attAt,defLine,isAll,callback){
   const modal=document.getElementById('combat-anim');
   modal.style.display='flex';
   setTimeout(()=>{
+    playSound('Damage');
     if(attWins){
       defPan.classList.add('ca-dead');
       const note=isTie?` (Spd ${attSp}>${defSp})`:'';
@@ -1196,6 +1252,7 @@ function handAttackAnim(attFC,revealCard,callback){
   const modal=document.getElementById('combat-anim');
   modal.style.display='flex';
   setTimeout(()=>{
+    playSound('Damage');
     document.getElementById('ca-def-img').src=revealCard.img;
     document.getElementById('ca-def-name').textContent=revealCard.name;
     defPan.classList.add('ca-dead');
@@ -1244,6 +1301,8 @@ function getEffectiveAt(fc){
     if(fc.card.id===79)base+=ownField.filter(x=>x.uid!==fc.uid&&x.card.tribe==='Beast').length;
     // Undine (81) passive: other own seals +At 1
     if(fc.card.id!==81&&ownField.some(x=>x.card.id===81))base+=1;
+    // Black Night Griffin (55): other own Beast seals +At 1
+    if(fc.card.id!==55&&fc.card.tribe==='Beast'&&ownField.some(x=>x.card.id===55))base+=1;
     // Nerimor Princess Wands (92): own Fire +At 1 when Nerimor in Df Line
     if(fc.card.id!==92&&fc.card.el==='fire'&&own.dfLine.some(x=>x.card.id===92))base+=1;
   }
@@ -1320,6 +1379,9 @@ function applyPassiveAbilities(attFC,defFC,attAt){
   if(attFC.card.id===73&&defFC.card.el==='wind')attAt=Math.max(0,attAt-3);
   // Divine Dragon (id=86): At -2 when fighting Knight tribe
   if(attFC.card.id===86&&defFC.card.tribe==='Knight')attAt=Math.max(0,attAt-2);
+  // Centaur Ranger (id=9): At +2 when attacking a Seal with lower Sp
+  if(attFC.card.id===9&&getEffectiveSp(defFC)<getEffectiveSp(attFC))attAt+=2;
+  // Sigmund 3rd (id=89): attacker At ignores benefit; but we apply to attacker side here as AT boost
   return attAt;
 }
 function getDefStatWithPassive(defFC,attFC,defLine){
@@ -1329,6 +1391,8 @@ function getDefStatWithPassive(defFC,attFC,defLine){
   if(defFC.card.id===85&&attFC.card.el==='light')s=Math.max(0,s-3);
   // Magamouth (id=13): Df +1 when fighting a fused attacker
   if(defFC.card.id===13&&attFC.fused)s+=1;
+  // Sigmund 3rd (id=89): defender Df -2 when defender's Sp < Sigmund's Sp
+  if(attFC.card.id===89&&getEffectiveSp(defFC)<getEffectiveSp(attFC))s=Math.max(0,s-2);
   return s;
 }
 
@@ -1364,6 +1428,11 @@ function dealDamage(attFC,defFC,attAt,label,attPi=0,defPi=1,defLine='at',isAll=f
       sendToShrine(attFC,attPi);
     }
   }
+}
+
+function destroyByEffect(fc,ownerPi){
+  playSound('Card destroyed by effect');
+  sendToShrine(fc,ownerPi);
 }
 
 function sendToShrine(fc,ownerPi){
@@ -1410,12 +1479,8 @@ function sendToShrine(fc,ownerPi){
     let broke=false;
     [...opponent.atLine,...opponent.dfLine].forEach(ofc=>{
       if(!ofc.fused)return;
-      ofc.fusionStack.forEach(mfc=>{
-        if(opponent.atLine.length<LINE_MAX)opponent.atLine.push(mfc);
-        else if(opponent.dfLine.length<LINE_MAX)opponent.dfLine.push(mfc);
-        else opponent.shrine.push(mfc.card);
-      });
-      ofc.fusionStack=[];ofc.fusionAtks=[];ofc.fused=false;ofc.fusedSinceTurn=null;
+      ofc.fusionStack.forEach(mfc=>{opponent.atLine.push(mfc);});
+      ofc.fusionStack=[];ofc.fusionAtks=[];ofc.fused=false;ofc.fusedSinceTurn=null;ofc.wasMainFusedTurn=turnNum;
       broke=true;
     });
     if(broke)log(`☄ Volcanic Minotaur: Seal ฝ่ายตรงข้ามแยกการรวมร่างทั้งหมด!`,'bad');
@@ -1435,6 +1500,13 @@ function showWin(pi){
   document.getElementById('win-title').textContent=pi===0?'YOU WIN!':'YOU LOSE!';
   document.getElementById('win-sub').textContent=pi===0?'Enemy shrine overflowed!':'Your shrine overflowed!';
   document.getElementById('win-screen').classList.add('show');
+  if(pi===0){
+    const bgm=document.getElementById('bgm');
+    if(bgm){bgm.pause();bgm.currentTime=0;}
+    const win=new Audio('SoundEffect/music/Summoner Win Chime.mp3');
+    win.volume=parseFloat(localStorage.getItem('bgm_volume')||'0.5');
+    win.play().catch(()=>{});
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -1445,12 +1517,11 @@ function aiTurn(){
 
   // Build deploy list
   const toPlay=[];
-  let tempMp=ai.mp, atLen=ai.atLine.length, dfLen=ai.dfLine.length;
+  let tempMp=ai.mp, atLen=ai.atLine.length;
   const sorted=[...ai.hand].sort((a,b)=>b.lv-a.lv);
   for(const card of sorted){
     if(tempMp<card.mc)continue;
-    if(atLen<LINE_MAX){toPlay.push({card,line:'at'});tempMp-=card.mc;atLen++;}
-    else if(dfLen<LINE_MAX){toPlay.push({card,line:'df'});tempMp-=card.mc;dfLen++;}
+    toPlay.push({card,line:'at'});tempMp-=card.mc;atLen++;
   }
 
   function doAIFuse(callback){
@@ -1461,6 +1532,7 @@ function aiTurn(){
       if(usedUids.has(mainFC.uid))continue;  // already committed as someone's material
       const mats=[...ai.dfLine,...ai.atLine].filter(m=>{
         if(m.uid===mainFC.uid||m.fused||usedUids.has(m.uid)||newFromHand(m))return false;
+        if(m.wasMainFusedTurn===turnNum)return false;
         return fuseMaterialHelps(mainFC,m.card);
       });
       if(!mats.length)continue;
@@ -1479,11 +1551,22 @@ function aiTurn(){
         // Guard: mainFC could be destroyed by Gale Garuda interfere
         const stillThere=[...ai.atLine,...ai.dfLine].some(x=>x.uid===mainFC.uid);
         if(!stillThere){doFusePair(idx+1);return;}
+        // Guard: mainFC stoned = can't act; mat cursed = can't be support seal
+        if(mainFC.curses?.some(c=>c.type==='stone')){
+          log(`AI: รวมร่างล้มเหลว — ${mainFC.card.name} ติด Stone Curse ระหว่างประกาศ`,'');
+          doFusePair(idx+1);return;
+        }
+        const matStillValid=[...ai.atLine,...ai.dfLine].some(x=>x.uid===mat.uid)&&!(mat.curses?.length>0);
+        if(!matStillValid){
+          log(`AI: รวมร่างล้มเหลว — ${mat.card.name} ถูก Curse ระหว่างประกาศ`,'');
+          doFusePair(idx+1);return;
+        }
         const removeFrom=arr=>{const i=arr.findIndex(x=>x.uid===mat.uid);if(i>=0)arr.splice(i,1);};
         removeFrom(ai.atLine);removeFrom(ai.dfLine);
         mainFC.fusionStack.push(mat);
         mainFC.fusionAtks=getUnlockedAtks(mainFC);
         mainFC.fused=true;
+        playSound('Fusion Complete');
         if(!mainFC.fusedSinceTurn)mainFC.fusedSinceTurn=turnNum;
         const atkNames=mainFC.fusionAtks.map(a=>a.name).join(', ')||'(accumulating)';
         log(`AI: ${mainFC.card.name} + ${mat.card.name} → ${atkNames}`);
@@ -1544,7 +1627,7 @@ function aiTurn(){
         return{mp:2,label:'Freeze Curse',execute:()=>{
           t.curses=(t.curses||[]);t.curses.push({type:'freeze',expiresAtSubTurn:subTurnNum+2});
           if(fromLine==='atLine'){const i=player.atLine.findIndex(x=>x.uid===t.uid);
-            if(i>=0){player.atLine.splice(i,1);if(player.dfLine.length<LINE_MAX)player.dfLine.push(t);}}
+            if(i>=0){player.atLine.splice(i,1);player.dfLine.push(t);}}
           log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Freeze Curse 1 Turn!`,'bad');
         }};
       }
@@ -1554,7 +1637,7 @@ function aiTurn(){
       const minAt=Math.min(...allPlayer.map(x=>getEffectiveAt(x)));
       const t=allPlayer.find(x=>getEffectiveAt(x)===minAt);
       if(t)return{mp:2,label:'Death Curse',execute:()=>{
-        sendToShrine(t,0);
+        destroyByEffect(t,0);
         log(`AI: ${fc.card.name} [Skill] ☠ Death Curse → ${t.card.name} ถูกทำลาย!`,'bad');
       }};
     }
@@ -1562,18 +1645,14 @@ function aiTurn(){
     if(id===5&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=3){
       const t=allPlayer.find(t=>t.card.tribe==='Evil');
       if(t)return{mp:3,label:'Destroy Evil',execute:()=>{
-        sendToShrine(t,0);
+        destroyByEffect(t,0);
         log(`AI: ${fc.card.name} [Skill] → ${t.card.name} ถูกทำลาย!`,'bad');
       }};
     }
     // Ghost Ship (id=16): return self to deck, Double Combination (1 material), Mp 0
     if(id===16&&fc.fused&&fc.fusionStack.length>=1){
       return{mp:0,label:'Return to deck',execute:()=>{
-        fc.fusionStack.forEach(mfc=>{
-          if(ai.atLine.length<LINE_MAX)ai.atLine.push(mfc);
-          else if(ai.dfLine.length<LINE_MAX)ai.dfLine.push(mfc);
-          else ai.shrine.push(mfc.card);
-        });
+        fc.fusionStack.forEach(mfc=>{ai.atLine.push(mfc);});
         const rmA=ai.atLine.findIndex(x=>x.uid===fc.uid);if(rmA>=0)ai.atLine.splice(rmA,1);
         const rmD=ai.dfLine.findIndex(x=>x.uid===fc.uid);if(rmD>=0)ai.dfLine.splice(rmD,1);
         ai.deck.push(fc.card);shuffle(ai.deck);
@@ -1612,6 +1691,107 @@ function aiTurn(){
         log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 2 Turn!`,'bad');
       }};
     }
+    // Black Wiser (41): drain player Mp, prefer 2-drain if fused with Hellish Bird
+    if(id===41&&player.mp>0){
+      const hasDrainPlus=fc.fused&&fc.fusionStack.some(m=>m.card.id===44)&&ai.mp>=3;
+      if(hasDrainPlus)return{mp:3,label:'Player Mp -2',execute:()=>{
+        player.mp=Math.max(0,player.mp-2);
+        log(`AI: ${fc.card.name} [Skill] → ผู้เล่น Mp -2!`,'bad');
+      }};
+      if(ai.mp>=2)return{mp:2,label:'Player Mp -1',execute:()=>{
+        player.mp=Math.max(0,player.mp-1);
+        log(`AI: ${fc.card.name} [Skill] → ผู้เล่น Mp -1!`,'bad');
+      }};
+    }
+    // Hellish Bird (44): Last Dance Curse on player seal
+    if(id===44){
+      const atLine=ai.atLine.some(x=>x.uid===fc.uid);
+      const fusedBW=fc.fused&&fc.fusionStack.some(m=>m.card.id===41);
+      const fusedDark=fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness');
+      if(fusedBW&&atLine&&ai.mp>=3){
+        const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance'));
+        if(t)return{mp:3,label:'Last Dance At+3/2T',execute:()=>{
+          t.curses=(t.curses||[]);t.curses.push({type:'lastDance',atBonus:3,expiresAtSubTurn:subTurnNum+4});
+          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance At+3 / 2T!`,'bad');
+        }};
+      }
+      if(fusedDark&&atLine&&ai.mp>=2){
+        const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance'));
+        if(t)return{mp:2,label:'Last Dance At+2/3T',execute:()=>{
+          t.curses=(t.curses||[]);t.curses.push({type:'lastDance',atBonus:2,expiresAtSubTurn:subTurnNum+6});
+          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance At+2 / 3T!`,'bad');
+        }};
+      }
+    }
+    // Succubus (45): Charm Curse 1T on non-Light player seal, fused + at line
+    if(id===45&&fc.fused&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
+      const t=allPlayer.find(t=>t.card.el!=='light'&&!t.curses?.some(c=>c.type==='charm'));
+      if(t){const fromLine=player.atLine.some(x=>x.uid===t.uid)?'atLine':'dfLine';
+        return{mp:2,label:'Charm Curse 1T',execute:()=>{
+          t.charmed={originalPi:0,originalLine:fromLine};
+          t.curses=(t.curses||[]);t.curses.push({type:'charm',expiresAtSubTurn:subTurnNum+2});
+          t.exhausted=false;t.hasUsedSkill=false;
+          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 1T!`,'bad');
+        }};
+      }
+    }
+    // Medusa (48): Stone ∞ (Earth Mp3) or Poison 3T (Water Mp2)
+    if(id===48){
+      if(fc.fused&&fc.fusionStack.some(m=>m.card.el==='earth')&&ai.mp>=3){
+        const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone'));
+        if(t)return{mp:3,label:'Stone Curse ∞',execute:()=>{
+          t.curses=(t.curses||[]);t.curses.push({type:'stone',expiresAtSubTurn:Infinity});
+          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Stone Curse ∞!`,'bad');
+        }};
+      }
+      if(fc.fused&&fc.fusionStack.some(m=>m.card.el==='water')&&ai.mp>=2){
+        const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison'));
+        if(t)return{mp:2,label:'Poison Curse 3T',execute:()=>{
+          t.curses=(t.curses||[]);t.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+6});
+          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 3T!`,'bad');
+        }};
+      }
+    }
+    // Siren (58): Charm Curse 2T on player seal sp 3-5, fused+Dark+at line
+    if(id===58&&fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness')&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
+      const t=allPlayer.find(t=>[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='charm'));
+      if(t){const fromLine=player.atLine.some(x=>x.uid===t.uid)?'atLine':'dfLine';
+        return{mp:2,label:'Charm Curse 2T',execute:()=>{
+          t.charmed={originalPi:0,originalLine:fromLine};
+          t.curses=(t.curses||[]);t.curses.push({type:'charm',expiresAtSubTurn:subTurnNum+4});
+          t.exhausted=false;t.hasUsedSkill=false;
+          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 2T!`,'bad');
+        }};
+      }
+    }
+    // Harison (88): destroy Stone-cursed seal, at line, Mp 3 — prefer enemy seals
+    if(id===88&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=3){
+      const t=allPlayer.find(t=>t.curses?.some(c=>c.type==='stone'))
+        ||allAI.find(t=>t.uid!==fc.uid&&t.curses?.some(c=>c.type==='stone'));
+      if(t){const tPi=allPlayer.some(x=>x.uid===t.uid)?0:1;
+        return{mp:3,label:'Destroy Stone Cursed',execute:()=>{
+          sendToShrine(t,tPi);
+          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} ถูกทำลาย (Stone Curse)!`,'bad');
+        }};
+      }
+    }
+    // Zadin (91): Dragon Strike ×2 At=8, fused+Dragon+at line, Mp 4
+    if(id===91&&fc.fused&&fc.fusionStack.some(m=>m.card.tribe==='Dragon')&&ai.atLine.some(x=>x.uid===fc.uid)&&allPlayer.length>0&&ai.mp>=4){
+      return{mp:4,label:'Dragon Strike ×2 At=8',execute:()=>{
+        const sorted=[...allPlayer].sort((a,b)=>getEffectiveAt(b)-getEffectiveAt(a));
+        const t1=sorted[0];
+        const t1line=player.atLine.some(x=>x.uid===t1.uid)?'at':'df';
+        dealDamage(fc,t1,8,'Zadin Skill',1,0,t1line);
+        const remaining=[...player.atLine,...player.dfLine];
+        if(remaining.length>0){
+          const t2=remaining.sort((a,b)=>getEffectiveAt(b)-getEffectiveAt(a))[0];
+          const t2line=player.atLine.some(x=>x.uid===t2.uid)?'at':'df';
+          dealDamage(fc,t2,8,'Zadin Skill',1,0,t2line);
+        }
+        fc.exhausted=true;fc.hasAttacked=true;
+        log(`AI: ${fc.card.name} [Skill] Dragon Strike ×2 At=8!`,'bad');
+      }};
+    }
     return null;
   }
 
@@ -1622,7 +1802,7 @@ function aiTurn(){
       const skill=getAICardSkill(fc);
       if(!skill)continue;
       fc.hasUsedSkill=true;
-      ai.mp-=skill.mp;
+      ai.mp=Math.max(0,ai.mp-skill.mp);
       showActionQueue(`🤖 ${fc.card.name} [Skill] → ${skill.label}`,()=>{
         skill.execute();
         checkLose();render();
@@ -1638,11 +1818,14 @@ function aiTurn(){
     const {card,line}=toPlay[idx];
     updateAIPreview(card,`⬇ Deploying to ${line==='at'?'At':'Df'} Line`);
     showActionQueue(`🤖 ลงการ์ด <b>${card.name}</b> → ${line==='at'?'At':'Df'} Line (ลง ${card.mc} Mp)`,()=>{
+      if(ai.mp<card.mc){log(`AI: ${card.name} ลงไม่ได้ — Mp ไม่พอ`,'');doDeployStep(idx+1);return;}
       const hi=ai.hand.findIndex(c=>c===card||c.id===card.id);
       if(hi>=0)ai.hand.splice(hi,1);
       ai.mp-=card.mc;
       (line==='at'?ai.atLine:ai.dfLine).push(makeFieldCard(card,true));
+      playSound('Deploy');
       log(`AI deployed ${card.name}`);
+      if(card.id===90) triggerAndreAbility(1);
       render();
       doDeployStep(idx+1);
     });
@@ -1777,9 +1960,7 @@ function aiTurn(){
     handAttackedThisTurn=false;
     G.currentPlayer=0;
     subTurnNum++;
-    // Vioria the Frigid Witch (56): player gains AI's remaining Mp at AI turn end
-    {const viorias=[...G.players[0].atLine,...G.players[0].dfLine].filter(x=>x.card.id===56);
-    if(viorias.length>0&&G.players[1].mp>0){G.players[0].mp=Math.min((G.players[0].mp||0)+G.players[1].mp,MAX_MP);log(`Vioria [Ability]: ฝ่ายตรงข้ามเหลือ ${G.players[1].mp} Mp → เรา +${G.players[1].mp} Mp!`,'good');}}
+    // Vioria bonus applied in onPlayerDrawDone() after player's Mp resets
     [0,1].forEach(rpi=>{
       G.players[rpi].atLine.forEach(s=>{s.exhausted=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
       G.players[rpi].dfLine.forEach(s=>{s.exhausted=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
@@ -1787,10 +1968,10 @@ function aiTurn(){
     // Thor Thunder God (76): enforce At Line if enemy has At Line seals
     {const ai=G.players[1];const p=G.players[0];
     const thor=p.dfLine.find(s=>s.card.id===76);
-    if(thor&&ai.atLine.length>0&&p.atLine.length<LINE_MAX){p.dfLine.splice(p.dfLine.findIndex(s=>s.uid===thor.uid),1);p.atLine.push(thor);log('Thor [Ability]: ย้ายไป At Line อัตโนมัติ','');}}
+    if(thor&&ai.atLine.length>0){p.dfLine.splice(p.dfLine.findIndex(s=>s.uid===thor.uid),1);p.atLine.push(thor);log('Thor [Ability]: ย้ายไป At Line อัตโนมัติ','');}}
     // Dread Knight (63): always in At Line
     {const p=G.players[0];const dk=p.dfLine.find(s=>s.card.id===63);
-    if(dk&&p.atLine.length<LINE_MAX){p.dfLine.splice(p.dfLine.findIndex(s=>s.uid===dk.uid),1);p.atLine.push(dk);log('Dread Knight [Ability]: ย้ายไป At Line อัตโนมัติ','');}}
+    if(dk){p.dfLine.splice(p.dfLine.findIndex(s=>s.uid===dk.uid),1);p.atLine.push(dk);log('Dread Knight [Ability]: ย้ายไป At Line อัตโนมัติ','');}}
     // Heaven Knight (82): return to deck after 3 turns on field
     {for(let pi=0;pi<2;pi++){const owner=G.players[pi];
       for(const lk of['atLine','dfLine']){
@@ -1825,15 +2006,14 @@ function showActionQueue(desc, onProceed, fusionMainFC=null){
   document.getElementById('aq-desc').innerHTML=desc;
   document.getElementById('action-queue').style.display='flex';
   const p=G.players[0];
-  const hasSpace=p.atLine.length<LINE_MAX||p.dfLine.length<LINE_MAX;
   // Gale Garuda: only during AI fusion
-  const canGaruda=fusionMainFC&&p.hand.some(c=>c.id===53)&&p.mp>=4&&hasSpace;
+  const canGaruda=fusionMainFC&&p.hand.some(c=>c.id===53)&&p.mp>=4;
   document.getElementById('btn-aq-garuda').style.display=canGaruda?'inline-block':'none';
   // Wool Wyvern: any action queue window
-  const canWyvern=p.hand.some(c=>c.id===80)&&p.mp>=4&&hasSpace;
+  const canWyvern=p.hand.some(c=>c.id===80)&&p.mp>=4;
   document.getElementById('btn-aq-woolwyvern').style.display=canWyvern?'inline-block':'none';
   // Phoenix: in shrine, any action queue window
-  const canPhoenix=p.shrine.some(c=>c.id===78)&&p.mp>=2&&hasSpace;
+  const canPhoenix=p.shrine.some(c=>c.id===78)&&p.mp>=2;
   document.getElementById('btn-aq-phoenix').style.display=canPhoenix?'inline-block':'none';
   render(); // re-render so interfere mystics get canPlay=true
 }
@@ -1847,9 +2027,7 @@ function executeGarudaInterfere(){
   p.mp-=4;
   const garudaFC=makeFieldCard(garuda,false);
   garudaFC.deployedTurn=turnNum;
-  if(p.atLine.length<LINE_MAX)p.atLine.push(garudaFC);
-  else if(p.dfLine.length<LINE_MAX)p.dfLine.push(garudaFC);
-  else{p.shrine.push(garuda);log('สนามเต็ม — Gale Garuda ลง Shrine','bad');checkLose();render();return;}
+  p.atLine.push(garudaFC);
   document.getElementById('btn-aq-garuda').style.display='none';
   pendingFusionMain=null;
   const attAt=garudaFC.card.at;
@@ -1869,9 +2047,7 @@ function executeWoolWyvernInterfere(){
   p.mp-=4;
   const wyvernFC=makeFieldCard(wyvern,false);
   wyvernFC.deployedTurn=turnNum;
-  if(p.atLine.length<LINE_MAX)p.atLine.push(wyvernFC);
-  else if(p.dfLine.length<LINE_MAX)p.dfLine.push(wyvernFC);
-  else{p.shrine.push(wyvern);log('สนามเต็ม — Wool Wyvern ลง Shrine','bad');checkLose();render();return;}
+  p.atLine.push(wyvernFC);
   document.getElementById('btn-aq-woolwyvern').style.display='none';
   log('Wool Wyvern [Interfere]: ลงสนาม! (Fire At −2 passive active)','good');
   checkLose();render();
@@ -1881,15 +2057,12 @@ function executePhoenixInterfere(){
   const p=G.players[0];
   const phoenix=p.shrine.find(c=>c.id===78);
   if(!phoenix||p.mp<2){return;}
-  const hasSpace=p.atLine.length<LINE_MAX||p.dfLine.length<LINE_MAX;
-  if(!hasSpace){log('สนามเต็ม — Phoenix ลงไม่ได้','bad');return;}
   p.mp-=2;
   const si=p.shrine.indexOf(phoenix);
   if(si>=0)p.shrine.splice(si,1);
   const phoenixFC=makeFieldCard(phoenix,false);
   phoenixFC.deployedTurn=turnNum;
-  if(p.atLine.length<LINE_MAX)p.atLine.push(phoenixFC);
-  else p.dfLine.push(phoenixFC);
+  p.atLine.push(phoenixFC);
   document.getElementById('btn-aq-phoenix').style.display='none';
   log('Phoenix [Interfere]: ฟื้นคืนชีพจาก Shrine!','good');
   checkLose();render();
@@ -1949,6 +2122,13 @@ function doDrawChoice(type){
 
 function onPlayerDrawDone(){
   G.players[0].mp=getEffectiveMpMax(0);
+  // Vioria (56): player gains AI's unspent Mp (still readable before AI's next turn reset)
+  {const viorias=[...G.players[0].atLine,...G.players[0].dfLine].filter(x=>x.card.id===56);
+  if(viorias.length>0&&G.players[1].mp>0){
+    const gain=G.players[1].mp;
+    G.players[0].mp=Math.min(G.players[0].mp+gain,MAX_MP);
+    log(`Vioria [Ability]: AI เหลือ ${gain} Mp → เรา +${gain} Mp!`,'good');
+  }}
   turnNum++;
   phase='main';
   log(`Turn ${turnNum} — Your turn | MAIN PHASE`,'hi');
@@ -2007,6 +2187,7 @@ function aiDrawCards(pi,onDone){
         ${drawn.map(t=>`<img src="cardback/${t}.jpg" style="width:44px;height:63px;object-fit:cover;border-radius:4px;border:2px solid ${t==='seal'?'#4b5563':'#7c3aed'}">`).join('')}
       </div>
     </div>`;
+    playSound('Draw');
     setTimeout(()=>onDone(),900);
   } else {
     onDone();
@@ -2021,9 +2202,9 @@ function showMysticAction(mysticCard,mysticIdx){
   const inMainPhase=phase==='main'||phase==='main2';
   const inInterfere=!!pendingCb;
   if(!inMainPhase&&!inInterfere)return;
-  if(!inMainPhase&&!mysticCard.interfere){log(`${mysticCard.name} ไม่สามารถใช้ระหว่าง Action Queue`,'bad');return;}
+  if(!inMainPhase&&!mysticCard.interfere){logErr(`${mysticCard.name} ไม่สามารถใช้ระหว่าง Action Queue`);return;}
   const p=G.players[0];
-  if(p.mp<mysticCard.mc){log(`Mp ไม่พอ (ต้องการ ${mysticCard.mc}, มี ${p.mp})`,'bad');return;}
+  if(p.mp<mysticCard.mc){logErr(`Mp ไม่พอ (ต้องการ ${mysticCard.mc}, มี ${p.mp})`);return;}
   if(mysticCard.pasted==='PS'){
     if(mysticPlayMode&&mysticPlayMode.mysticIdx===mysticIdx){mysticPlayMode=null;render();return;}
     mysticPlayMode={mysticCard,mysticIdx};
@@ -2040,7 +2221,7 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
   const p=G.players[0];
   mysticPlayMode=null;
   if(!canAttachMystic(mysticCard,targetFC)){
-    log(`ไม่สามารถติด ${mysticCard.name} กับ ${targetFC.card.name} ได้`,'bad');
+    logErr(`ไม่สามารถติด ${mysticCard.name} กับ ${targetFC.card.name} ได้`);
     render();return;
   }
   // Gregory the Bishop (67): while in At Line, own seals cannot receive mystics
@@ -2049,8 +2230,8 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
     log(`Gregory the Bishop [Ability]: ยกเลิก Mystic — Seal ฝ่าย${targetOwner.pi===0?'เรา':'AI'} รับ Mystic ไม่ได้ขณะอยู่ใน At Line`,'bad');
     render();return;
   }
-  // Heaven Knight (82): own seals negate opponent mystics
-  if(targetOwner&&[...G.players[targetOwner.pi].atLine,...G.players[targetOwner.pi].dfLine].some(x=>x.card.id===82)){
+  // Heaven Knight (82): cannot have opponent's Mystic Cards attached to itself
+  if(targetFC.card.id===82){
     log(`Heaven Knight [Ability]: ยกเลิก Mystic ฝ่ายตรงข้าม!`,'bad');
     render();return;
   }
@@ -2065,10 +2246,17 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
   function doAttach(atBonus=0,dfBonus=0,spBonus=0,flags={}){
     p.mp-=mysticCard.mc;
     p.mysticHand.splice(mysticIdx,1);
+    playSound('Spell');
     const expires=mysticCard.turns===999?Infinity:subTurnNum+(mysticCard.turns*2);
     if(mysticCard.turns!==0){
       fc.mystics=(fc.mystics||[]);
       fc.mystics.push({mystic:mysticCard,atBonus,dfBonus,spBonus,...flags,expiresBeforeSubTurn:expires});
+      // PS curse: apply curse tied to this PS (no own timer — lasts until PS expires/falls)
+      if(flags.curseType){
+        fc.curses=(fc.curses||[]);
+        fc.curses.push({type:flags.curseType,expiresAtSubTurn:Infinity,fromPS:mysticCard.id});
+        playSound(flags.curseType==='stone'?'Stone':flags.curseType==='freeze'?'Freeze':flags.curseType==='poison'?'Poison':flags.curseType==='charm'?'Charm':'Skill');
+      }
     }
     log(`${mysticCard.name} [Mystic] ติดกับ ${fc.card.name}!`,'good');
     checkLose();render();
@@ -2081,13 +2269,9 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
       p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);
       const owner=findFCOwner(fc);
       if(owner){
-        fc.fusionStack.forEach(m=>{
-          if(owner.p.atLine.length<LINE_MAX)owner.p.atLine.push(m);
-          else if(owner.p.dfLine.length<LINE_MAX)owner.p.dfLine.push(m);
-          else owner.p.shrine.push(m.card);
-        });
+        fc.fusionStack.forEach(m=>{owner.p.atLine.push(m);});
       }
-      fc.fusionStack=[];fc.fusionAtks=[];fc.fused=false;fc.fusedSinceTurn=null;
+      fc.fusionStack=[];fc.fusionAtks=[];fc.fused=false;fc.fusedSinceTurn=null;fc.wasMainFusedTurn=turnNum;
       log(`${mysticCard.name}: ${fc.card.name} แยกการรวมร่าง!`,'good');
       checkLose();render();
     });
@@ -2105,30 +2289,20 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
     return;
   }
 
-  // ── Houdini (30): instant Stone Curse on target ──
+  // ── Houdini (30): PS Stone Curse — lasts while PS attached (1 turn) ──
   if(id===30){
-    showActionQueue(`${mysticCard.name} → ${fc.card.name} ติด Stone Curse 1 Turn`,()=>{
-      p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);
-      fc.curses=(fc.curses||[]);
-      if(!fc.curses.some(c=>c.type==='stone'))fc.curses.push({type:'stone',expiresAtSubTurn:subTurnNum+2});
-      log(`${mysticCard.name}: ${fc.card.name} ติด Stone Curse!`,'good');
-      checkLose();render();
-    });
+    showActionQueue(`${mysticCard.name} → ${fc.card.name} ติด Stone Curse ตราบที่ Houdini ยังติดอยู่`,()=>doAttach(0,0,0,{curseType:'stone'}));
     return;
   }
 
-  // ── Cupid and Psyche (69): Charm Curse on target (stays in place, player controls) ──
+  // ── Cupid and Psyche (69): PS Charm Curse — lasts while PS attached ──
   if(id===69){
-    showActionQueue(`${mysticCard.name} → ${fc.card.name} ติด Charm Curse (ถาวร)`,()=>{
-      p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);
-      const owner=findFCOwner(fc);
-      const fromLine=owner&&owner.p.atLine.includes(fc)?'atLine':'dfLine';
-      fc.curses=(fc.curses||[]);
-      if(!fc.curses.some(c=>c.type==='charm'))fc.curses.push({type:'charm',expiresAtSubTurn:subTurnNum+999*2});
+    const owner=findFCOwner(fc);
+    const fromLine=owner&&owner.p.atLine.includes(fc)?'atLine':'dfLine';
+    showActionQueue(`${mysticCard.name} → ${fc.card.name} ติด Charm Curse ตราบที่ PS ยังติดอยู่`,()=>{
       fc.charmed={originalPi:owner?owner.pi:1,originalLine:fromLine};
       fc.exhausted=false;fc.hasUsedSkill=false;
-      log(`${mysticCard.name}: ${fc.card.name} ติด Charm Curse — อยู่ภายใต้การควบคุมของเรา!`,'good');
-      checkLose();render();
+      doAttach(0,0,0,{curseType:'charm'});
     });
     return;
   }
@@ -2232,7 +2406,7 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
 function playNonPMystic(mysticCard,mysticIdx){
   const p=G.players[0];
   const id=mysticCard.id;
-  function spend(){p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);}
+  function spend(){p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
   const allField=()=>[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
 
   if(id===17){ // Holy Prayer
@@ -2354,7 +2528,7 @@ function playNonPMystic(mysticCard,mysticIdx){
 function playPAMystic(mysticCard,mysticIdx){
   const p=G.players[0];
   const id=mysticCard.id;
-  function spend(){p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);}
+  function spend(){p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
   function addAreaMystic(){
     const expires=mysticCard.turns===999?Infinity:subTurnNum+(mysticCard.turns*2);
     if(!p.areaMystics)p.areaMystics=[];
@@ -2369,8 +2543,8 @@ function playPAMystic(mysticCard,mysticIdx){
       const movers_df=ai.dfLine.filter(fc=>fc.card.tribe!=='Machine');
       const keep_at=ai.atLine.filter(fc=>fc.card.tribe==='Machine');
       const keep_df=ai.dfLine.filter(fc=>fc.card.tribe==='Machine');
-      ai.atLine=[...movers_df,...keep_at].slice(0,LINE_MAX);
-      ai.dfLine=[...movers_at,...keep_df].slice(0,LINE_MAX);
+      ai.atLine=[...movers_df,...keep_at];
+      ai.dfLine=[...movers_at,...keep_df];
       log(`Cunning Clown: สลับ Line AI (non-Machine)!`,'good');
       checkLose();render();
     });
@@ -2402,7 +2576,14 @@ function tickMystics(){
         if(!fc.mystics?.length)return;
         const expired=fc.mystics.filter(m=>m.expiresBeforeSubTurn!==Infinity&&subTurnNum>=m.expiresBeforeSubTurn);
         fc.mystics=fc.mystics.filter(m=>m.expiresBeforeSubTurn===Infinity||subTurnNum<m.expiresBeforeSubTurn);
-        expired.forEach(m=>log(`${m.mystic.name} [Mystic] หมดอายุจาก ${fc.card.name}`,''));
+        expired.forEach(m=>{
+          log(`${m.mystic.name} [Mystic] หมดอายุจาก ${fc.card.name}`,'');
+          // Remove PS-bound curse when its source PS expires
+          if(m.curseType){
+            fc.curses=(fc.curses||[]).filter(c=>!(c.type===m.curseType&&c.fromPS===m.mystic.id));
+            if(m.curseType==='charm')fc.charmed=null;
+          }
+        });
       });
     });
     if(p.areaMystics?.length){

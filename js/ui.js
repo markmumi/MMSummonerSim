@@ -1,4 +1,18 @@
 ﻿// ══════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════
+function getEffectiveMa(fc){
+  if(fc.fused){
+    const atks=getActiveAtks(fc);
+    if(atks.length){
+      const best=atks.filter(a=>a.at).sort((a,b)=>b.at-a.at)[0]||atks[0];
+      return best.mp;
+    }
+  }
+  return Math.max(0,(fc.card.ma||1)-getMysticMaReduction(fc));
+}
+
+// ══════════════════════════════════════════════
 // CANCEL
 // ══════════════════════════════════════════════
 function cancelAction(){
@@ -86,7 +100,7 @@ function cardEl(fc,pi,lineKey,isField){
   if(freezeC)div.classList.add('freeze-cursed');
   if(charmC)div.classList.add('charm-cursed');
   if(ldC)div.classList.add('lastdance-cursed');
-  function curseTurns(c){return c?Math.max(1,Math.ceil((c.expiresAtSubTurn-subTurnNum)/2)):0;}
+  function curseTurns(c){return c&&!c.fromPS?Math.max(1,Math.ceil((c.expiresAtSubTurn-subTurnNum)/2)):'';}
   const curseBadges=[
     poisonC?`<span style="background:#4d7c0f;color:#a3e635">☠${curseTurns(poisonC)}</span>`:'',
     stoneC?`<span style="background:#92400e;color:#fef3c7">🪨${curseTurns(stoneC)}</span>`:'',
@@ -99,7 +113,7 @@ function cardEl(fc,pi,lineKey,isField){
     <img src="${c.img}" alt="${c.name}" onerror="this.style.background='${ec}22';this.style.height='70px'">
     <div class="card-info">
       <div class="card-name">${c.name}</div>
-      <div class="card-stats"><span style="color:${EL_COLOR[getEffectiveEl(fc)]||ec}">${fc.magicalEl?'✦':'◆'}${getEffectiveEl(fc)[0].toUpperCase()}</span><span${getEffectiveAt(fc)!==c.at?' style="color:#fde68a"':''}>At${getEffectiveAt(fc)}</span><span${getEffectiveDf(fc)!==c.df?' style="color:#fde68a"':''}>Df${getEffectiveDf(fc)}</span><span style="color:#fbbf24">ตี${fc.fused?getActiveAtks(fc).length:c.ma||1}</span></div>
+      <div class="card-stats"><span style="color:${EL_COLOR[getEffectiveEl(fc)]||ec}">${fc.magicalEl?'✦':'◆'}${getEffectiveEl(fc)[0].toUpperCase()}</span><span${getEffectiveAt(fc)!==c.at?' style="color:#fde68a"':''}>At${getEffectiveAt(fc)}</span><span${getEffectiveDf(fc)!==c.df?' style="color:#fde68a"':''}>Df${getEffectiveDf(fc)}</span><span style="color:#fbbf24">ตี${getEffectiveMa(fc)}</span></div>
     </div>
     ${fc.fused?`<div class="fused-badge">⚡${fc.fusionStack.length}</div>`:''}
     ${newFromHand(fc)?`<div style="position:absolute;bottom:26px;right:2px;background:#6b7280;color:#fff;font-size:7px;font-weight:bold;border-radius:2px;padding:0 3px;z-index:5">NEW</div>`:''}
@@ -140,7 +154,7 @@ function cardEl(fc,pi,lineKey,isField){
     const atStr=effAt!==c.at?`<span style="color:#fde68a">At${effAt}</span>`:`At${c.at}`;
     const dfStr=effDf!==c.df?`<span style="color:#fde68a">Df${effDf}</span>`:`Df${c.df}`;
     const spStr=effSp!==c.sp?`<span style="color:#fde68a">Sp${effSp}</span>`:`Sp${c.sp}`;
-    tip.innerHTML=`<b>${c.name}</b><br>Lv${c.lv}|${c.tribe}|${c.el}<br>${atStr} ${dfStr} ${spStr}<br>ลง:${c.mc} ตี:${c.ma||1} Mp<br>${atks}${fc.fused?'<br><span style="color:#fde68a">⚡FUSED</span>':''}`;
+    tip.innerHTML=`<b>${c.name}</b><br>Lv${c.lv}|${c.tribe}|${c.el}<br>${atStr} ${dfStr} ${spStr}<br>ลง:${c.mc} ตี:${getEffectiveMa(fc)} Mp<br>${atks}${fc.fused?'<br><span style="color:#fde68a">⚡FUSED</span>':''}`;
     tip.style.display='block';moveTip(e);
   };
   div.onmousemove=moveTip;
@@ -379,7 +393,7 @@ function render(){
   if(phase==='battle'){btnNext.textContent='✓ End Battle';btnNext.className='btn btn-blue';}
   else if(phase==='main2'){btnNext.textContent='⏹ End Turn';btnNext.className='btn btn-red';}
   else{btnNext.textContent='▶ Next Phase';btnNext.className='btn btn-gray';}
-  document.getElementById('btn-cancel').style.display=(attackerSeal||pendingDeploy||fusionMode||handTargetMode||skillMode||handDiscardMode||mysticPlayMode)?'inline-block':'none';
+  document.getElementById('btn-cancel').style.display=(attackerSeal||pendingDeploy||fusionMode||handTargetMode||skillMode||handDiscardMode||mysticPlayMode||sacrificeTargetMode)?'inline-block':'none';
   // Action queue controls
   const btnProceed=document.getElementById('btn-proceed');
   const btnInterfere=document.getElementById('btn-interfere');
@@ -426,7 +440,7 @@ function showRevealModal(title,cards){
     if(isMystic){
       const abilityStr=(c.ability_text||[]).join(' / ');
       row.innerHTML=`<img src="${c.img}" style="width:28px;height:50px;object-fit:cover;border-radius:2px;flex-shrink:0"><div style="font-size:9px;line-height:1.5"><div style="font-weight:bold;color:#e9d5ff">${c.name}</div><div style="color:#a78bfa">Mystic · Mc${c.mc} · ${c.pasted}</div><div style="color:#c4b5fd;font-size:8px;max-width:180px">${abilityStr}</div></div>`;
-      row.style.cursor='default';
+      row.onclick=()=>openMysticViewer(c);
     } else {
       const ec=EL_COLOR[c.el]||'#fff';
       row.innerHTML=`<img src="${c.img}" style="width:28px;height:38px;object-fit:cover;border-radius:2px;flex-shrink:0"><div style="font-size:9px;line-height:1.5"><div style="font-weight:bold;color:#f9fafb">${c.name}</div><div>Lv${c.lv} <span style="color:${ec}">◆${c.el[0].toUpperCase()}</span> ${c.tribe} | At${c.at} Df${c.df}</div></div>`;
@@ -528,8 +542,8 @@ function openCardViewer(c,fc=null){
     const cNames={poison:'☠ Poison',stone:'🪨 Stone',freeze:'❄ Freeze',charm:'💗 Charm',lastDance:'💃 Last Dance',death:'☠ Death'};
     curseHtml='<div style="color:#f87171;font-size:10px;margin-top:6px;border-top:1px solid #374151;padding-top:6px">'+
       fc.curses.map(c=>{
-        const turns=Math.max(1,Math.ceil((c.expiresAtSubTurn-subTurnNum)/2));
-        return `<div>${cNames[c.type]||c.type} Curse — ${turns} Turn เหลือ</div>`;
+        const dur=c.fromPS?'(ติดตาม PS)':Math.max(1,Math.ceil((c.expiresAtSubTurn-subTurnNum)/2))+' Turn เหลือ';
+        return `<div>${cNames[c.type]||c.type} Curse — ${dur}</div>`;
       }).join('')+'</div>';
   }
   let mysticHtml='';
@@ -558,6 +572,20 @@ function openCardViewer(c,fc=null){
 }
 
 function closeCardViewer(){document.getElementById('card-viewer').style.display='none';}
+
+function openMysticViewer(c){
+  document.getElementById('cv-img').src=c.img;
+  document.getElementById('cv-name').textContent=c.name;
+  document.getElementById('cv-tribe').textContent=`Mystic · ${c.pasted} · Mc ${c.mc}`;
+  document.getElementById('cv-el').innerHTML=`<span style="color:#a78bfa">${c.subtype_name||''}</span>`;
+  document.getElementById('cv-stats').innerHTML='';
+  document.getElementById('cv-mp').innerHTML='';
+  document.getElementById('cv-atks').innerHTML='';
+  document.getElementById('cv-fuse').innerHTML='';
+  document.getElementById('cv-skill').innerHTML='';
+  document.getElementById('cv-ability').innerHTML=(c.ability_text||[]).map(t=>`<div>★ ${t}</div>`).join('');
+  document.getElementById('card-viewer').style.display='flex';
+}
 
 function updatePlayerPreviewMystic(m){
   const exParts=[];
@@ -642,14 +670,86 @@ function openMysticViewer(m){
 // ══════════════════════════════════════════════
 // LOG
 // ══════════════════════════════════════════════
+function logErr(msg){log(msg,'bad');playSound('Error');}
+
+// Build sorted name→card lookup (longest names first to avoid partial matches)
+let _logCardMap=null;
+function _getLogCardMap(){
+  if(_logCardMap)return _logCardMap;
+  _logCardMap=[];
+  if(typeof CARD_DB!=='undefined')CARD_DB.forEach(c=>{if(c.name)_logCardMap.push({id:c.id,name:c.name,type:'seal',card:c});});
+  if(typeof MYSTIC_DB!=='undefined')MYSTIC_DB.forEach(c=>{if(c.name)_logCardMap.push({id:c.id,name:c.name,type:'mystic',card:c});});
+  _logCardMap.sort((a,b)=>b.name.length-a.name.length);
+  return _logCardMap;
+}
+// Invalidate cache when DB loads
+function _resetLogCardMap(){_logCardMap=null;}
+
+function _linkifyLog(text){
+  // Escape HTML special chars first
+  let s=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const map=_getLogCardMap();
+  // Use a placeholder strategy to avoid re-replacing already-replaced spans
+  const marks=[];
+  for(const {id,name,type} of map){
+    if(name.length<2)continue;
+    const esc=name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    s=s.replace(new RegExp(esc,'g'),m=>{
+      const idx=marks.length;
+      marks.push(`<span class="log-card-link" data-cid="${id}" data-ctype="${type}">${name}</span>`);
+      return `\x00${idx}\x00`;
+    });
+  }
+  // Restore placeholders
+  s=s.replace(/\x00(\d+)\x00/g,(_,i)=>marks[parseInt(i)]);
+  return s;
+}
+
+function _showLogCardPopup(cid,ctype,clientX,clientY){
+  const db=ctype==='seal'?CARD_DB:MYSTIC_DB;
+  const card=(db||[]).find(c=>c.id===parseInt(cid));
+  if(!card)return;
+  const pop=document.getElementById('log-card-popup');
+  const el=card.el||'';
+  const elColor={'fire':'#f87171','water':'#38bdf8','earth':'#86efac','wind':'#a3e635','light':'#fde68a','darkness':'#c084fc','neutral':'#9ca3af'}[el]||'#e5e7eb';
+  let info=`<b style="color:#c4b5fd">${card.name}</b><br>`;
+  if(card.lv)info+=`Lv${card.lv}`;
+  if(el)info+=` · <span style="color:${elColor}">${el}</span>`;
+  if(card.tribe)info+=` · ${card.tribe}`;
+  if(ctype==='seal')info+=`<br>At:${card.at} Df:${card.df} Sp:${card.sp??'-'} Mc:${card.mc}`;
+  else info+=`<br>Mc:${card.mc}`;
+  (card.ability_text||[]).forEach(t=>{info+=`<br><span style="color:#fbbf24;font-size:9px">${t}</span>`;});
+  (card.skill_text||[]).forEach(t=>{info+=`<br><span style="color:#34d399;font-size:9px">${t}</span>`;});
+  pop.innerHTML=`<img src="${card.img||''}" onerror="this.style.display='none'"><div class="lcp-info">${info}</div>`;
+  pop.style.display='block';
+  const W=window.innerWidth,H=window.innerHeight,pw=190,ph=Math.min(320,pop.scrollHeight||300);
+  let px=clientX+14,py=clientY-20;
+  if(px+pw>W)px=clientX-pw-4;
+  if(py+ph>H)py=H-ph-4;
+  if(py<4)py=4;
+  pop.style.left=px+'px';pop.style.top=py+'px';
+}
+
 function log(msg,type=''){
   const box=document.getElementById('log');
   const d=document.createElement('div');
   d.className='log-line'+(type?' '+type:'');
-  d.textContent=msg;
+  d.innerHTML=_linkifyLog(msg);
   box.prepend(d);
   while(box.children.length>30)box.removeChild(box.lastChild);
 }
+
+// Log card link click → popup
+document.getElementById('log').addEventListener('click',e=>{
+  const link=e.target.closest('.log-card-link');
+  if(!link){document.getElementById('log-card-popup').style.display='none';return;}
+  e.stopPropagation();
+  _showLogCardPopup(link.dataset.cid,link.dataset.ctype,e.clientX,e.clientY);
+});
+document.addEventListener('click',()=>{
+  const pop=document.getElementById('log-card-popup');
+  if(pop)pop.style.display='none';
+});
 
 // Right-click to cancel active selection modes
 document.addEventListener('contextmenu',e=>{
@@ -672,13 +772,22 @@ document.addEventListener('contextmenu',e=>{
 });
 
 // ══════════════════════════════════════════════
+// BUTTON SOUND
+// ══════════════════════════════════════════════
+document.addEventListener('click',function(e){
+  const el=e.target.closest('#controls button');
+  if(el&&typeof playSound==='function'&&el.id!=='btn-atk'&&el.id!=='btn-cancel')playSound('Confirm');
+},{capture:true});
+
+// ══════════════════════════════════════════════
 // START
 // ══════════════════════════════════════════════
 loadMysticDB()
   .then(()=>loadCardDB())
-  .then(()=>initGame())
+  .then(()=>{_resetLogCardMap();initGame();})
   .catch(err=>{
     console.warn('JSON load failed, using fallback:',err);
     CARD_DB=_CARD_DB_FALLBACK;
+    _resetLogCardMap();
     initGame();
   });
