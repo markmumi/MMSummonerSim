@@ -3,7 +3,7 @@
 // Host = pi=0 (runs all engine logic, broadcasts state)
 // Guest = pi=1 (sends action commands, receives & renders state)
 // ══════════════════════════════════════════════
-const Online = (() => {
+var Online = (() => {
   const PEER_PREFIX = 'MMSM2025-';
   let peer = null, conn = null;
 
