@@ -1541,9 +1541,11 @@ function aiTurn(){
     for(const mainFC of [...ai.atLine]){
       if(mainFC.fused||!mainFC.card.fuse?.length)continue;
       if(usedUids.has(mainFC.uid))continue;  // already committed as someone's material
+      if(mainFC.curses?.some(c=>c.type==='charm'))continue; // charmed — player controls it
       const mats=[...ai.dfLine,...ai.atLine].filter(m=>{
         if(m.uid===mainFC.uid||m.fused||usedUids.has(m.uid)||newFromHand(m))return false;
         if(m.wasMainFusedTurn===turnNum)return false;
+        if(m.curses?.some(c=>c.type==='charm'))return false; // charmed — player controls it
         return fuseMaterialHelps(mainFC,m.card);
       });
       if(!mats.length)continue;
@@ -1809,7 +1811,7 @@ function aiTurn(){
   function doAISkill(callback){
     const aiSeals=[...ai.atLine,...ai.dfLine];
     for(const fc of aiSeals){
-      if(fc.hasUsedSkill||fc.curses?.some(c=>c.type==='stone'))continue;
+      if(fc.hasUsedSkill||fc.curses?.some(c=>c.type==='stone'||c.type==='charm'))continue;
       const skill=getAICardSkill(fc);
       if(!skill)continue;
       fc.hasUsedSkill=true;
