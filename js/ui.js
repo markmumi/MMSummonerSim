@@ -18,6 +18,13 @@ function getEffectiveMa(fc){
 function cancelAction(){
   attackerSeal=null;pendingAttackIdx=null;pendingDeploy=null;pendingSacrifice=null;
   fusionMode=false;fusionMainFC=null;handTargetMode=false;skillMode=null;handDiscardMode=null;handPickMode=null;mysticPlayMode=null;sacrificeTargetMode=null;
+  // Clear guest-side state vars (if online guest)
+  if(window.Online?.isOnline&&!Online.isHost){
+    if(guestFusionMainFC){Online.sendGuestAction({action:'guestCancelFusion'});}
+    if(guestSkillMode){Online.sendGuestAction({action:'guestCancelSkill'});}
+    if(guestMysticPlayMode){Online.sendGuestAction({action:'guestCancelMysticPS'});}
+    guestFusionMainFC=null;guestSkillMode=null;guestMysticPlayMode=null;guestHandDiscardMode=null;
+  }
   closeAtkPanel();closeDeployModal();closeFAModal();
   render();
 }
@@ -76,17 +83,22 @@ function updateAIPreview(card,action=''){
 // RENDER
 // ══════════════════════════════════════════════
 function cardEl(fc,pi,lineKey,isField){
+  const lpi=(window.Online?.isOnline&&!Online.isHost)?1:0;
+  const rpi=1-lpi;
   const c=fc.card;
   const div=document.createElement('div');
   div.className='card';
   if(fc.exhausted)div.classList.add('exhausted');
   if(fc===attackerSeal?.fc)div.classList.add('attacker');
-  if(attackerSeal&&pi===1)div.classList.add('targetable');
-  if(fusionMode&&pi===0&&canBeFusionMaterial(fc))div.classList.add('fusion-target');
+  if(attackerSeal&&pi===rpi)div.classList.add('targetable');
+  if(fusionMode&&pi===lpi&&canBeFusionMaterial(fc))div.classList.add('fusion-target');
+  if(guestFusionMainFC&&pi===lpi&&canBeGuestFusionMaterial(fc))div.classList.add('fusion-target');
   if(skillMode&&isSkillTarget(fc))div.classList.add('skill-target');
+  if(guestSkillMode&&pi!==lpi){const s=(getCardSkills(guestSkillMode.fc)||[])[guestSkillMode.skillIdx];if(s&&s.filter&&s.filter(fc))div.classList.add('skill-target');}
   if(sacrificeTargetMode&&!(sacrificeTargetMode.mysticCard.exception_tribes||[]).includes(fc.card.tribe))div.classList.add('skill-target');
   if(mysticPlayMode&&canAttachMystic(mysticPlayMode.mysticCard,fc))div.classList.add('mystic-attach');
-  if(pendingCb&&pi===0&&!fc.hasUsedSkill&&getCardSkills(fc).some(s=>s.interfere&&G.players[0].mp>=s.mp&&G.players[0].hand.length>0))div.classList.add('interfere-avail');
+  if(guestMysticPlayMode&&canAttachMystic(guestMysticPlayMode.mysticCard,fc))div.classList.add('mystic-attach');
+  if(pendingCb&&pi===lpi&&!fc.hasUsedSkill&&getCardSkills(fc).some(s=>s.interfere&&G.players[lpi].mp>=s.mp&&G.players[lpi].hand.length>0))div.classList.add('interfere-avail');
   if(fc.fused)div.classList.add('fused');
   const ec=EL_COLOR[c.el]||'#fff';
   // Curse classes
@@ -124,7 +136,8 @@ function cardEl(fc,pi,lineKey,isField){
   `;
   div.onclick=()=>clickFieldSeal(fc,pi,lineKey);
   div.ondblclick=e=>{e.stopPropagation();openCardViewer(c,fc);};
-  if(pi===0){
+  if(pi===lpi&&lpi===0){
+    // Drag-drop only for offline/host (pi=0)
     div.draggable=true;
     div.ondragstart=e=>{e.stopPropagation();e.dataTransfer.setData('text/plain',JSON.stringify({type:'field',uid:fc.uid,fromLine:lineKey}));e.dataTransfer.effectAllowed='move';};
     div.ondragover=e=>{if(e.dataTransfer.types.includes('text/plain'))e.preventDefault();};
@@ -183,12 +196,12 @@ function cardEl(fc,pi,lineKey,isField){
   return div;
 }
 
-function handCardEl(card,idx){
+function handCardEl(card,idx,pi=0){
   const div=document.createElement('div');
   div.className='card hand-card';
-  const p=G.players[0];
+  const p=G.players[pi];
   const effMc=getEffectiveMc(card);
-  const canPlay=p.mp>=effMc&&(phase==='main'||phase==='main2')&&G.currentPlayer===0;
+  const canPlay=p.mp>=effMc&&(phase==='main'||phase==='main2')&&G.currentPlayer===pi;
   if(canPlay)div.classList.add('playable');
   const ec=EL_COLOR[card.el]||'#fff';
   const mcDisp=effMc!==card.mc?`<span style="color:#fde68a">${effMc}</span>`:effMc;
@@ -200,20 +213,36 @@ function handCardEl(card,idx){
       <div class="card-stats"><span style="color:${ec}">◆${card.el[0].toUpperCase()}</span><span>At${card.at}</span><span style="color:#38bdf8">ลง${mcDisp}</span><span style="color:#fbbf24">ตี${card.ma||1}</span></div>
     </div>
   `;
-  if(phase==='discard'&&p.hand.length+(p.mysticHand||[]).length>HAND_COMBINED_MAX){
+  const isGuest=window.Online?.isOnline&&!Online.isHost&&pi===1;
+  const guestDiscardStep=isGuest&&phase==='discard'&&p.hand.length+(p.mysticHand||[]).length>HAND_COMBINED_MAX;
+  if(phase==='discard'&&pi===0&&p.hand.length+(p.mysticHand||[]).length>HAND_COMBINED_MAX){
     div.classList.add('discard-sel');
     div.onclick=()=>doForcedDiscardSeal(idx);
-  } else if(handPickMode&&card.tribe==='Beast'){
+  } else if(guestDiscardStep){
+    div.classList.add('discard-sel');
+    div.onclick=()=>Online.sendGuestAction({action:'guestDiscardSeal',cardIdx:idx});
+  } else if(handPickMode&&card.tribe==='Beast'&&!isGuest){
     div.classList.add('discard-sel');
     div.onclick=()=>executeHandPickBeast(card,idx);
-  } else if(handDiscardMode){
+  } else if(handDiscardMode&&!isGuest){
     div.classList.add('discard-sel');
     div.onclick=()=>executeInterfere(card);
+  } else if(handDiscardMode&&isGuest){
+    div.classList.add('discard-sel');
+    div.onclick=()=>Online.sendGuestAction({action:'handDiscard',cardIdx:idx});
+  } else if(guestHandDiscardMode&&isGuest){
+    div.classList.add('discard-sel');
+    div.onclick=()=>Online.sendGuestAction({action:'guestHandDiscard',cardIdx:idx});
   } else if(canPlay){
-    div.onclick=()=>clickHandCard(card,idx);
+    if(isGuest){
+      // Guest: clicking shows deploy modal (doDeploy sends action to host)
+      div.onclick=()=>{pendingDeploy={card,idx};const mc=effMc!==card.mc?` (${card.mc}→${effMc})`:'';document.getElementById('deploy-title').textContent=`Deploy ${card.name} (Mp ${effMc}${mc})`;document.getElementById('deploy-modal').classList.add('show');};
+    } else {
+      div.onclick=()=>clickHandCard(card,idx);
+    }
   }
   div.ondblclick=e=>{e.stopPropagation();openCardViewer(card);};
-  if(!handDiscardMode&&canPlay){
+  if(!handDiscardMode&&canPlay&&!isGuest){
     div.draggable=true;
     div.ondragstart=e=>{e.dataTransfer.setData('text/plain',JSON.stringify({type:'hand',idx}));e.dataTransfer.effectAllowed='move';};
   }
@@ -238,10 +267,11 @@ function moveTip(e){
 }
 
 function renderLine(id,seals,pi,lineKey){
+  const lpi=(window.Online?.isOnline&&!Online.isHost)?1:0;
   const line=document.getElementById(id);
   line.innerHTML='';
   const mkEmpty=()=>{const s=document.createElement('div');s.className='slot-empty';s.textContent='—';return s;};
-  if(pi===0){
+  if(pi===lpi){
     // Player line with space: deploy slots at far left and far right
     const mkDeploy=(insertAt)=>{
       const s=document.createElement('div');
@@ -255,7 +285,7 @@ function renderLine(id,seals,pi,lineKey){
           const data=JSON.parse(e.dataTransfer.getData('text/plain'));
           if(data.type!=='hand')return; // let 'field'/'mystic' bubble to LINE handler
           e.stopPropagation(); // only block bubble for hand deploys (prevent double-deploy)
-          const card=G.players[0].hand[data.idx];
+          const card=G.players[lpi].hand[data.idx];
           if(!card)return;
           doDeployAtSlot(card,data.idx,lineKey,insertAt);
         }catch(err){}
@@ -278,15 +308,19 @@ function renderLine(id,seals,pi,lineKey){
 }
 
 function render(){
-  const p0=G.players[0],p1=G.players[1];
-  renderLine('enemy-df',p1.dfLine,1,'df');
-  renderLine('enemy-at',p1.atLine,1,'at');
-  renderLine('player-at',p0.atLine,0,'at');
-  renderLine('player-df',p0.dfLine,0,'df');
+  // Online: lpi = local player index (0=host/offline, 1=guest), rpi = remote
+  const lpi=(window.Online?.isOnline&&!Online.isHost)?1:0;
+  const rpi=1-lpi;
+  const pL=G.players[lpi],pR=G.players[rpi];
 
-  // Area mystics strip
+  renderLine('enemy-df',pR.dfLine,rpi,'df');
+  renderLine('enemy-at',pR.atLine,rpi,'at');
+  renderLine('player-at',pL.atLine,lpi,'at');
+  renderLine('player-df',pL.dfLine,lpi,'df');
+
+  // Area mystics strip (local player)
   const amDiv=document.getElementById('player-area-mystics');
-  const ams=p0.areaMystics||[];
+  const ams=pL.areaMystics||[];
   if(ams.length){
     amDiv.style.display='flex';
     amDiv.innerHTML='<span style="font-size:9px;color:#a78bfa;margin-right:2px">✦ PA:</span>';
@@ -304,65 +338,83 @@ function render(){
     amDiv.style.display='none';
   }
 
+  // Local player's hand
   const hand=document.getElementById('hand');
   hand.innerHTML='';
-  p0.hand.forEach((c,i)=>hand.appendChild(handCardEl(c,i)));
-  document.getElementById('hand-label').textContent=p0.hand.length;
+  pL.hand.forEach((c,i)=>hand.appendChild(handCardEl(c,i,lpi)));
+  document.getElementById('hand-label').textContent=pL.hand.length;
 
-  // Mystic hand — same row, separated by a thin divider
-  const mysticCards=p0.mysticHand||[];
+  // Mystic hand — same row, separated by a thin divider (both host and guest)
+  const mysticCards=pL.mysticHand||[];
   document.getElementById('mystic-hand-label').textContent=mysticCards.length;
   if(mysticCards.length){
     const sep=document.createElement('div');
     sep.style.cssText='width:2px;background:#2d1b69;border-radius:1px;margin:2px 4px;align-self:stretch;min-height:80px';
     hand.appendChild(sep);
-    mysticCards.forEach((m,i)=>hand.appendChild(mysticCardEl(m,i)));
+    mysticCards.forEach((m,i)=>hand.appendChild(mysticCardEl(m,i,lpi)));
   }
 
-  // Mp pips
+  // Mp pips (local player)
   const pips=document.getElementById('p0-mp');
   pips.innerHTML='';
-  const mpMax0=getEffectiveMpMax(0);
-  for(let i=0;i<mpMax0;i++){
+  const mpMaxL=getEffectiveMpMax(lpi);
+  for(let i=0;i<mpMaxL;i++){
     const d=document.createElement('div');
-    d.className='pip'+(i<p0.mp?' on':'');
+    d.className='pip'+(i<pL.mp?' on':'');
     pips.appendChild(d);
   }
-  document.getElementById('p0-mp-num').textContent=`${p0.mp}/${mpMax0}`;
+  document.getElementById('p0-mp-num').textContent=`${pL.mp}/${mpMaxL}`;
 
-  // Shrine
-  const s0=shrineTotal(0),s1=shrineTotal(1);
+  // Shrine (local / remote)
+  const sL=shrineTotal(lpi),sR=shrineTotal(rpi);
   const sb=document.getElementById('p0-shrine');
-  sb.textContent=`${s0}/${MAX_SHRINE}`;
-  sb.className='shrine-box'+(s0>=6?' danger':'');
-  document.getElementById('p1-shrine-label').textContent=`${s1}/${MAX_SHRINE}`;
-  document.getElementById('p1-mp-label').textContent=p1.mp;
-  {const ap=document.getElementById('p1-mp-pips');ap.innerHTML='';const mpMax1=getEffectiveMpMax(1);for(let i=0;i<mpMax1;i++){const d=document.createElement('div');d.className='pip'+(i<p1.mp?' on':'');ap.appendChild(d);}}
-  document.getElementById('p1-deck-count').textContent=p1.deck.length;
-  document.getElementById('p1-mystic-deck-count').textContent=(p1.mysticDeck||[]).length;
-  document.getElementById('p0-deck-count').textContent=p0.deck.length;
-  document.getElementById('p0-mystic-deck-count').textContent=(p0.mysticDeck||[]).length;
-  document.getElementById('p0-hand-count').textContent=p0.hand.length;
+  sb.textContent=`${sL}/${MAX_SHRINE}`;
+  sb.className='shrine-box'+(sL>=6?' danger':'');
+  document.getElementById('p1-shrine-label').textContent=`${sR}/${MAX_SHRINE}`;
+  document.getElementById('p1-mp-label').textContent=pR.mp;
+  {const ap=document.getElementById('p1-mp-pips');ap.innerHTML='';const mpMaxR=getEffectiveMpMax(rpi);for(let i=0;i<mpMaxR;i++){const d=document.createElement('div');d.className='pip'+(i<pR.mp?' on':'');ap.appendChild(d);}}
+  document.getElementById('p1-deck-count').textContent=pR.deck.length;
+  document.getElementById('p1-mystic-deck-count').textContent=(pR.mysticDeck||[]).length;
+  document.getElementById('p0-deck-count').textContent=pL.deck.length;
+  document.getElementById('p0-mystic-deck-count').textContent=(pL.mysticDeck||[]).length;
+  document.getElementById('p0-hand-count').textContent=pL.hand.length;
 
   // Phase label (header)
+  const isOnlineGuest=window.Online?.isOnline&&!Online.isHost;
+  const activeFusion=fusionMode||!!guestFusionMainFC;
+  const activeSkill=skillMode||!!guestSkillMode;
+  const activeMystic=mysticPlayMode||!!guestMysticPlayMode;
+  const activeHandDiscard=handDiscardMode||!!guestHandDiscardMode;
+  const isOpponentTurn=G.currentPlayer===rpi;
+  const opponentLabel=window.Online?.isOnline?'OPPONENT TURN':'AI TURN';
+  // Mode badge
+  const modeEl=document.getElementById('mode-label');
+  if(modeEl){
+    if(window.Online?.isOnline){
+      modeEl.textContent=Online.isHost?'🌐 Online (Host)':'🌐 Online (Guest)';
+      modeEl.style.cssText='font-size:10px;padding:2px 8px;background:#052e16;border:1px solid #16a34a;border-radius:4px;color:#4ade80';
+    } else {
+      modeEl.textContent='🤖 VS AI';
+      modeEl.style.cssText='font-size:10px;padding:2px 8px;background:#1e293b;border:1px solid #334155;border-radius:4px;color:#64748b';
+    }
+  }
   document.getElementById('phase-label').textContent=
-    G.currentPlayer===1?'AI TURN':{draw:'DRAW',main:'MAIN',discard:'DISCARD',battle:'BATTLE',main2:'MAIN2',end:'END'}[phase]||phase;
-  if(fusionMode)document.getElementById('phase-label').textContent='⚡ FUSION';
-  if(skillMode)document.getElementById('phase-label').textContent='✦ SKILL';
-  if(mysticPlayMode)document.getElementById('phase-label').textContent='✦ MYSTIC';
+    isOpponentTurn?opponentLabel:{draw:'DRAW',main:'MAIN',discard:'DISCARD',battle:'BATTLE',main2:'MAIN2',end:'END'}[phase]||phase;
+  if(activeFusion)document.getElementById('phase-label').textContent='⚡ FUSION';
+  if(activeSkill)document.getElementById('phase-label').textContent='✦ SKILL';
+  if(activeMystic)document.getElementById('phase-label').textContent='✦ MYSTIC';
 
   // Controls phase label
   const cp=document.getElementById('controls-phase');
-  if(G.currentPlayer===1){cp.textContent='AI TURN';cp.style.color='#ef4444';}
-  else if(fusionMode){cp.textContent='⚡ FUSION';cp.style.color='#a78bfa';}
-  else if(skillMode){cp.textContent='✦ SKILL';cp.style.color='#34d399';}
-  else if(mysticPlayMode){cp.textContent='✦ MYSTIC — เลือก Seal';cp.style.color='#a78bfa';}
-  else if(handDiscardMode){cp.textContent='✦ INTERFERE — เลือกทิ้ง';cp.style.color='#f97316';}
+  if(isOpponentTurn){cp.textContent=opponentLabel;cp.style.color='#ef4444';}
+  else if(activeFusion){cp.textContent='⚡ FUSION';cp.style.color='#a78bfa';}
+  else if(activeSkill){cp.textContent='✦ SKILL';cp.style.color='#34d399';}
+  else if(activeMystic){cp.textContent='✦ MYSTIC — เลือก Seal';cp.style.color='#a78bfa';}
+  else if(activeHandDiscard){cp.textContent='✦ INTERFERE — เลือกทิ้ง';cp.style.color='#f97316';}
   else if(handTargetMode){cp.textContent='🎯 HAND TARGET';cp.style.color='#ef4444';}
   else if(phase==='main'){cp.textContent='MAIN PHASE';cp.style.color='#34d399';}
   else if(phase==='discard'){
-    const p=G.players[0];
-    const combined=p.hand.length+(p.mysticHand||[]).length;
+    const combined=pL.hand.length+(pL.mysticHand||[]).length;
     cp.textContent=`DISCARD STEP — ทิ้ง ${combined-HAND_COMBINED_MAX} ใบ (รวม ${combined}/${HAND_COMBINED_MAX})`;
     cp.style.color='#f97316';
   }
@@ -370,8 +422,8 @@ function render(){
   else if(phase==='battle'){cp.textContent='BATTLE PHASE';cp.style.color='#f87171';}
   else{cp.textContent=phase.toUpperCase();cp.style.color='#9ca3af';}
 
-  // Attack button text
-  const myTurn=G.currentPlayer===0&&!pendingCb;
+  // Attack button
+  const myTurn=G.currentPlayer===lpi&&!pendingCb;
   const atkBtn=document.getElementById('btn-atk');
   if(attackerSeal){
     const fc=attackerSeal.fc;
@@ -390,34 +442,33 @@ function render(){
   atkBtn.disabled=!(myTurn&&phase==='battle'&&attackerSeal&&!handTargetMode);
   document.getElementById('btn-special').disabled=!(myTurn&&phase==='battle'&&attackerSeal);
   const btnNext=document.getElementById('btn-next');
-  btnNext.disabled=!myTurn||phase==='discard'||fusionMode;
+  btnNext.disabled=!myTurn||phase==='discard'||fusionMode||!!guestFusionMainFC;
   if(phase==='battle'){btnNext.textContent='✓ End Battle';btnNext.className='btn btn-blue';}
   else if(phase==='main2'){btnNext.textContent='⏹ End Turn';btnNext.className='btn btn-red';}
   else{btnNext.textContent='▶ Next Phase';btnNext.className='btn btn-gray';}
-  document.getElementById('btn-cancel').style.display=(attackerSeal||pendingDeploy||fusionMode||handTargetMode||skillMode||handDiscardMode||mysticPlayMode||sacrificeTargetMode)?'inline-block':'none';
+  document.getElementById('btn-cancel').style.display=(attackerSeal||pendingDeploy||fusionMode||handTargetMode||skillMode||handDiscardMode||mysticPlayMode||sacrificeTargetMode||guestFusionMainFC||guestSkillMode||guestMysticPlayMode||guestHandDiscardMode)?'inline-block':'none';
   // Action queue controls
   const btnProceed=document.getElementById('btn-proceed');
-  const btnInterfere=document.getElementById('btn-interfere');
-  if(btnProceed)btnProceed.disabled=!!handDiscardMode;
+  if(btnProceed)btnProceed.disabled=!!(handDiscardMode||guestHandDiscardMode);
   const btnAqCancel=document.getElementById('btn-aq-cancel');
-  if(btnAqCancel)btnAqCancel.style.display=handDiscardMode?'inline-block':'none';
+  if(btnAqCancel)btnAqCancel.style.display=(handDiscardMode||guestHandDiscardMode)?'inline-block':'none';
 
-  // AI hand display
+  // Remote player's hand display (face-down card backs)
   const aiHandDiv=document.getElementById('ai-hand-display');
   aiHandDiv.innerHTML='';
-  G.players[1].hand.forEach((c,i)=>{
+  pR.hand.forEach((_c,i)=>{
     const img=document.createElement('img');
     img.src='cardback/seal.jpg';
-    img.className='ai-hcard'+(handTargetMode?' htarget':'');
-    img.title=handTargetMode?`คลิกเพื่อโจมตีการ์ดในมือ AI`:'AI hand card';
-    if(handTargetMode)img.onclick=()=>clickAIHandCard(i);
+    img.className='ai-hcard'+(handTargetMode&&lpi===0?' htarget':'');
+    img.title=handTargetMode&&lpi===0?'คลิกเพื่อโจมตีการ์ดในมือ':'card in opponent hand';
+    if(handTargetMode&&lpi===0)img.onclick=()=>clickAIHandCard(i);
     aiHandDiv.appendChild(img);
   });
-  (G.players[1].mysticHand||[]).forEach(()=>{
+  (pR.mysticHand||[]).forEach(()=>{
     const img=document.createElement('img');
     img.src='cardback/mystic.jpg';
     img.className='ai-hcard';
-    img.title='AI mystic card';
+    img.title='mystic card in opponent hand';
     img.style.opacity='0.8';
     aiHandDiv.appendChild(img);
   });
@@ -606,15 +657,17 @@ function updatePlayerPreviewMystic(m){
     </div>`;
 }
 
-function mysticCardEl(mysticCard,idx){
+function mysticCardEl(mysticCard,idx,pi=0){
   const div=document.createElement('div');
   div.className='mystic-card';
-  const p=G.players[0];
-  const inMainPhase=(phase==='main'||phase==='main2')&&G.currentPlayer===0;
-  const inInterfere=!!pendingCb;
+  const isGuest=window.Online?.isOnline&&!Online.isHost&&pi===1;
+  const p=G.players[pi];
+  const inMainPhase=(phase==='main'||phase==='main2')&&G.currentPlayer===pi;
+  const inInterfere=!!pendingCb&&!isGuest; // guest interfere handled separately
   const canPlay=p.mp>=mysticCard.mc&&(inMainPhase||(mysticCard.interfere&&inInterfere));
   if(canPlay)div.classList.add('playable');
-  if(mysticPlayMode&&mysticPlayMode.mysticIdx===idx)div.classList.add('mystic-sel');
+  const activeSel=isGuest?(guestMysticPlayMode&&guestMysticPlayMode.mysticIdx===idx):(mysticPlayMode&&mysticPlayMode.mysticIdx===idx);
+  if(activeSel)div.classList.add('mystic-sel');
   div.innerHTML=`
     <div class="mystic-type-badge">${mysticCard.pasted}${mysticCard.interfere?'⚡':''}</div>
     <img src="${mysticCard.img}" alt="${mysticCard.name}" onerror="this.src='cardback/mystic.jpg'">
@@ -626,11 +679,19 @@ function mysticCardEl(mysticCard,idx){
   const mysticOverLimit=phase==='discard'&&p.hand.length+(p.mysticHand||[]).length>HAND_COMBINED_MAX;
   if(mysticOverLimit)div.classList.add('discard-sel');
   div.onclick=()=>{
-    if(mysticOverLimit){doForcedDiscardMystic(idx);return;}
-    updatePlayerPreviewMystic(mysticCard);if(canPlay)showMysticAction(mysticCard,idx);
+    if(mysticOverLimit){
+      if(isGuest){Online.sendGuestAction({action:'guestDiscardMystic',mysticIdx:idx});}
+      else{doForcedDiscardMystic(idx);}
+      return;
+    }
+    updatePlayerPreviewMystic(mysticCard);
+    if(canPlay){
+      if(isGuest){guestShowMysticAction(mysticCard,idx);}
+      else{showMysticAction(mysticCard,idx);}
+    }
   };
   div.ondblclick=e=>{e.stopPropagation();openMysticViewer(mysticCard);};
-  if(canPlay){
+  if(canPlay&&!isGuest){
     div.draggable=true;
     div.ondragstart=e=>{e.dataTransfer.setData('text/plain',JSON.stringify({type:'mystic',idx}));e.dataTransfer.effectAllowed='copy';};
   }
@@ -756,19 +817,31 @@ document.addEventListener('click',()=>{
 document.addEventListener('contextmenu',e=>{
   if(sacrificeTargetMode){
     e.preventDefault();
-    sacrificeTargetMode=null;
-    render();
+    sacrificeTargetMode=null;render();
   } else if(mysticPlayMode){
     e.preventDefault();
-    mysticPlayMode=null;
-    render();
+    mysticPlayMode=null;render();
   } else if(handDiscardMode){
     e.preventDefault();
-    handDiscardMode=null;
-    render();
+    handDiscardMode=null;render();
   } else if(skillMode){
     e.preventDefault();
     cancelAction();
+  } else if(guestMysticPlayMode){
+    e.preventDefault();
+    Online.sendGuestAction({action:'guestCancelMysticPS'});
+    guestMysticPlayMode=null;render();
+  } else if(guestHandDiscardMode){
+    e.preventDefault();
+    guestHandDiscardMode=null;render();
+  } else if(guestSkillMode){
+    e.preventDefault();
+    Online.sendGuestAction({action:'guestCancelSkill'});
+    guestSkillMode=null;render();
+  } else if(guestFusionMainFC){
+    e.preventDefault();
+    Online.sendGuestAction({action:'guestCancelFusion'});
+    guestFusionMainFC=null;render();
   }
 });
 
@@ -785,10 +858,27 @@ document.addEventListener('click',function(e){
 // ══════════════════════════════════════════════
 loadMysticDB()
   .then(()=>loadCardDB())
-  .then(()=>{_resetLogCardMap();initGame();})
+  .then(()=>{
+    _resetLogCardMap();
+    const isOnlineMode=new URLSearchParams(location.search).get('mode')==='online';
+    if(isOnlineMode){
+      const lobby=document.getElementById('online-lobby');
+      if(lobby)lobby.style.display='flex';
+      // Guest: wait for host to broadcast initial state (no initGame call)
+      // Host: doStartOnlineGame() calls initGameOnline() after guest connects
+    } else {
+      initGame();
+    }
+  })
   .catch(err=>{
     console.warn('JSON load failed, using fallback:',err);
     CARD_DB=_CARD_DB_FALLBACK;
     _resetLogCardMap();
-    initGame();
+    const isOnlineMode=new URLSearchParams(location.search).get('mode')==='online';
+    if(isOnlineMode){
+      const lobby=document.getElementById('online-lobby');
+      if(lobby)lobby.style.display='flex';
+    } else {
+      initGame();
+    }
   });

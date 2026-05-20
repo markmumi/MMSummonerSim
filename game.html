@@ -13,6 +13,7 @@
     <a href="index.html" style="font-size:11px;padding:2px 8px;background:#374151;border-radius:4px;color:#9ca3af;text-decoration:none;border:1px solid #4b5563" title="กลับ Menu">← Menu</a>
     <span style="font-size:14px;font-weight:bold;color:#fbbf24">⚔ MMSummonerMasterSim</span>
     <span id="phase-label" style="font-size:11px;padding:2px 8px;background:#7c3aed;border-radius:4px">-</span>
+    <span id="mode-label" style="font-size:10px;padding:2px 8px;background:#1e293b;border:1px solid #334155;border-radius:4px;color:#64748b">VS AI</span>
   </div>
 </div>
 
@@ -57,7 +58,7 @@
       <div id="action-queue">
         <div id="aq-desc"></div>
         <button id="btn-proceed" class="btn btn-green" onclick="proceedAction()">▶ ไปต่อ</button>
-        <button id="btn-aq-cancel" class="btn btn-gray" onclick="cancelHandDiscard()" style="display:none">✕</button>
+        <button id="btn-aq-cancel" class="btn btn-gray" onclick="if(window.Online?.isOnline&&!Online.isHost){guestHandDiscardMode=null;render();}else{cancelHandDiscard();}" style="display:none">✕</button>
         <button id="btn-aq-garuda" class="btn btn-yellow" onclick="executeGarudaInterfere()" style="display:none">⚡ Garuda</button>
         <button id="btn-aq-woolwyvern" class="btn btn-yellow" onclick="executeWoolWyvernInterfere()" style="display:none">🌪 Wyvern</button>
         <button id="btn-aq-phoenix" class="btn btn-yellow" onclick="executePhoenixInterfere()" style="display:none">🔥 Phoenix</button>
@@ -183,6 +184,52 @@
   <div id="ca-result" style="font-size:17px;font-weight:bold;color:#fbbf24;min-height:22px;text-align:center;text-shadow:0 0 10px #fbbf2466"></div>
 </div>
 
+<!-- Online Lobby -->
+<div id="online-lobby" style="display:none;position:fixed;inset:0;background:#0f172a;z-index:600;align-items:center;justify-content:center">
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:16px;padding:28px 30px;max-width:420px;width:92%;position:relative">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+      <span style="font-size:22px">🌐</span>
+      <span style="font-size:17px;font-weight:700;color:#fbbf24">Online Multiplayer</span>
+    </div>
+
+    <div id="lobby-tabs" style="display:flex;gap:8px;margin-bottom:18px">
+      <button id="tab-create" onclick="lobbyTab('create')" style="flex:1;padding:8px;border-radius:8px;border:1px solid #7c3aed;background:#7c3aed;color:#fff;font-size:13px;font-weight:600;cursor:pointer">🏠 Create Room</button>
+      <button id="tab-join" onclick="lobbyTab('join')" style="flex:1;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#9ca3af;font-size:13px;font-weight:600;cursor:pointer">🔗 Join Room</button>
+    </div>
+
+    <!-- Create Room panel -->
+    <div id="panel-create">
+      <p style="font-size:12px;color:#94a3b8;margin-bottom:12px">กด Create เพื่อสร้างห้อง แล้วแชร์ Room Code ให้ผู้เล่นอีกฝ่าย</p>
+      <div id="create-status" style="font-size:12px;color:#9ca3af;margin-bottom:10px"></div>
+      <button id="btn-create-room" onclick="doCreateRoom()" style="width:100%;padding:10px;background:#7c3aed;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">Create Room</button>
+
+      <div id="room-code-box" style="display:none;margin-top:14px;text-align:center;background:#0f172a;border-radius:10px;padding:14px">
+        <div style="font-size:11px;color:#64748b;margin-bottom:4px">Room Code — แชร์ให้เพื่อน</div>
+        <div id="room-code-display" style="font-size:36px;font-weight:900;color:#fbbf24;letter-spacing:8px"></div>
+        <button onclick="copyRoomCode()" style="margin-top:8px;padding:4px 14px;background:#334155;border:none;border-radius:6px;color:#94a3b8;font-size:11px;cursor:pointer">📋 Copy</button>
+        <div style="margin-top:10px;font-size:11px;color:#64748b">กำลังรอผู้เล่นอีกฝ่าย…</div>
+      </div>
+
+      <div id="guest-connected-box" style="display:none;margin-top:12px;background:#052e16;border:1px solid #16a34a;border-radius:8px;padding:12px;text-align:center">
+        <div style="color:#4ade80;font-size:13px;font-weight:600">✓ ผู้เล่นเชื่อมต่อแล้ว!</div>
+        <button id="btn-start-game" onclick="doStartOnlineGame()" style="margin-top:10px;width:100%;padding:10px;background:#16a34a;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">▶ เริ่มเกม</button>
+      </div>
+    </div>
+
+    <!-- Join Room panel -->
+    <div id="panel-join" style="display:none">
+      <p style="font-size:12px;color:#94a3b8;margin-bottom:12px">กรอก Room Code ที่ Host ให้มา แล้วกด Join</p>
+      <div style="display:flex;gap:8px">
+        <input id="join-code-input" maxlength="6" placeholder="ABCDEF" style="flex:1;padding:10px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#f1f5f9;font-size:20px;font-weight:700;letter-spacing:4px;text-align:center;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+        <button id="btn-join-room" onclick="doJoinRoom()" style="padding:10px 16px;background:#7c3aed;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">Join</button>
+      </div>
+      <div id="join-status" style="font-size:12px;color:#9ca3af;margin-top:10px;min-height:18px"></div>
+    </div>
+
+    <button onclick="history.back()" style="position:absolute;top:10px;right:14px;background:none;border:none;color:#64748b;font-size:20px;cursor:pointer;line-height:1">✕</button>
+  </div>
+</div>
+
 <!-- Win screen -->
 <div id="win-screen">
   <h1 id="win-title">WIN!</h1>
@@ -192,9 +239,87 @@
 
 <script src="js/db.js"></script>
 <script src="js/ai_decks.js"></script>
+<script src="js/online.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/skills.js"></script>
 <script src="js/ui.js"></script>
+
+<script>
+// ── Online lobby UI ──
+function lobbyTab(which){
+  document.getElementById('panel-create').style.display=which==='create'?'':'none';
+  document.getElementById('panel-join').style.display=which==='join'?'':'none';
+  document.getElementById('tab-create').style.cssText=which==='create'
+    ?'flex:1;padding:8px;border-radius:8px;border:1px solid #7c3aed;background:#7c3aed;color:#fff;font-size:13px;font-weight:600;cursor:pointer'
+    :'flex:1;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#9ca3af;font-size:13px;font-weight:600;cursor:pointer';
+  document.getElementById('tab-join').style.cssText=which==='join'
+    ?'flex:1;padding:8px;border-radius:8px;border:1px solid #7c3aed;background:#7c3aed;color:#fff;font-size:13px;font-weight:600;cursor:pointer'
+    :'flex:1;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#9ca3af;font-size:13px;font-weight:600;cursor:pointer';
+}
+
+function doCreateRoom(){
+  document.getElementById('btn-create-room').disabled=true;
+  document.getElementById('btn-create-room').textContent='กำลังสร้าง…';
+  document.getElementById('create-status').textContent='กำลังเชื่อมต่อกับ PeerJS…';
+  Online.onStatusChange=(status,msg)=>{
+    if(status==='waiting'){
+      document.getElementById('create-status').textContent='รอ Guest เชื่อมต่อ…';
+      document.getElementById('room-code-box').style.display='block';
+      document.getElementById('room-code-display').textContent=msg;
+    } else if(status==='error'){
+      document.getElementById('create-status').textContent='❌ Error: '+msg;
+      document.getElementById('btn-create-room').disabled=false;
+      document.getElementById('btn-create-room').textContent='Create Room';
+    }
+  };
+  Online.createRoom(
+    ()=>{},
+    ()=>{
+      document.getElementById('guest-connected-box').style.display='block';
+    }
+  );
+}
+
+function doStartOnlineGame(){
+  document.getElementById('btn-start-game').disabled=true;
+  document.getElementById('btn-start-game').textContent='กำลังเริ่ม…';
+  document.getElementById('online-lobby').style.display='none';
+  initGameOnline(Online.guestDeckData);
+}
+
+function doJoinRoom(){
+  const code=document.getElementById('join-code-input').value.trim().toUpperCase();
+  if(code.length<4){alert('กรุณากรอก Room Code ให้ถูกต้อง');return;}
+  document.getElementById('btn-join-room').disabled=true;
+  document.getElementById('join-status').textContent='กำลังเชื่อมต่อ…';
+  Online.onStatusChange=(status,msg)=>{
+    if(status==='connecting'){
+      document.getElementById('join-status').textContent='กำลังเชื่อมต่อ…';
+    } else if(status==='connected'){
+      document.getElementById('join-status').textContent='✓ เชื่อมต่อสำเร็จ! รอ Host เริ่มเกม…';
+      document.getElementById('join-status').style.color='#4ade80';
+    } else if(status==='disconnected'){
+      document.getElementById('join-status').textContent='❌ หลุดการเชื่อมต่อ';
+      document.getElementById('btn-join-room').disabled=false;
+    } else if(status==='error'){
+      document.getElementById('join-status').textContent='❌ Error: '+(msg||'ไม่สามารถเชื่อมต่อได้ ตรวจสอบ Room Code');
+      document.getElementById('join-status').style.color='#f87171';
+      document.getElementById('btn-join-room').disabled=false;
+    }
+  };
+  Online.joinRoom(code, ()=>{
+    document.getElementById('join-status').textContent='✓ เชื่อมต่อสำเร็จ! รอ Host เริ่มเกม…';
+    document.getElementById('join-status').style.color='#4ade80';
+  });
+}
+
+function copyRoomCode(){
+  const code=document.getElementById('room-code-display').textContent;
+  navigator.clipboard?.writeText(code).then(()=>{
+    const b=event.target;b.textContent='✓ Copied!';setTimeout(()=>b.textContent='📋 Copy',1500);
+  });
+}
+</script>
 
 <audio id="bgm" loop src="SoundEffect/music/Summoner Clash.mp3"></audio>
 <div id="bgm-ctrl" style="position:fixed;bottom:14px;right:14px;display:flex;align-items:center;gap:6px;background:#1e293b;border:1px solid #334155;border-radius:20px;padding:4px 10px 4px 6px;z-index:999">
