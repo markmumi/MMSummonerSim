@@ -26,9 +26,10 @@ function cancelAction(){
 // PREVIEW PANELS
 // ══════════════════════════════════════════════
 function fuseReqLabel(f){
-  if(f.rt==='el')return f.cnt>1?`${f.cnt}x ${f.req}`:`${f.req}`;
-  if(f.rt==='tribe')return f.cnt>1?`${f.cnt}x ${f.req} tribe`:`${f.req} tribe`;
-  return f.cnt>1?`${f.cnt}x "${f.req}"`:`"${f.req}"`;
+  // f.reqs is an array of strings e.g. ["fire","fire"] or ["darkness","water"]
+  const counts={};
+  (f.reqs||[]).forEach(r=>{counts[r]=(counts[r]||0)+1;});
+  return Object.entries(counts).map(([r,n])=>n>1?`${n}x ${r}`:r).join('+');
 }
 function updatePlayerPreview(card,fc=null){
   const el=EL_COLOR[card.el]||'#fff';

@@ -24,6 +24,7 @@ let mysticPlayMode = null; // {mysticCard, mysticIdx} — waiting to paste PS to
 let sacrificeTargetMode = null; // {mysticCard, mysticIdx} — waiting to click field seal to destroy
 const MYSTIC_HAND_MAX = 7;
 let drawsRemaining = 0;
+let _vioriaAiMpLeft = 0; // AI's unspent MP captured at start of AI turn (before reset), for player Vioria
 
 const _SFX={};
 ['Deploy','Draw','Flip','Skill','Confirm','Damage','Fusion Complete',
@@ -318,14 +319,8 @@ function endTurn(){
     render();
   } else {
     // AI's turn: Draw Phase — interfere window before drawing
-    const _playerMpLeft=G.players[0].mp; // player's unspent Mp before AI turn starts
+    _vioriaAiMpLeft=G.players[1].mp; // save AI's leftover before reset (for player Vioria in onPlayerDrawDone)
     G.players[pi].mp=getEffectiveMpMax(pi);
-    // Vioria (56): if AI has Vioria, gain player's unspent Mp on top of normal reset
-    {const viorias=[...G.players[1].atLine,...G.players[1].dfLine].filter(x=>x.card.id===56);
-    if(viorias.length>0&&_playerMpLeft>0){
-      G.players[pi].mp=Math.min(G.players[pi].mp+_playerMpLeft,MAX_MP);
-      log(`Vioria [Ability]: Player เหลือ ${_playerMpLeft} Mp → AI +${_playerMpLeft} Mp!`,'');
-    }}
     phase='draw';
     log(`AI's turn — Draw Phase`,'hi');
     render();
@@ -649,42 +644,34 @@ function triggerGregoryCancel(ownerPi){
 }
 
 // ── FUSION ──
-function matchesFuseReq(f,card){
-  if(f.rt==='el')return f.req==='any'||f.req===card.el;
-  if(f.rt==='tribe')return f.req===card.tribe;
-  if(f.rt==='card')return f.req===card.name;
-  return false;
-}
-
 function getUnlockedAtks(mainFC){
-  const fuse=mainFC.card.fuse||[];
-  const groups={};
-  fuse.forEach(f=>{const key=f.rt+':'+f.req;if(!groups[key])groups[key]=[];groups[key].push(f);});
   const result=[];
-  for(const key of Object.keys(groups)){
-    const sorted=groups[key].slice().sort((a,b)=>b.cnt-a.cnt);
-    for(const f of sorted){
-      const have=mainFC.fusionStack.filter(m=>matchesFuseReq(f,m.card)).length;
-      if(have>=f.cnt){result.push({...f.atk});break;}
+  for(const f of mainFC.card.fuse||[]){
+    // Greedy-match stack cards against each req string; each stack card used at most once
+    const stackCards=mainFC.fusionStack.map(m=>m.card);
+    let ok=true;
+    for(const req of f.reqs){
+      const idx=stackCards.findIndex(c=>matchesReq(req,c));
+      if(idx>=0){stackCards.splice(idx,1);}else{ok=false;break;}
     }
+    if(ok)result.push({...f.atk});
   }
   return result;
 }
 
 function fuseMaterialHelps(mainFC,card){
-  const fuse=mainFC.card.fuse||[];
-  const stack=mainFC.fusionStack;
-  // After first material is added, lock to the same fusion group (same req+rt)
-  let lockedKey=null;
-  if(stack.length>0){
-    const first=stack[0].card;
-    for(const f of fuse){if(matchesFuseReq(f,first)){lockedKey=f.rt+':'+f.req;break;}}
+  const stack=mainFC.fusionStack.map(m=>m.card);
+  for(const f of mainFC.card.fuse||[]){
+    // Satisfy as many reqs as possible with existing stack, then see if new card fills a remaining req
+    const reqLeft=[...f.reqs];
+    const stackCopy=[...stack];
+    for(let i=reqLeft.length-1;i>=0;i--){
+      const idx=stackCopy.findIndex(c=>matchesReq(reqLeft[i],c));
+      if(idx>=0){stackCopy.splice(idx,1);reqLeft.splice(i,1);}
+    }
+    if(reqLeft.some(req=>matchesReq(req,card)))return true;
   }
-  return fuse.some(f=>{
-    if(lockedKey&&(f.rt+':'+f.req)!==lockedKey)return false;
-    const have=stack.filter(s=>matchesFuseReq(f,s.card)).length;
-    return have<f.cnt&&matchesFuseReq(f,card);
-  });
+  return false;
 }
 
 // Rule 613.8.3: card deployed from hand this turn cannot be Support Seal
@@ -2121,13 +2108,21 @@ function doDrawChoice(type){
 }
 
 function onPlayerDrawDone(){
+  // Capture player's unspent Mp before reset (for AI Vioria)
+  const _playerMpLeft=G.players[0].mp;
   G.players[0].mp=getEffectiveMpMax(0);
-  // Vioria (56): player gains AI's unspent Mp (still readable before AI's next turn reset)
+  // Player Vioria (56): player gains AI's unspent Mp captured at start of AI's turn (before AI reset)
   {const viorias=[...G.players[0].atLine,...G.players[0].dfLine].filter(x=>x.card.id===56);
-  if(viorias.length>0&&G.players[1].mp>0){
-    const gain=G.players[1].mp;
-    G.players[0].mp=Math.min(G.players[0].mp+gain,MAX_MP);
-    log(`Vioria [Ability]: AI เหลือ ${gain} Mp → เรา +${gain} Mp!`,'good');
+  if(viorias.length>0&&_vioriaAiMpLeft>0){
+    G.players[0].mp=Math.min(G.players[0].mp+_vioriaAiMpLeft,MAX_MP);
+    log(`Vioria [Ability]: AI เหลือ ${_vioriaAiMpLeft} Mp → เรา +${_vioriaAiMpLeft} Mp!`,'good');
+  }}
+  _vioriaAiMpLeft=0;
+  // AI Vioria (56): AI gains player's unspent Mp (player's turn ending → player Mp resets)
+  {const viorias=[...G.players[1].atLine,...G.players[1].dfLine].filter(x=>x.card.id===56);
+  if(viorias.length>0&&_playerMpLeft>0){
+    G.players[1].mp=Math.min(G.players[1].mp+_playerMpLeft,MAX_MP);
+    log(`Vioria [Ability]: Player เหลือ ${_playerMpLeft} Mp → AI +${_playerMpLeft} Mp!`,'');
   }}
   turnNum++;
   phase='main';

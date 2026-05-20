@@ -21,9 +21,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["fire"],
           "atk_name": "Blaze Tail",
           "atk_at": 7,
           "atk_df": null,
@@ -31,9 +29,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "Firat",
-          "require_type": "card",
-          "count": 1,
+          "reqs": ["Firat"],
           "atk_name": "Flame Flock",
           "atk_at": 12,
           "atk_df": null,
@@ -64,9 +60,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["light"],
           "atk_name": "Holy Horn",
           "atk_at": 9,
           "atk_df": null,
@@ -99,9 +93,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["light"],
           "atk_name": "Melodies of Light",
           "atk_at": 7,
           "atk_df": null,
@@ -135,9 +127,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "Rough Roar",
           "atk_at": 7,
           "atk_df": null,
@@ -145,9 +135,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["darkness", "darkness"],
           "atk_name": "Fury Fang",
           "atk_at": 9,
           "atk_df": null,
@@ -180,9 +168,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["light"],
           "atk_name": "Tall Lashes",
           "atk_at": 8,
           "atk_df": null,
@@ -190,9 +176,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["light", "light"],
           "atk_name": "Sacred Horn",
           "atk_at": 10,
           "atk_df": null,
@@ -225,9 +209,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["fire"],
           "atk_name": "Scythe Lashes",
           "atk_at": 9,
           "atk_df": null,
@@ -235,9 +217,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "Power Bern",
           "atk_at": 8,
           "atk_df": null,
@@ -270,9 +250,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["fire"],
           "atk_name": "Fire Claw",
           "atk_at": 10,
           "atk_df": null,
@@ -280,9 +258,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["fire", "fire"],
           "atk_name": "Desert Venom",
           "atk_at": 8,
           "atk_df": null,
@@ -315,9 +291,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["fire"],
           "atk_name": "Burning Horn",
           "atk_at": 7,
           "atk_df": null,
@@ -325,9 +299,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["fire", "fire"],
           "atk_name": "Fire Gore",
           "atk_at": 9,
           "atk_df": null,
@@ -360,9 +332,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["earth"],
           "atk_name": "Rushing Stub",
           "atk_at": 9,
           "atk_df": null,
@@ -370,9 +340,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["earth", "earth"],
           "atk_name": "Meteoric Pierce",
           "atk_at": 10,
           "atk_df": null,
@@ -403,9 +371,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["earth"],
           "atk_name": "Roller",
           "atk_at": null,
           "atk_df": 9,
@@ -413,9 +379,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["earth", "earth"],
           "atk_name": "Fasten Roller",
           "atk_at": null,
           "atk_df": 11,
@@ -449,9 +413,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["earth"],
           "atk_name": "Dry Glow",
           "atk_at": 7,
           "atk_df": null,
@@ -459,9 +421,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["earth", "earth"],
           "atk_name": "Spur Stub",
           "atk_at": 9,
           "atk_df": null,
@@ -494,9 +454,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["earth"],
           "atk_name": "Maya Indulge",
           "atk_at": 9,
           "atk_df": null,
@@ -504,9 +462,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "Blow Claw",
           "atk_at": null,
           "atk_df": 7,
@@ -539,9 +495,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["water"],
           "atk_name": "Sharp Canine",
           "atk_at": 9,
           "atk_df": null,
@@ -549,9 +503,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["water", "water"],
           "atk_name": "Acute Assault",
           "atk_at": 10,
           "atk_df": null,
@@ -584,9 +536,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["water"],
           "atk_name": "Hide In Shell",
           "atk_at": null,
           "atk_df": 8,
@@ -594,9 +544,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["water", "water"],
           "atk_name": "Sharp Shell",
           "atk_at": 9,
           "atk_df": null,
@@ -629,9 +577,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["water"],
           "atk_name": "Ice Scale",
           "atk_at": 8,
           "atk_df": null,
@@ -639,9 +585,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["water", "water"],
           "atk_name": "Ice Dorsal",
           "atk_at": 10,
           "atk_df": null,
@@ -674,9 +618,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "any",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["any"],
           "atk_name": "Artillery",
           "atk_at": 9,
           "atk_df": null,
@@ -684,9 +626,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "any",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["any"],
           "atk_name": "Vehicle",
           "atk_at": 7,
           "atk_df": null,
@@ -719,9 +659,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["light"],
           "atk_name": "Sword of Order",
           "atk_at": 8,
           "atk_df": null,
@@ -729,9 +667,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["light", "light"],
           "atk_name": "Sword of Law",
           "atk_at": 9,
           "atk_df": null,
@@ -765,9 +701,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["wind"],
           "atk_name": "Flash Ray",
           "atk_at": 10,
           "atk_df": null,
@@ -775,9 +709,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["wind", "wind"],
           "atk_name": "Burning Beam",
           "atk_at": 9,
           "atk_df": null,
@@ -810,9 +742,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["wind"],
           "atk_name": "Sand Storm",
           "atk_at": 8,
           "atk_df": null,
@@ -820,9 +750,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["wind", "wind"],
           "atk_name": "Whirl Wind",
           "atk_at": 10,
           "atk_df": null,
@@ -855,9 +783,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["wind"],
           "atk_name": "Scare Song",
           "atk_at": 8,
           "atk_df": null,
@@ -865,9 +791,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "Death Song",
           "atk_at": 6,
           "atk_df": null,
@@ -900,9 +824,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "Dark Purpose",
           "atk_at": 9,
           "atk_df": null,
@@ -910,9 +832,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "Hellish Bird",
-          "require_type": "card",
-          "count": 1,
+          "reqs": ["Hellish Bird"],
           "atk_name": "Dark Damn ( )",
           "atk_at": 7,
           "atk_df": null,
@@ -944,9 +864,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["water"],
           "atk_name": "Venom Ivory",
           "atk_at": 7,
           "atk_df": null,
@@ -981,9 +899,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["earth"],
           "atk_name": "Rock Arm",
           "atk_at": 10,
           "atk_df": null,
@@ -991,9 +907,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["earth", "earth"],
           "atk_name": "Roll Attach",
           "atk_at": 11,
           "atk_df": null,
@@ -1026,9 +940,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "Dark Dance",
           "atk_at": 8,
           "atk_df": null,
@@ -1036,9 +948,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "Black Wiser",
-          "require_type": "card",
-          "count": 1,
+          "reqs": ["Black Wiser"],
           "atk_name": "End Energy",
           "atk_at": 9,
           "atk_df": null,
@@ -1070,9 +980,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "My Desire",
           "atk_at": 8,
           "atk_df": null,
@@ -1080,9 +988,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["darkness", "darkness"],
           "atk_name": "More Desire",
           "atk_at": 9,
           "atk_df": null,
@@ -1113,9 +1019,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "Pretty Chop",
           "atk_at": 8,
           "atk_df": null,
@@ -1148,9 +1052,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["light"],
           "atk_name": "Flash Kick",
           "atk_at": 9,
           "atk_df": null,
@@ -1158,9 +1060,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["light", "light"],
           "atk_name": "Soar Charge",
           "atk_at": 10,
           "atk_df": null,
@@ -1193,9 +1093,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["earth"],
           "atk_name": "Stone Sight",
           "atk_at": null,
           "atk_df": 6,
@@ -1203,9 +1101,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["water"],
           "atk_name": "Venom Hair",
           "atk_at": 7,
           "atk_df": null,
@@ -1237,9 +1133,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["water"],
           "atk_name": "Twin Blade",
           "atk_at": 8,
           "atk_df": null,
@@ -1248,9 +1142,7 @@ const CARDS_METADATA = {
           "atk_hits": 2
         },
         {
-          "require": "Beast",
-          "require_type": "tribe",
-          "count": 1,
+          "reqs": ["Beast"],
           "atk_name": "Triple Assault",
           "atk_at": 7,
           "atk_df": null,
@@ -1284,9 +1176,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "Venom Fang",
           "atk_at": 9,
           "atk_df": null,
@@ -1294,9 +1184,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["darkness", "water"],
           "atk_name": "Whirl Strike",
           "atk_at": 11,
           "atk_df": null,
@@ -1331,9 +1219,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["light"],
           "atk_name": "Light Lance",
           "atk_at": 11,
           "atk_df": null,
@@ -1341,9 +1227,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["light", "light"],
           "atk_name": "Rushing Lash",
           "atk_at": 11,
           "atk_df": null,
@@ -1376,9 +1260,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["earth"],
           "atk_name": "Aim Arrow",
           "atk_at": 8,
           "atk_df": null,
@@ -1386,9 +1268,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["earth", "earth"],
           "atk_name": "Zap Shot",
           "atk_at": 10,
           "atk_df": null,
@@ -1422,9 +1302,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["wind"],
           "atk_name": "Soar Slash",
           "atk_at": 9,
           "atk_df": null,
@@ -1432,9 +1310,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["wind", "wind"],
           "atk_name": "Soar Strike",
           "atk_at": 11,
           "atk_df": null,
@@ -1465,9 +1341,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["light"],
           "atk_name": "Aura Disposal",
           "atk_at": 9,
           "atk_df": null,
@@ -1475,9 +1349,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["light", "light"],
           "atk_name": "Aura Barrier",
           "atk_at": null,
           "atk_df": 11,
@@ -1510,9 +1382,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "Shadow Scratch",
           "atk_at": 9,
           "atk_df": null,
@@ -1520,9 +1390,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["wind"],
           "atk_name": "Misty Wing",
           "atk_at": 10,
           "atk_df": null,
@@ -1553,9 +1421,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["water"],
           "atk_name": "Iceblink",
           "atk_at": 9,
           "atk_df": null,
@@ -1563,9 +1429,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["water", "water"],
           "atk_name": "Frigidity",
           "atk_at": 10,
           "atk_df": null,
@@ -1598,9 +1462,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["fire"],
           "atk_name": "Close Thrust",
           "atk_at": 8,
           "atk_df": null,
@@ -1608,9 +1470,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["fire", "fire"],
           "atk_name": "Assassin Stab",
           "atk_at": 9,
           "atk_df": null,
@@ -1643,9 +1503,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "Enchanting Song",
           "atk_at": 6,
           "atk_df": null,
@@ -1653,9 +1511,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["water", "water"],
           "atk_name": "Sonic Wave",
           "atk_at": 9,
           "atk_df": null,
@@ -1686,9 +1542,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["wind"],
           "atk_name": "Cyanic Feather",
           "atk_at": 9,
           "atk_df": null,
@@ -1696,9 +1550,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["wind", "wind"],
           "atk_name": "Blow Beak",
           "atk_at": 11,
           "atk_df": null,
@@ -1733,9 +1585,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["wind"],
           "atk_name": "Lance Assault",
           "atk_at": 9,
           "atk_df": null,
@@ -1743,9 +1593,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "Dragon",
-          "require_type": "tribe",
-          "count": 1,
+          "reqs": ["Dragon"],
           "atk_name": "Double Assault",
           "atk_at": 9,
           "atk_df": null,
@@ -1778,9 +1626,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["fire"],
           "atk_name": "Cruel Fire Die Sword",
           "atk_at": 8,
           "atk_df": null,
@@ -1814,9 +1660,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "Frenzied Cleave",
           "atk_at": 11,
           "atk_df": null,
@@ -1850,9 +1694,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["wind"],
           "atk_name": "Thunder Tail",
           "atk_at": 9,
           "atk_df": null,
@@ -1860,9 +1702,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["wind", "wind"],
           "atk_name": "Electric Crest",
           "atk_at": 11,
           "atk_df": null,
@@ -1895,9 +1735,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["earth"],
           "atk_name": "Sand Scratch",
           "atk_at": 9,
           "atk_df": null,
@@ -1905,9 +1743,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["earth", "earth"],
           "atk_name": "Riddle",
           "atk_at": 8,
           "atk_df": null,
@@ -1940,9 +1776,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["light"],
           "atk_name": "Holy Words",
           "atk_at": 8,
           "atk_df": null,
@@ -1950,9 +1784,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["light", "light"],
           "atk_name": "Halo Radiant",
           "atk_at": 11,
           "atk_df": null,
@@ -1985,9 +1817,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "Shadow Sharp",
           "atk_at": 9,
           "atk_df": null,
@@ -2021,9 +1851,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["earth"],
           "atk_name": "Guardian Anger",
           "atk_at": 10,
           "atk_df": 11,
@@ -2031,9 +1859,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["earth", "earth"],
           "atk_name": "Brow Breaker",
           "atk_at": 11,
           "atk_df": 12,
@@ -2067,9 +1893,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["fire"],
           "atk_name": "Glowing Fire",
           "atk_at": 9,
           "atk_df": null,
@@ -2077,9 +1901,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["fire", "fire"],
           "atk_name": "Burning Blaze",
           "atk_at": 10,
           "atk_df": null,
@@ -2112,9 +1934,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["water"],
           "atk_name": "White Wing",
           "atk_at": 9,
           "atk_df": null,
@@ -2122,9 +1942,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "Beast",
-          "require_type": "tribe",
-          "count": 1,
+          "reqs": ["Beast"],
           "atk_name": "Wild Beak",
           "atk_at": 10,
           "atk_df": null,
@@ -2157,9 +1975,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["wind"],
           "atk_name": "Bolt Hammer",
           "atk_at": 11,
           "atk_df": null,
@@ -2167,9 +1983,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["wind", "wind"],
           "atk_name": "Shock Smash",
           "atk_at": 13,
           "atk_df": null,
@@ -2202,9 +2016,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["light"],
           "atk_name": "Leaf of Life",
           "atk_at": null,
           "atk_df": 3,
@@ -2239,9 +2051,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["fire"],
           "atk_name": "Fire Wing",
           "atk_at": 8,
           "atk_df": null,
@@ -2249,9 +2059,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["fire", "fire"],
           "atk_name": "Rising Sun",
           "atk_at": 11,
           "atk_df": null,
@@ -2284,9 +2092,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["fire"],
           "atk_name": "Fire Wing Cutter",
           "atk_at": 9,
           "atk_df": null,
@@ -2319,9 +2125,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["wind"],
           "atk_name": "Wave Wing",
           "atk_at": 10,
           "atk_df": null,
@@ -2329,9 +2133,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "Dragon",
-          "require_type": "tribe",
-          "count": 1,
+          "reqs": ["Dragon"],
           "atk_name": "Soar Charge",
           "atk_at": 12,
           "atk_df": null,
@@ -2366,9 +2168,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["water"],
           "atk_name": "Silent Lake",
           "atk_at": 9,
           "atk_df": null,
@@ -2376,9 +2176,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["water", "water"],
           "atk_name": "Wave Lashes",
           "atk_at": 11,
           "atk_df": null,
@@ -2411,9 +2209,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["light", "light"],
           "atk_name": "Holy Light",
           "atk_at": 12,
           "atk_df": null,
@@ -2421,9 +2217,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["wind"],
           "atk_name": "Holy War",
           "atk_at": 9,
           "atk_df": null,
@@ -2457,9 +2251,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["fire"],
           "atk_name": "Dragon Fire",
           "atk_at": 11,
           "atk_df": null,
@@ -2467,9 +2259,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["fire", "fire"],
           "atk_name": "Blaze Breath",
           "atk_at": 12,
           "atk_df": null,
@@ -2503,9 +2293,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["water"],
           "atk_name": "Freeze Breath",
           "atk_at": 11,
           "atk_df": null,
@@ -2513,9 +2301,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["water", "water"],
           "atk_name": "Tidal Wave",
           "atk_at": 10,
           "atk_df": null,
@@ -2550,9 +2336,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["darkness"],
           "atk_name": "Dark Fang",
           "atk_at": 10,
           "atk_df": null,
@@ -2560,9 +2344,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "darkness",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["darkness", "darkness"],
           "atk_name": "Acid Breath",
           "atk_at": 11,
           "atk_df": null,
@@ -2597,9 +2379,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["light"],
           "atk_name": "Albino Flame",
           "atk_at": 9,
           "atk_df": null,
@@ -2607,9 +2387,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "light",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["light", "light"],
           "atk_name": "Aurora Beam",
           "atk_at": 10,
           "atk_df": null,
@@ -2643,9 +2421,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["fire"],
           "atk_name": "Golden Spear",
           "atk_at": 9,
           "atk_df": null,
@@ -2678,9 +2454,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["earth"],
           "atk_name": "Geo Fist",
           "atk_at": 10,
           "atk_df": null,
@@ -2688,9 +2462,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["earth", "earth"],
           "atk_name": "Geo Meditation",
           "atk_at": 11,
           "atk_df": 13,
@@ -2721,9 +2493,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "Beast",
-          "require_type": "tribe",
-          "count": 1,
+          "reqs": ["Beast"],
           "atk_name": "Flash Slash",
           "atk_at": 11,
           "atk_df": null,
@@ -2731,9 +2501,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["wind", "wind"],
           "atk_name": "Felasia Sword",
           "atk_at": 12,
           "atk_df": null,
@@ -2764,9 +2532,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["water"],
           "atk_name": "Crystal Cleave",
           "atk_at": 10,
           "atk_df": null,
@@ -2774,9 +2540,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["water", "water"],
           "atk_name": "Iced Blade",
           "atk_at": 12,
           "atk_df": null,
@@ -2807,9 +2571,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["fire"],
           "atk_name": "Flame Hit",
           "atk_at": 11,
           "atk_df": null,
@@ -2817,9 +2579,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "Dragon",
-          "require_type": "tribe",
-          "count": 1,
+          "reqs": ["Dragon"],
           "atk_name": "Twice Thwack",
           "atk_at": 10,
           "atk_df": null,
@@ -2827,9 +2587,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["fire", "fire"],
           "atk_name": "Magmata Smash",
           "atk_at": 12,
           "atk_df": null,
@@ -2860,9 +2618,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["fire"],
           "atk_name": "Furious Flame",
           "atk_at": 11,
           "atk_df": null,
@@ -2870,9 +2626,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "fire",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["fire", "fire"],
           "atk_name": "Burn Ruination",
           "atk_at": 10,
           "atk_df": null,
@@ -2905,9 +2659,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["water"],
           "atk_name": "Diamond Mist",
           "atk_at": 10,
           "atk_df": null,
@@ -2915,9 +2667,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "water",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["water", "water"],
           "atk_name": "Snowstorm",
           "atk_at": 10,
           "atk_df": null,
@@ -2950,9 +2700,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["wind"],
           "atk_name": "Dancing Sword",
           "atk_at": 11,
           "atk_df": null,
@@ -2960,9 +2708,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "wind",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["wind", "wind"],
           "atk_name": "Million Slash",
           "atk_at": 10,
           "atk_df": null,
@@ -2995,9 +2741,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 1,
+          "reqs": ["earth"],
           "atk_name": "Voice of Earth",
           "atk_at": 10,
           "atk_df": null,
@@ -3005,9 +2749,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "require": "earth",
-          "require_type": "element",
-          "count": 2,
+          "reqs": ["earth", "earth"],
           "atk_name": "Cry of Earth",
           "atk_at": 10,
           "atk_df": null,
