@@ -54,6 +54,29 @@ body{
 .badge-na{background:#1e293b;color:#64748b;border:1px solid #334155;}
 .ver{position:fixed;bottom:10px;right:14px;font-size:10px;color:#1e293b;}
 
+/* AI deck select modal */
+#ai-select{display:none;position:fixed;inset:0;background:#0009;z-index:200;align-items:center;justify-content:center;}
+#ai-select.on{display:flex;}
+.ais-box{
+  background:#1e293b;border:1px solid #334155;border-radius:16px;
+  padding:24px 26px;max-width:360px;width:92%;position:relative;
+  animation:pop .2s ease;
+}
+.ais-box h3{color:#fbbf24;font-size:15px;font-weight:700;margin-bottom:16px;}
+.ais-close{position:absolute;top:10px;right:13px;background:none;border:none;color:#64748b;font-size:20px;cursor:pointer;}
+.ais-close:hover{color:#f1f5f9;}
+.ais-opt{
+  display:flex;align-items:center;gap:12px;padding:11px 14px;
+  background:#0f172a;border:1px solid #334155;border-radius:10px;
+  color:#f1f5f9;font-size:13px;font-weight:600;cursor:pointer;
+  text-align:left;transition:all .15s;margin-bottom:8px;width:100%;
+}
+.ais-opt:last-child{margin-bottom:0;}
+.ais-opt:hover{border-color:#7c3aed;background:#1e293b;}
+.ais-opt .ais-el{font-size:20px;flex-shrink:0;}
+.ais-opt .ais-info{flex:1;}
+.ais-opt .ais-sub{display:block;font-size:10px;color:#64748b;font-weight:400;margin-top:1px;}
+
 /* About overlay */
 #about{display:none;position:fixed;inset:0;background:#0009;z-index:200;align-items:center;justify-content:center;}
 #about.on{display:flex;}
@@ -113,6 +136,34 @@ body{
   </div>
 </div>
 
+<!-- AI deck select modal -->
+<div id="ai-select">
+  <div class="ais-box">
+    <button class="ais-close" onclick="closeAiSelect()">✕</button>
+    <h3>🤖 เลือก AI Deck</h3>
+    <button class="ais-opt" onclick="startVsAI('random')">
+      <span class="ais-el">🎲</span>
+      <span class="ais-info">Random Deck<span class="ais-sub">AI สุ่ม Seal 30 + Mystic 20</span></span>
+    </button>
+    <button class="ais-opt" onclick="startVsAI('zadin')">
+      <span class="ais-el">🔥</span>
+      <span class="ais-info">vs Zadin<span class="ais-sub">Fire Deck — Zadin, Knight of Wands</span></span>
+    </button>
+    <button class="ais-opt" onclick="startVsAI('andre')">
+      <span class="ais-el">💧</span>
+      <span class="ais-info">vs Andre<span class="ais-sub">Water Deck — Andre, Knight of Cups</span></span>
+    </button>
+    <button class="ais-opt" onclick="startVsAI('sigmund')">
+      <span class="ais-el">💨</span>
+      <span class="ais-info">vs Sigmund<span class="ais-sub">Wind Deck — Sigmund 3rd, Knight of Swords</span></span>
+    </button>
+    <button class="ais-opt" onclick="startVsAI('harison')">
+      <span class="ais-el">🌿</span>
+      <span class="ais-info">vs Harison<span class="ais-sub">Earth Deck — Harison, Knight of Pentacles</span></span>
+    </button>
+  </div>
+</div>
+
 <!-- About modal -->
 <div id="about">
   <div class="about-box">
@@ -160,11 +211,17 @@ function goVsAI(){
     const mc=(d.mystics||[]).reduce((a,x)=>a+(x.count||0),0);
     if(sc<25||mc<20){alert(`Deck ยังไม่ครบ!\nSeal: ${sc} (ต้องการ ≥25), Mystic: ${mc} (ต้องการ ≥20)\nกรุณาแก้ไข Deck ก่อนเล่น`);return;}
   }catch(e){alert('Deck ผิดรูปแบบ กรุณาสร้างใหม่');return;}
+  document.getElementById('ai-select').classList.add('on');
+}
+function closeAiSelect(){document.getElementById('ai-select').classList.remove('on');}
+function startVsAI(key){
+  sessionStorage.setItem('mm_aiDeck',key);
   location.href='game.html';
 }
 function showAbout(){document.getElementById('about').classList.add('on');}
 function closeAbout(){document.getElementById('about').classList.remove('on');}
 document.getElementById('about').addEventListener('click',function(e){if(e.target===this)closeAbout();});
+document.getElementById('ai-select').addEventListener('click',function(e){if(e.target===this)closeAiSelect();});
 checkDeck();
 
 // BGM

@@ -97,6 +97,24 @@ function buildMysticDeck(){
   return shuffle(pool);
 }
 
+function buildDeckFromTemplate(tpl){
+  const pool=[];
+  for(const e of(tpl.seals||[])){
+    const c=CARD_DB.find(x=>x.id===e.id);
+    if(c)for(let i=0;i<e.count;i++)pool.push({...c});
+  }
+  return shuffle(pool);
+}
+
+function buildMysticDeckFromTemplate(tpl){
+  const pool=[];
+  for(const e of(tpl.mystics||[])){
+    const m=MYSTIC_DB.find(x=>x.id===e.id);
+    if(m)for(let i=0;i<e.count;i++)pool.push({...m});
+  }
+  return shuffle(pool);
+}
+
 function initDragDrop(){
   ['player-at','player-df'].forEach(id=>{
     const el=document.getElementById(id);
@@ -154,11 +172,15 @@ function initGame(){
   const saved=loadPlayerDeckFromStorage();
   const d0=saved?saved.seals:buildDeck();
   const md0=saved?saved.mystics:buildMysticDeck();
-  const d1=buildDeck();
+  const aiKey=sessionStorage.getItem('mm_aiDeck')||'random';
+  const aiTpl=(typeof AI_DECK_TEMPLATES!=='undefined')&&AI_DECK_TEMPLATES[aiKey];
+  const d1=aiTpl?buildDeckFromTemplate(aiTpl):buildDeck();
+  const md1=aiTpl?buildMysticDeckFromTemplate(aiTpl):buildMysticDeck();
+  const aiName=aiTpl?aiTpl.name:'AI';
   G={
     players:[
       {deck:d0,hand:[],atLine:[],dfLine:[],shrine:[],mp:5,name:"Player",mysticDeck:md0,mysticHand:[],areaMystics:[]},
-      {deck:d1,hand:[],atLine:[],dfLine:[],shrine:[],mp:MAX_MP,name:"AI",mysticDeck:buildMysticDeck(),mysticHand:[],areaMystics:[]}
+      {deck:d1,hand:[],atLine:[],dfLine:[],shrine:[],mp:MAX_MP,name:aiName,mysticDeck:md1,mysticHand:[],areaMystics:[]}
     ],
     currentPlayer:0
   };
