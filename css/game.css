@@ -113,7 +113,7 @@ body{background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;height:100vh;
 /* ── HAND ── */
 #hand-area{display:flex;flex-direction:column;gap:2px;min-height:0}
 #player-area-mystics{flex-shrink:0}
-#hand{display:flex;gap:5px;align-items:center;flex-wrap:nowrap;padding:4px 2px;overflow-x:auto;min-width:0}
+#hand{display:flex;gap:5px;align-items:center;justify-content:center;flex-wrap:nowrap;padding:4px 2px;overflow-x:auto;min-width:0}
 .hand-card.playable{border-color:#34d399}
 
 /* ── MODALS ── */
@@ -180,3 +180,94 @@ body{background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;height:100vh;
 #log::-webkit-scrollbar-track{background:transparent}
 #log::-webkit-scrollbar-thumb{background:#374151;border-radius:2px}
 #log::-webkit-scrollbar-thumb:hover{background:#4b5563}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS
+   Base (no query) = 1920×1080
+   ═══════════════════════════════════════════ */
+
+/* ── QHD / 4K  (≥ 2400px wide) ── */
+@media (min-width: 2400px) {
+  #side-panel{width:240px;min-width:240px}
+  #right-panel{width:280px;min-width:280px}
+  .card{width:110px;height:158px}
+  .card img{height:110px}
+  .slot-empty,.slot-deploy{width:110px;height:158px}
+  .fused-wrap{height:158px}
+  .stack-peek{width:90px;height:130px}
+  .mystic-card{width:110px;height:158px}
+  .mystic-card img{height:110px}
+  .pip{width:17px;height:17px}
+  .line{min-height:175px}
+  .ai-hcard{width:64px;height:90px}
+  #log{font-size:11px}
+}
+
+/* ── 1440×900 / MacBook 13" (≤ 1500px) ── */
+@media (max-width:1500px) {
+  #side-panel{width:170px;min-width:170px}
+  #right-panel{width:185px;min-width:185px}
+}
+
+/* ── 1366×768 — tight height (≤ 1400px × ≤ 800px tall) ── */
+@media (max-width:1400px) and (max-height:800px) {
+  #side-panel{width:155px;min-width:155px}
+  #right-panel{width:175px;min-width:175px}
+  .card{width:78px;height:112px}
+  .card img{height:78px}
+  .slot-empty,.slot-deploy{width:78px;height:112px}
+  .fused-wrap{height:112px}
+  .stack-peek{width:64px;height:92px}
+  .mystic-card{width:78px;height:112px}
+  .mystic-card img{height:78px}
+  .pip{width:11px;height:11px}
+  .line{min-height:112px}
+  .ai-hcard{width:42px;height:60px}
+  .btn{padding:4px 9px;font-size:10px}
+  #controls{gap:5px;padding:5px 10px}
+  #player-info-bar,#ai-info-bar{font-size:10px!important}
+  #log{font-size:9px}
+}
+
+/* ── 1280×720 (≤ 1300px × ≤ 760px tall) ── */
+@media (max-width:1300px) and (max-height:760px) {
+  #side-panel{width:145px;min-width:145px}
+  #right-panel{width:165px;min-width:165px}
+  .card{width:72px;height:104px}
+  .card img{height:72px}
+  .slot-empty,.slot-deploy{width:72px;height:104px}
+  .fused-wrap{height:104px}
+  .stack-peek{width:59px;height:85px}
+  .mystic-card{width:72px;height:104px}
+  .mystic-card img{height:72px}
+  .pip{width:10px;height:10px}
+  .line{min-height:98px}
+  .ai-hcard{width:38px;height:54px}
+  .btn{padding:3px 7px;font-size:10px}
+  #controls{gap:4px;padding:4px 8px}
+  #player-info-bar,#ai-info-bar{font-size:9px!important}
+  #log{font-size:9px}
+}
+
+/* ── 1024×768 (≤ 1100px wide) ── */
+@media (max-width:1100px) {
+  #side-panel{width:140px;min-width:140px}
+  #right-panel{width:155px;min-width:155px}
+  .card{width:68px;height:98px}
+  .card img{height:68px}
+  .slot-empty,.slot-deploy{width:68px;height:98px}
+  .fused-wrap{height:98px}
+  .stack-peek{width:56px;height:80px}
+  .mystic-card{width:68px;height:98px}
+  .mystic-card img{height:68px}
+  .pip{width:10px;height:10px}
+  .line{min-height:105px}
+  .ai-hcard{width:36px;height:50px}
+  .card-info{font-size:8px}
+  .card-name{font-size:7px}
+  .btn{padding:3px 7px;font-size:10px}
+  #controls{gap:4px;padding:4px 8px}
+  #aq-desc{max-width:220px;font-size:10px}
+  #player-info-bar,#ai-info-bar{font-size:9px!important}
+  #log{font-size:9px}
+}

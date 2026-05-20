@@ -1511,12 +1511,17 @@ function showWin(pi){
   document.getElementById('win-title').textContent=pi===0?'YOU WIN!':'YOU LOSE!';
   document.getElementById('win-sub').textContent=pi===0?'Enemy shrine overflowed!':'Your shrine overflowed!';
   document.getElementById('win-screen').classList.add('show');
+  const bgm=document.getElementById('bgm');
+  if(bgm){bgm.pause();bgm.currentTime=0;}
+  const vol=parseFloat(localStorage.getItem('bgm_volume')||'0.5');
   if(pi===0){
-    const bgm=document.getElementById('bgm');
-    if(bgm){bgm.pause();bgm.currentTime=0;}
     const win=new Audio('SoundEffect/music/Summoner Win Chime.mp3');
-    win.volume=parseFloat(localStorage.getItem('bgm_volume')||'0.5');
+    win.volume=vol;
     win.play().catch(()=>{});
+  } else {
+    const lose=new Audio('SoundEffect/music/Summoner Lose.mp3');
+    lose.volume=vol;
+    lose.play().catch(()=>{});
   }
 }
 
