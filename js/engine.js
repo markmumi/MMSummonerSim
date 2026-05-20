@@ -644,34 +644,31 @@ function triggerGregoryCancel(ownerPi){
 }
 
 // ── FUSION ──
-function getUnlockedAtks(mainFC){
+function _unlockedAtksForStack(fuseEntries, stackCards){
   const result=[];
-  for(const f of mainFC.card.fuse||[]){
-    // Greedy-match stack cards against each req string; each stack card used at most once
-    const stackCards=mainFC.fusionStack.map(m=>m.card);
+  for(const f of fuseEntries){
+    const cards=[...stackCards];
     let ok=true;
     for(const req of f.reqs){
-      const idx=stackCards.findIndex(c=>matchesReq(req,c));
-      if(idx>=0){stackCards.splice(idx,1);}else{ok=false;break;}
+      const idx=cards.findIndex(c=>matchesReq(req,c));
+      if(idx>=0)cards.splice(idx,1);else{ok=false;break;}
     }
     if(ok)result.push({...f.atk});
   }
   return result;
 }
 
+function getUnlockedAtks(mainFC){
+  return _unlockedAtksForStack(mainFC.card.fuse||[], mainFC.fusionStack.map(m=>m.card));
+}
+
 function fuseMaterialHelps(mainFC,card){
+  // A material is only valid if adding it immediately unlocks at least one NEW fusion attack
+  const fuse=mainFC.card.fuse||[];
   const stack=mainFC.fusionStack.map(m=>m.card);
-  for(const f of mainFC.card.fuse||[]){
-    // Satisfy as many reqs as possible with existing stack, then see if new card fills a remaining req
-    const reqLeft=[...f.reqs];
-    const stackCopy=[...stack];
-    for(let i=reqLeft.length-1;i>=0;i--){
-      const idx=stackCopy.findIndex(c=>matchesReq(reqLeft[i],c));
-      if(idx>=0){stackCopy.splice(idx,1);reqLeft.splice(i,1);}
-    }
-    if(reqLeft.some(req=>matchesReq(req,card)))return true;
-  }
-  return false;
+  const before=_unlockedAtksForStack(fuse,stack).length;
+  const after=_unlockedAtksForStack(fuse,[...stack,card]).length;
+  return after>before;
 }
 
 // Rule 613.8.3: card deployed from hand this turn cannot be Support Seal
