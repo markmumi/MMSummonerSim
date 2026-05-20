@@ -24,7 +24,6 @@ let mysticPlayMode = null; // {mysticCard, mysticIdx} — waiting to paste PS to
 let sacrificeTargetMode = null; // {mysticCard, mysticIdx} — waiting to click field seal to destroy
 const MYSTIC_HAND_MAX = 7;
 let drawsRemaining = 0;
-let _vioriaAiMpLeft = 0; // AI's unspent MP captured at start of AI turn (before reset), for player Vioria
 
 const _SFX={};
 ['Deploy','Draw','Flip','Skill','Confirm','Damage','Fusion Complete',
@@ -319,8 +318,14 @@ function endTurn(){
     render();
   } else {
     // AI's turn: Draw Phase — interfere window before drawing
-    _vioriaAiMpLeft=G.players[1].mp; // save AI's leftover before reset (for player Vioria in onPlayerDrawDone)
+    const _aiPreReset=G.players[1].mp;
     G.players[pi].mp=getEffectiveMpMax(pi);
+    // Player Vioria (56): player gains AI's unspent Mp at start of AI's turn (available for Interfere)
+    {const viorias=[...G.players[0].atLine,...G.players[0].dfLine].filter(x=>x.card.id===56);
+    if(viorias.length>0&&_aiPreReset>0){
+      G.players[0].mp=Math.min(G.players[0].mp+_aiPreReset,MAX_MP);
+      log(`Vioria [Ability]: AI เหลือ ${_aiPreReset} Mp → เรา +${_aiPreReset} Mp!`,'good');
+    }}
     phase='draw';
     log(`AI's turn — Draw Phase`,'hi');
     render();
@@ -1944,7 +1949,6 @@ function aiTurn(){
     handAttackedThisTurn=false;
     G.currentPlayer=0;
     subTurnNum++;
-    // Vioria bonus applied in onPlayerDrawDone() after player's Mp resets
     [0,1].forEach(rpi=>{
       G.players[rpi].atLine.forEach(s=>{s.exhausted=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
       G.players[rpi].dfLine.forEach(s=>{s.exhausted=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
@@ -2105,17 +2109,9 @@ function doDrawChoice(type){
 }
 
 function onPlayerDrawDone(){
-  // Capture player's unspent Mp before reset (for AI Vioria)
   const _playerMpLeft=G.players[0].mp;
   G.players[0].mp=getEffectiveMpMax(0);
-  // Player Vioria (56): player gains AI's unspent Mp captured at start of AI's turn (before AI reset)
-  {const viorias=[...G.players[0].atLine,...G.players[0].dfLine].filter(x=>x.card.id===56);
-  if(viorias.length>0&&_vioriaAiMpLeft>0){
-    G.players[0].mp=Math.min(G.players[0].mp+_vioriaAiMpLeft,MAX_MP);
-    log(`Vioria [Ability]: AI เหลือ ${_vioriaAiMpLeft} Mp → เรา +${_vioriaAiMpLeft} Mp!`,'good');
-  }}
-  _vioriaAiMpLeft=0;
-  // AI Vioria (56): AI gains player's unspent Mp (player's turn ending → player Mp resets)
+  // AI Vioria (56): AI gains player's unspent Mp at start of player's turn (available for Interfere)
   {const viorias=[...G.players[1].atLine,...G.players[1].dfLine].filter(x=>x.card.id===56);
   if(viorias.length>0&&_playerMpLeft>0){
     G.players[1].mp=Math.min(G.players[1].mp+_playerMpLeft,MAX_MP);
