@@ -123,6 +123,7 @@ var Online = (() => {
           aqDesc: (pendingCb && aqEl) ? aqEl.innerHTML : '',
           attackerSealUid: attackerSeal ? attackerSeal.fc.uid : null,
           attackerSealLine: attackerSeal ? attackerSeal.line : null,
+          hostLogs: (typeof _hostLogBuffer !== 'undefined') ? _hostLogBuffer.splice(0) : [],
           // Guest-side state (tracked on host, mirrored to guest)
           guestFusionMainUid: guestFusionMainFC ? guestFusionMainFC.uid : null,
           guestSkillModeUid: guestSkillMode ? guestSkillMode.fc.uid : null,
@@ -150,6 +151,11 @@ var Online = (() => {
       // Hide lobby if showing
       const lobby = document.getElementById('online-lobby');
       if (lobby && lobby.style.display !== 'none') lobby.style.display = 'none';
+
+      // Replay log messages from host
+      if (data.hostLogs && data.hostLogs.length && typeof log === 'function') {
+        data.hostLogs.forEach(({msg, type}) => log(msg, type));
+      }
 
       G = data.G;
       phase = data.phase;

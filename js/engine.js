@@ -30,6 +30,8 @@ let guestHandDiscardMode = null; // {fc, skillIdx} — guest interfere hand-disc
 let guestMysticPlayMode = null;  // {mysticCard, mysticIdx} — guest PS placement
 let guestPendingAtkIdx = null;   // fusion attack index chosen by guest
 
+let _hostLogBuffer = []; // accumulated log messages to send with next broadcastState
+
 const _SFX={};
 ['Deploy','Draw','Flip','Skill','Confirm','Damage','Fusion Complete',
  'Card destroyed by effect','Error','Spell','Poison','Freeze','Stone','Charm'
@@ -1842,7 +1844,7 @@ function showMorMercenaryPicker(attFC,defFC,defLine){
           combatAnim(attFC,defFC,attAt,'df',false,()=>{
             dealDamage(attFC,defFC,attAt,'Mor Mercenary',0,1,'df');
             attFC.exhausted=true;attFC.hasAttacked=true;attackerSeal=null;
-            checkLose();render();
+            checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
           });
         });
       }
@@ -1874,7 +1876,7 @@ function executeAllAttack(attFC,atk){
     log(`${attFC.card.name} ใช้ ${atk.name}! (ALL)`,'hi');
     const allTargets=[...G.players[1].atLine.map(fc=>({fc,line:'at'})),...G.players[1].dfLine.map(fc=>({fc,line:'df'}))];
     attFC.exhausted=true;attFC.hasAttacked=true;attackerSeal=null;pendingAttackIdx=null;
-    animateAllTargets(attFC,allTargets,attAt,atk.name,0,1,()=>{checkLose();render();});
+    animateAllTargets(attFC,allTargets,attAt,atk.name,0,1,()=>{checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();});
   });
 }
 
@@ -2052,7 +2054,7 @@ function resolveAttack(attFC,defFC,specialAtkIdx,defLine='at'){
         log(`${att.name} ใช้ ${atkLabel}! (ALL enemies)`,'hi');
         const allTargets=[...G.players[1].atLine.map(fc=>({fc,line:'at'})),...G.players[1].dfLine.map(fc=>({fc,line:'df'}))];
         attFC.exhausted=true;attFC.hasAttacked=true;attackerSeal=null;pendingAttackIdx=null;
-        animateAllTargets(attFC,allTargets,attAt,atkLabel,0,1,()=>{checkLose();render();});
+        animateAllTargets(attFC,allTargets,attAt,atkLabel,0,1,()=>{checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();});
       });
       return;
     }
@@ -2117,7 +2119,7 @@ function executeMultiStrikeHit(attFC,defFC,defLine){
       } else {
         log(`ยังตีได้อีก ${attFC.hitsLeft} ครั้ง! เลือกการ์ดตัวเอง แล้วเลือกเป้าหมาย`,'hi');
       }
-      checkLose();render();
+      checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
     });
   });
 }

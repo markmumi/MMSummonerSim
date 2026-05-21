@@ -799,6 +799,10 @@ function log(msg,type=''){
   d.innerHTML=_linkifyLog(msg);
   box.prepend(d);
   while(box.children.length>30)box.removeChild(box.lastChild);
+  // Buffer for online host so guest can replay the same log messages
+  if(window.Online?.isOnline&&Online.isHost&&typeof _hostLogBuffer!=='undefined'){
+    _hostLogBuffer.push({msg,type});
+  }
 }
 
 // Log card link click → popup
