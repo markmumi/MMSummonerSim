@@ -265,7 +265,18 @@ function drawCard(pi,silent=false,force=false){
   if(!force&&p.hand.length>=getEffectiveHandMax(pi)){if(!silent)log(`${p.name} hand full`,'');return;}
   const c=p.deck.shift();
   p.hand.push(c);
-  if(!silent){log(`${p.name} drew ${c.name}`);playSound('Draw');}
+  if(!silent){
+    if(window.Online?.isOnline&&Online.isHost&&pi===0){
+      // Online HOST drawing own card: show card name locally, send generic log to GUEST
+      log(`${p.name} จั่วการ์ด 1 ใบ`);
+      const logBox=document.getElementById('log');
+      if(logBox?.firstChild&&typeof _linkifyLog==='function')
+        logBox.firstChild.innerHTML=_linkifyLog(`${p.name} drew ${c.name}`);
+    }else{
+      log(`${p.name} drew ${c.name}`);
+    }
+    playSound('Draw');
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -514,7 +525,7 @@ function guestDeploy(card,idx,line){
     log(`Guest deployed ${card.name} to ${line==='at'?'At':'Df'} Line`,'good');
     if(card.id===90) triggerAndreAbility(1);
     checkLose();render();Online.broadcastState();
-  });
+  },null,card,'⬇ Guest Deploying...');
 }
 
 function guestLineSwitch(fc,fromLine,toLine){
@@ -536,7 +547,7 @@ function guestLineSwitch(fc,fromLine,toLine){
     log(`Guest moved ${fc.card.name} to ${toLine==='at'?'At':'Df'} Line`,'good');
     render();
     Online.broadcastState();
-  });
+  },null,fc.card,`→ ${toLine==='at'?'At':'Df'} Line`);
 }
 
 function guestNextPhase(){
@@ -592,7 +603,7 @@ function guestResolveAttack(attFC,defFC,defLine){
         const allTargets=[...G.players[defPi].atLine.map(f=>({fc:f,line:'at'})),...G.players[defPi].dfLine.map(f=>({fc:f,line:'df'}))];
         attFC.exhausted=true;attFC.hasAttacked=true;attackerSeal=null;
         animateAllTargets(attFC,allTargets,attAt,usedAtk.name,attPi,defPi,()=>{checkLose();render();Online.broadcastState();});
-      });
+      },null,attFC.card,'⚔ Attacking...');
       return;
     }
   } else {
@@ -617,7 +628,7 @@ function guestResolveAttack(attFC,defFC,defLine){
       }
       checkLose();render();Online.broadcastState();
     });
-  });
+  },null,attFC.card,'⚔ Attacking...');
 }
 
 // ── Guest field-click handler (called from clickFieldSeal for online guest) ──
@@ -906,7 +917,7 @@ function guestDoFusion(mainFC,materialFC){
     else{log('เลือกการ์ดต่อ หรือกด Cancel เพื่อหยุด','hi');}
     render();
     Online.broadcastState();
-  });
+  },null,mainFC.card,'⚡ Guest Fusing...');
 }
 
 function guestDoUnfuse(fc){
@@ -918,7 +929,7 @@ function guestDoUnfuse(fc){
     log(`${fc.card.name} unfused`,'');
     render();
     Online.broadcastState();
-  });
+  },null,fc.card,'↩ Unfusing...');
 }
 
 function guestExecuteHandDiscard(cardIdx){
@@ -3350,8 +3361,8 @@ function executePhoenixInterfere(){
 
 function proceedAction(){
   _stopAQTimer();
-  _aqPreviewCard=null;
-  updateAIPreview(null);
+  const _isGuestAct=!!(window.Online?.isOnline&&Online.isHost&&G.currentPlayer===1);
+  if(!_isGuestAct){_aqPreviewCard=null;updateAIPreview(null);}
   if(window.Online?.isOnline&&!Online.isHost){
     Online.sendGuestAction({action:'proceed'});
     document.getElementById('action-queue').style.display='none';

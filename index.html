@@ -135,13 +135,13 @@ body{
         <span class="sub">สร้างและแก้ไข Deck ของคุณ</span>
       </span>
     </a>
-    <a class="mbtn" href="game.html?mode=online">
+    <button class="mbtn" onclick="goOnline()">
       <span class="icon">🌐</span>
       <span class="txt">
         Online Multiplayer
         <span class="sub">เล่น 2 คน ผ่านอินเทอร์เน็ต (PeerJS)</span>
       </span>
-    </a>
+    </button>
     <button class="mbtn" onclick="showAbout()">
       <span class="icon">ℹ️</span>
       <span class="txt">
@@ -241,6 +241,17 @@ function closeAiSelect(){document.getElementById('ai-select').classList.remove('
 function startVsAI(key){
   sessionStorage.setItem('mm_aiDeck',key);
   location.href='game.html';
+}
+function goOnline(){
+  const s=localStorage.getItem('mm_playerDeck');
+  if(!s){alert('ยังไม่มี Deck!\nกรุณาไป Deck Building เพื่อสร้าง Deck ก่อน');return;}
+  try{
+    const d=JSON.parse(s);
+    const sc=(d.seals||[]).reduce((a,x)=>a+(x.count||0),0);
+    const mc=(d.mystics||[]).reduce((a,x)=>a+(x.count||0),0);
+    if(sc<25||mc<20){alert(`Deck ยังไม่ครบ!\nSeal: ${sc} (ต้องการ ≥25), Mystic: ${mc} (ต้องการ ≥20)\nกรุณาแก้ไข Deck ก่อนเล่น`);return;}
+  }catch(e){alert('Deck ผิดรูปแบบ กรุณาสร้างใหม่');return;}
+  location.href='game.html?mode=online';
 }
 function showAbout(){document.getElementById('about').classList.add('on');}
 function closeAbout(){document.getElementById('about').classList.remove('on');}

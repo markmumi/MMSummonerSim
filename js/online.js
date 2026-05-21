@@ -113,9 +113,18 @@ var Online = (() => {
       if (!E.isHost || !conn || !E.isOnline) return;
       try {
         const aqEl = document.getElementById('aq-desc');
+        // Sanitize G before sending to GUEST — strip HOST's private card data.
+        // GUEST only needs counts (array length), not actual card objects with img paths.
+        const safeG = JSON.parse(JSON.stringify(G));
+        const h0 = G.players[0];
+        safeG.players[0].hand      = Array(h0.hand.length).fill(null);
+        safeG.players[0].deck      = Array(h0.deck.length).fill(null);
+        safeG.players[0].mysticHand= Array((h0.mysticHand||[]).length).fill(null);
+        safeG.players[0].mysticDeck= Array((h0.mysticDeck||[]).length).fill(null);
+        safeG.players[0].shrine    = Array(h0.shrine.length).fill(null);
         const payload = {
           type: 'state',
-          G: JSON.parse(JSON.stringify(G)),
+          G: safeG,
           phase,
           turnNum,
           subTurnNum,
@@ -327,17 +336,18 @@ var Online = (() => {
           break;
         case 'deploy': {
           const card = G.players[1].hand[data.cardIdx];
-          if (card) guestDeploy(card, data.cardIdx, data.line);
+          if (card){updateAIPreview(card,'⬇ Guest Deploying...');guestDeploy(card, data.cardIdx, data.line);}
           break;
         }
         case 'lineSwitch': {
           const fc = g1all().find(f => f.uid === data.uid);
-          if (fc) guestLineSwitch(fc, data.fromLine, data.toLine);
+          if (fc){updateAIPreview(fc.card,`→ ${data.toLine==='at'?'At':'Df'} Line`);guestLineSwitch(fc, data.fromLine, data.toLine);}
           break;
         }
         case 'selectAttacker': {
           const fc = g1all().find(f => f.uid === data.uid);
           if (fc) {
+            updateAIPreview(fc.card,'⚔ Attacking...');
             attackerSeal = { fc, line: data.line };
             log(`Guest selected ${fc.card.name} as attacker`, 'hi');
             render();
@@ -346,11 +356,12 @@ var Online = (() => {
           break;
         }
         case 'declareAttack':
+          if(attackerSeal)updateAIPreview(attackerSeal.fc.card,'⚔ Attacking...');
           guestDeclareAttack(data.atkIdx ?? null);
           break;
         case 'selectTarget': {
           const defFC = [...G.players[0].atLine, ...G.players[0].dfLine].find(f => f.uid === data.targetUid);
-          if (defFC && attackerSeal) guestResolveAttack(attackerSeal.fc, defFC, data.targetLine);
+          if (defFC && attackerSeal){updateAIPreview(attackerSeal.fc.card,'⚔ Attacking...');guestResolveAttack(attackerSeal.fc, defFC, data.targetLine);}
           break;
         }
         case 'interfere': {
@@ -373,12 +384,12 @@ var Online = (() => {
         // ── Fusion ──
         case 'guestStartFusion': {
           const fc = g1all().find(f => f.uid === data.uid);
-          if (fc) { guestFusionMainFC = fc; render(); E.broadcastState(); }
+          if (fc) { updateAIPreview(fc.card,'⚡ Guest Fusing...'); guestFusionMainFC = fc; render(); E.broadcastState(); }
           break;
         }
         case 'guestFuseMaterial': {
           const mat = g1all().find(f => f.uid === data.uid);
-          if (mat && guestFusionMainFC) guestDoFusion(guestFusionMainFC, mat);
+          if (mat && guestFusionMainFC){updateAIPreview(guestFusionMainFC.card,'⚡ Fusing...'); guestDoFusion(guestFusionMainFC, mat);}
           break;
         }
         case 'guestUnfuse': {
@@ -391,7 +402,7 @@ var Online = (() => {
         // ── Skills ──
         case 'guestStartSkill': {
           const fc = g1all().find(f => f.uid === data.uid);
-          if (fc) { guestSkillMode = { fc, skillIdx: data.skillIdx }; render(); E.broadcastState(); }
+          if (fc) { updateAIPreview(fc.card,'✦ Guest Skill'); guestSkillMode = { fc, skillIdx: data.skillIdx }; render(); E.broadcastState(); }
           break;
         }
         case 'guestSkillTarget': {
@@ -425,6 +436,7 @@ var Online = (() => {
         case 'guestGaruda': {
           const p=G.players[1];
           const garuda=p.hand.find(c=>c.id===53);
+          if(garuda)updateAIPreview(garuda,'⚡ Guest Interfere');
           const mainFC=allField().find(f=>f.uid===data.targetUid)||pendingFusionMain;
           if(!garuda||p.mp<4||!mainFC)break;
           const hi=p.hand.indexOf(garuda);p.hand.splice(hi,1);
@@ -443,6 +455,7 @@ var Online = (() => {
         case 'guestWyvern': {
           const p=G.players[1];
           const wyvern=p.hand.find(c=>c.id===80);
+          if(wyvern)updateAIPreview(wyvern,'⚡ Guest Interfere');
           if(!wyvern||p.mp<4)break;
           const hi=p.hand.indexOf(wyvern);p.hand.splice(hi,1);
           p.mp-=4;
@@ -456,6 +469,7 @@ var Online = (() => {
         case 'guestPhoenix': {
           const p=G.players[1];
           const phoenix=p.shrine.find(c=>c.id===78);
+          if(phoenix)updateAIPreview(phoenix,'⚡ Guest Interfere');
           if(!phoenix||p.mp<2)break;
           p.mp-=2;
           const si=p.shrine.indexOf(phoenix);if(si>=0)p.shrine.splice(si,1);
@@ -468,7 +482,7 @@ var Online = (() => {
         }
         case 'guestSelfSkill': {
           const fc = g1all().find(f => f.uid === data.uid);
-          if (fc) guestExecuteSelfSkill(fc, data.skillIdx);
+          if (fc){updateAIPreview(fc.card,'✦ Guest Skill'); guestExecuteSelfSkill(fc, data.skillIdx);}
           break;
         }
         case 'guestStartHandDiscard': {
@@ -481,7 +495,7 @@ var Online = (() => {
         // ── Mystic ──
         case 'guestStartMysticPS': {
           const m = (G.players[1].mysticHand || [])[data.mysticIdx];
-          if (m) { guestMysticPlayMode = { mysticCard: m, mysticIdx: data.mysticIdx }; render(); E.broadcastState(); }
+          if (m) { updateAIPreview(m,'🃏 Guest Mystic'); guestMysticPlayMode = { mysticCard: m, mysticIdx: data.mysticIdx }; render(); E.broadcastState(); }
           break;
         }
         case 'guestMysticPSTarget': {
