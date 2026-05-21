@@ -68,6 +68,7 @@ function updatePlayerPreview(card,fc=null){
 }
 
 function updateAIPreview(card,action=''){
+  if(typeof _aqPreviewCard!=='undefined')_aqPreviewCard=card||null;
   if(!card){document.getElementById('ai-prev-body').innerHTML='<div class="prev-ph">-</div>';return;}
   const el=EL_COLOR[card.el]||'#fff';
   document.getElementById('ai-prev-body').innerHTML=`
@@ -98,7 +99,7 @@ function cardEl(fc,pi,lineKey,isField){
   if(sacrificeTargetMode&&!(sacrificeTargetMode.mysticCard.exception_tribes||[]).includes(fc.card.tribe))div.classList.add('skill-target');
   if(mysticPlayMode&&canAttachMystic(mysticPlayMode.mysticCard,fc))div.classList.add('mystic-attach');
   if(guestMysticPlayMode&&canAttachMystic(guestMysticPlayMode.mysticCard,fc))div.classList.add('mystic-attach');
-  if(pendingCb&&pi===lpi&&!fc.hasUsedSkill&&getCardSkills(fc).some(s=>s.interfere&&G.players[lpi].mp>=s.mp&&G.players[lpi].hand.length>0))div.classList.add('interfere-avail');
+  if(pendingCb&&pi===lpi&&G.currentPlayer!==lpi&&!fc.hasUsedSkill&&getCardSkills(fc).some(s=>s.interfere&&G.players[lpi].mp>=s.mp&&G.players[lpi].hand.length>0))div.classList.add('interfere-avail');
   if(fc.fused)div.classList.add('fused');
   const ec=EL_COLOR[c.el]||'#fff';
   // Curse classes
@@ -318,22 +319,41 @@ function render(){
   renderLine('player-at',pL.atLine,lpi,'at');
   renderLine('player-df',pL.dfLine,lpi,'df');
 
-  // Area mystics strip (local player)
+  // Area mystics strip (both players): local left, opponent right
   const amDiv=document.getElementById('player-area-mystics');
-  const ams=pL.areaMystics||[];
-  if(ams.length){
+  const amsL=pL.areaMystics||[];
+  const amsR=pR.areaMystics||[];
+  const mkChip=(am,tint)=>{
+    const mx=am.mystic;
+    const dur=am.expiresBeforeSubTurn===Infinity?'∞':Math.max(0,Math.ceil((am.expiresBeforeSubTurn-subTurnNum)/2))+'T';
+    const chip=document.createElement('div');
+    chip.className='area-mystic-chip';
+    if(tint)chip.style.outline='1px solid #f8717166';
+    chip.title=`${mx.name}\n${(mx.ability_text||[]).join('\n')}`;
+    chip.innerHTML=`<img src="${mx.img}" onerror="this.src='cardback/mystic.jpg'"><span>${mx.name}</span><span style="color:#fde68a">${dur}</span>`;
+    chip.onclick=()=>updatePlayerPreviewMystic(mx);
+    return chip;
+  };
+  if(amsL.length||amsR.length){
     amDiv.style.display='flex';
-    amDiv.innerHTML='<span style="font-size:9px;color:#a78bfa;margin-right:2px">✦ PA:</span>';
-    ams.forEach(am=>{
-      const mx=am.mystic;
-      const dur=am.expiresBeforeSubTurn===Infinity?'∞':Math.max(0,Math.ceil((am.expiresBeforeSubTurn-subTurnNum)/2))+'T';
-      const chip=document.createElement('div');
-      chip.className='area-mystic-chip';
-      chip.title=`${mx.name}\n${(mx.ability_text||[]).join('\n')}`;
-      chip.innerHTML=`<img src="${mx.img}" onerror="this.src='cardback/mystic.jpg'"><span>${mx.name}</span><span style="color:#fde68a">${dur}</span>`;
-      chip.onclick=()=>updatePlayerPreviewMystic(mx);
-      amDiv.appendChild(chip);
-    });
+    amDiv.innerHTML='';
+    // Local side (left)
+    if(amsL.length){
+      const lbl=document.createElement('span');lbl.style.cssText='font-size:9px;color:#34d399;margin-right:2px;white-space:nowrap';lbl.textContent='✦ PA:';
+      amDiv.appendChild(lbl);
+      amsL.forEach(am=>amDiv.appendChild(mkChip(am,false)));
+    }
+    // Divider
+    if(amsL.length&&amsR.length){
+      const div=document.createElement('div');div.style.cssText='width:1px;background:#4b5563;margin:0 6px;align-self:stretch';
+      amDiv.appendChild(div);
+    }
+    // Opponent side (right)
+    if(amsR.length){
+      const lbl=document.createElement('span');lbl.style.cssText='font-size:9px;color:#f87171;margin-right:2px;white-space:nowrap';lbl.textContent='⚔ PA:';
+      amDiv.appendChild(lbl);
+      amsR.forEach(am=>amDiv.appendChild(mkChip(am,true)));
+    }
   } else {
     amDiv.style.display='none';
   }
@@ -370,6 +390,9 @@ function render(){
   const sb=document.getElementById('p0-shrine');
   sb.textContent=`${sL}/${MAX_SHRINE}`;
   sb.className='shrine-box'+(sL>=6?' danger':'');
+  sb.style.cursor='pointer';
+  sb.title='คลิกดูการ์ดใน Shrine';
+  sb.onclick=()=>showShrineModal(lpi);
   document.getElementById('p1-shrine-label').textContent=`${sR}/${MAX_SHRINE}`;
   document.getElementById('p1-mp-label').textContent=pR.mp;
   {const ap=document.getElementById('p1-mp-pips');ap.innerHTML='';const mpMaxR=getEffectiveMpMax(rpi);for(let i=0;i<mpMaxR;i++){const d=document.createElement('div');d.className='pip'+(i<pR.mp?' on':'');ap.appendChild(d);}}
@@ -500,6 +523,39 @@ function showRevealModal(title,cards){
     }
     opts.appendChild(row);
   });
+  addFAOpt('✕ ปิด',()=>closeFAModal());
+  document.getElementById('fa-modal').classList.add('show');
+}
+
+function showShrineModal(lpi){
+  const p=G.players[lpi];
+  document.getElementById('fa-title').textContent=`⚰ Shrine (${p.shrine.length}/${MAX_SHRINE})`;
+  const opts=document.getElementById('fa-opts');
+  opts.innerHTML='';
+  if(!p.shrine.length){
+    const d=document.createElement('div');
+    d.textContent='Shrine ว่างเปล่า';
+    d.style.cssText='color:#9ca3af;font-size:11px;padding:8px 0';
+    opts.appendChild(d);
+  }
+  p.shrine.forEach(c=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer;border-radius:4px';
+    row.onmouseenter=()=>row.style.background='#374151';
+    row.onmouseleave=()=>row.style.background='';
+    const ec=EL_COLOR[c.el]||'#fff';
+    row.innerHTML=`<img src="${c.img}" style="width:28px;height:38px;object-fit:cover;border-radius:2px;flex-shrink:0"><div style="font-size:9px;line-height:1.5"><div style="font-weight:bold;color:#f9fafb">${c.name}</div><div>Lv${c.lv} <span style="color:${ec}">◆${c.el[0].toUpperCase()}</span> ${c.tribe} | At${c.at} Df${c.df}</div></div>`;
+    row.onclick=()=>openCardViewer(c);
+    opts.appendChild(row);
+  });
+  // Phoenix interfere: only when AQ window is open (pendingCb set = host/offline)
+  if(pendingCb && p.shrine.some(c=>c.id===78) && p.mp>=2){
+    const btn=addFAOpt('🔥 [Interfere] ลง Phoenix จาก Shrine (Mp 2)',()=>{
+      closeFAModal();
+      executePhoenixInterfere();
+    });
+    btn.style.cssText='background:#7c2d12;color:#fed7aa;border-color:#ea580c';
+  }
   addFAOpt('✕ ปิด',()=>closeFAModal());
   document.getElementById('fa-modal').classList.add('show');
 }

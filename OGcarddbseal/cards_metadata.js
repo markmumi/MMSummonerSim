@@ -29,7 +29,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "reqs": ["Firat"],
+          "reqs": ["Firat","Firat"],
           "atk_name": "Flame Flock",
           "atk_at": 12,
           "atk_df": null,
@@ -614,7 +614,7 @@ const CARDS_METADATA = {
         "water"
       ],
       "tribe": [
-        "Machine"
+        "Evil"
       ],
       "fusions": [
         {
@@ -1678,7 +1678,7 @@ const CARDS_METADATA = {
     },
     {
       "id": 64,
-      "name": "Thunderia",
+      "name": "Thunderix",
       "path": "OGcarddbseal/card_64.jpg",
       "lv": 2,
       "at": 6,

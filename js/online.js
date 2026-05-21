@@ -97,7 +97,10 @@ var Online = (() => {
             conn.send({ type: 'deck', deck: deckData });
             if (onConnected) onConnected();
           });
-          conn.on('data', data => E._applyHostState(data));
+          conn.on('data', data => {
+            if (data.type === 'anim') E._playAnim(data);
+            else E._applyHostState(data);
+          });
           conn.on('close', () => E._setStatus('disconnected', null));
           conn.on('error', err => console.error('PeerJS conn error:', err));
         });
@@ -131,6 +134,9 @@ var Online = (() => {
           guestHandDiscardActive: !!guestHandDiscardMode,
           guestMysticPlayActive: !!guestMysticPlayMode,
           guestPendingAtkIdx: guestPendingAtkIdx,
+          winner: (typeof gameWinner !== 'undefined') ? gameWinner : null,
+          pendingFusionMainUid: (typeof pendingFusionMain !== 'undefined' && pendingFusionMain) ? pendingFusionMain.uid : null,
+          aqPreviewCard: (pendingCb && typeof _aqPreviewCard !== 'undefined') ? _aqPreviewCard : null,
         };
         conn.send(payload);
       } catch (e) {
@@ -142,6 +148,42 @@ var Online = (() => {
     sendGuestAction(action) {
       if (E.isHost || !conn || !E.isOnline) return;
       conn.send({ type: 'action', ...action });
+    },
+
+    // Host: broadcast animation event to guest (called before playing locally)
+    broadcastAnim(data) {
+      if (!E.isHost || !conn || !E.isOnline) return;
+      try { conn.send({ type: 'anim', ...data }); } catch(e) {}
+    },
+
+    // Guest: play animation received from host
+    _playAnim(data) {
+      if (data.type !== 'anim') return;
+      const attPan = document.getElementById('ca-att-panel');
+      const defPan = document.getElementById('ca-def-panel');
+      if (!attPan || !defPan) return;
+      attPan.classList.remove('ca-dead'); defPan.classList.remove('ca-dead');
+      document.getElementById('ca-att-img').src = data.attImg;
+      document.getElementById('ca-att-name').textContent = data.attName;
+      document.getElementById('ca-def-img').src = data.defImg;
+      document.getElementById('ca-def-name').textContent = data.defName;
+      document.getElementById('ca-result').textContent = '';
+      const modal = document.getElementById('combat-anim');
+      if (modal) modal.style.display = 'flex';
+      setTimeout(() => {
+        if (typeof playSound === 'function') playSound('Damage');
+        if (data.isHandReveal) {
+          document.getElementById('ca-def-img').src = data.revealImg;
+          document.getElementById('ca-def-name').textContent = data.revealName;
+          defPan.classList.add('ca-dead');
+          document.getElementById('ca-result').textContent = `${data.revealName} sent to Shrine!`;
+        } else {
+          if (data.defDies) defPan.classList.add('ca-dead');
+          if (data.attDies) attPan.classList.add('ca-dead');
+          document.getElementById('ca-result').textContent = data.result;
+        }
+        setTimeout(() => { if (modal) modal.style.display = 'none'; }, 600);
+      }, 500);
     },
 
     // Guest: apply received game state from host and re-render
@@ -206,26 +248,66 @@ var Online = (() => {
       // Action queue — show/hide based on host state
       const aqEl = document.getElementById('action-queue');
       if (data.pendingCb) {
+        const wasAlreadyOpen = !!pendingCb;
         pendingCb = () => {};  // placeholder so render() shows queue UI
         if (aqEl) {
           aqEl.style.display = 'flex';
           const descEl = document.getElementById('aq-desc');
           if (descEl && data.aqDesc) descEl.innerHTML = data.aqDesc;
-          // Proceed button: show only when it's guest's turn
+          if (data.aqPreviewCard) updateAIPreview(data.aqPreviewCard, '');
+          // Guest is defender when it's the host's turn (G.currentPlayer===0)
+          const guestIsDefender = G.currentPlayer === 0;
           const btnProceed = document.getElementById('btn-proceed');
-          if (btnProceed) btnProceed.style.display = (G.currentPlayer === 1) ? 'inline-block' : 'none';
-          // Hide special interfere buttons (guest doesn't control those)
-          ['btn-aq-garuda','btn-aq-woolwyvern','btn-aq-phoenix'].forEach(id => {
-            const b = document.getElementById(id);
-            if (b) b.style.display = 'none';
-          });
+          const aqWait = document.getElementById('aq-waiting');
+          if (btnProceed) btnProceed.style.display = guestIsDefender ? 'inline-block' : 'none';
+          if (aqWait) aqWait.style.display = guestIsDefender ? 'none' : 'inline-block';
+          // Show special interfere buttons for guest when guest is the defender
+          const p1=G.players[1];
+          const pfmUid=data.pendingFusionMainUid;
+          const canGaruda=guestIsDefender&&p1.hand.some(c=>c.id===53)&&p1.mp>=4&&!!pfmUid;
+          const canWyvern=guestIsDefender&&p1.hand.some(c=>c.id===80)&&p1.mp>=4;
+          const canPhoenix=guestIsDefender&&p1.shrine.some(c=>c.id===78)&&p1.mp>=2;
+          const garudaBtn=document.getElementById('btn-aq-garuda');
+          const wyvernBtn=document.getElementById('btn-aq-woolwyvern');
+          const phoenixBtn=document.getElementById('btn-aq-phoenix');
+          if(garudaBtn){garudaBtn.style.display=canGaruda?'inline-block':'none';if(canGaruda)garudaBtn.onclick=()=>{Online.sendGuestAction({action:'guestGaruda',targetUid:pfmUid});garudaBtn.style.display='none';};}
+          if(wyvernBtn){wyvernBtn.style.display=canWyvern?'inline-block':'none';if(canWyvern)wyvernBtn.onclick=()=>{Online.sendGuestAction({action:'guestWyvern'});wyvernBtn.style.display='none';};}
+          if(phoenixBtn){phoenixBtn.style.display=canPhoenix?'inline-block':'none';if(canPhoenix)phoenixBtn.onclick=()=>{Online.sendGuestAction({action:'guestPhoenix'});phoenixBtn.style.display='none';};};
+          // Start guest-side 10s timer (fresh open only); auto-proceeds for both defender and waiting
+          if (!wasAlreadyOpen && typeof _startAQTimer === 'function') {
+            _startAQTimer(10000);
+          }
         }
       } else {
         pendingCb = null;
+        if (typeof _stopAQTimer === 'function') _stopAQTimer();
         if (aqEl) aqEl.style.display = 'none';
+        updateAIPreview(null);
+        // Reset for next open
+        const btnP2=document.getElementById('btn-proceed');if(btnP2)btnP2.style.display='inline-block';
+        const aqW2=document.getElementById('aq-waiting');if(aqW2)aqW2.style.display='none';
       }
 
       render();
+
+      // Win/lose screen for guest
+      if (data.winner !== null && data.winner !== undefined) {
+        const iWin = data.winner === 1; // guest is always pi=1
+        const winScreen = document.getElementById('win-screen');
+        if (winScreen && !winScreen.classList.contains('show')) {
+          const winTitle = document.getElementById('win-title');
+          const winSub = document.getElementById('win-sub');
+          if (winTitle) winTitle.textContent = iWin ? 'YOU WIN!' : 'YOU LOSE!';
+          if (winSub) winSub.textContent = iWin ? 'Enemy shrine overflowed!' : 'Your shrine overflowed!';
+          winScreen.classList.add('show');
+          const bgm = document.getElementById('bgm');
+          if (bgm) { bgm.pause(); bgm.currentTime = 0; }
+          const vol = parseFloat(localStorage.getItem('bgm_volume') || '0.5');
+          const muted = localStorage.getItem('bgm_muted') === '1';
+          const snd = new Audio(iWin ? 'SoundEffect/music/Summoner Win Chime.mp3' : 'SoundEffect/music/Summoner Lose.mp3');
+          snd.volume = vol; snd.muted = muted; snd.play().catch(() => {});
+        }
+      }
     },
 
     // Host: process incoming guest action
@@ -321,6 +403,69 @@ var Online = (() => {
         }
         case 'guestCancelSkill':
           guestSkillMode = null; render(); E.broadcastState(); break;
+        case 'guestHandPickBeast': {
+          const fc=g1all().find(f=>f.uid===data.uid);
+          if(!fc)break;
+          const skill=getCardSkills(fc)[data.skillIdx];
+          if(!skill)break;
+          const p=G.players[1];
+          const ci=data.cardIdx;
+          if(ci>=p.hand.length)break;
+          const card=p.hand[ci];
+          if(card.tribe!=='Beast'){logErr('ต้องเลือก [Beast]');break;}
+          showActionQueue(`${fc.card.name} [Skill] → ${card.name} ลงสนาม`,()=>{
+            p.mp-=skill.mp;fc.hasUsedSkill=true;
+            p.hand.splice(ci,1);
+            p.atLine.push(makeFieldCard(card,true));
+            log(`${fc.card.name} [Skill]: ${card.name} ลงสนาม!`,'good');
+            checkLose();render();E.broadcastState();
+          });
+          break;
+        }
+        case 'guestGaruda': {
+          const p=G.players[1];
+          const garuda=p.hand.find(c=>c.id===53);
+          const mainFC=allField().find(f=>f.uid===data.targetUid)||pendingFusionMain;
+          if(!garuda||p.mp<4||!mainFC)break;
+          const hi=p.hand.indexOf(garuda);p.hand.splice(hi,1);
+          p.mp-=4;
+          const garudaFC=makeFieldCard(garuda,false);
+          garudaFC.deployedTurn=turnNum;
+          p.atLine.push(garudaFC);
+          const attAt=garudaFC.card.at;
+          log(`Gale Garuda (Guest) [Interfere]: ลงสนามและโจมตี ${mainFC.card.name}!`,'good');
+          combatAnim(garudaFC,mainFC,attAt,'at',false,()=>{
+            dealDamage(garudaFC,mainFC,attAt,'Gale Garuda Interfere',1,0,'at');
+            checkLose();render();E.broadcastState();
+          });
+          break;
+        }
+        case 'guestWyvern': {
+          const p=G.players[1];
+          const wyvern=p.hand.find(c=>c.id===80);
+          if(!wyvern||p.mp<4)break;
+          const hi=p.hand.indexOf(wyvern);p.hand.splice(hi,1);
+          p.mp-=4;
+          const wyvernFC=makeFieldCard(wyvern,false);
+          wyvernFC.deployedTurn=turnNum;
+          p.atLine.push(wyvernFC);
+          log('Wool Wyvern (Guest) [Interfere]: ลงสนาม!','good');
+          checkLose();render();E.broadcastState();
+          break;
+        }
+        case 'guestPhoenix': {
+          const p=G.players[1];
+          const phoenix=p.shrine.find(c=>c.id===78);
+          if(!phoenix||p.mp<2)break;
+          p.mp-=2;
+          const si=p.shrine.indexOf(phoenix);if(si>=0)p.shrine.splice(si,1);
+          const phoenixFC=makeFieldCard(phoenix,false);
+          phoenixFC.deployedTurn=turnNum;
+          p.atLine.push(phoenixFC);
+          log('Phoenix (Guest) [Interfere]: ฟื้นคืนชีพจาก Shrine!','good');
+          checkLose();render();E.broadcastState();
+          break;
+        }
         case 'guestSelfSkill': {
           const fc = g1all().find(f => f.uid === data.uid);
           if (fc) guestExecuteSelfSkill(fc, data.skillIdx);
@@ -342,7 +487,7 @@ var Online = (() => {
         case 'guestMysticPSTarget': {
           if (!guestMysticPlayMode) break;
           const targetFC = allField().find(f => f.uid === data.targetUid);
-          if (targetFC) guestAttachPSMystic(guestMysticPlayMode.mysticCard, guestMysticPlayMode.mysticIdx, targetFC);
+          if (targetFC) guestAttachPSMystic(guestMysticPlayMode.mysticCard, guestMysticPlayMode.mysticIdx, targetFC, data.extraData);
           else { guestMysticPlayMode = null; E.broadcastState(); }
           break;
         }
@@ -356,6 +501,11 @@ var Online = (() => {
         case 'guestMysticInstant': {
           const m = (G.players[1].mysticHand || [])[data.mysticIdx];
           if (m) guestPlayNonPMystic(m, data.mysticIdx);
+          break;
+        }
+        case 'guestNonPResolved': {
+          const m = (G.players[1].mysticHand || [])[data.mysticIdx];
+          if (m) guestPlayNonPMysticResolved(m, data.mysticIdx, data.resolution);
           break;
         }
         default:

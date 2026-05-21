@@ -1,9 +1,14 @@
-﻿// SKILL SYSTEM
+// SKILL SYSTEM
 // ══════════════════════════════════════════════
 function isOnAtLine(fc){
-  return G.players[0].atLine.some(x=>x.uid===fc.uid)||(fc.charmed&&G.players[1].atLine.some(x=>x.uid===fc.uid));
+  return G.players[0].atLine.some(x=>x.uid===fc.uid)||G.players[1].atLine.some(x=>x.uid===fc.uid);
 }
 function getCardSkills(fc){
+  // helper: detect which player owns this fc (0=host, 1=guest/AI)
+  const ownerPi=findFCOwner(fc)?.pi??0;
+  const p=G.players[ownerPi];
+  const opp=G.players[1-ownerPi];
+
   // ── Golden Horn Unicorn (id=2): heal all Curses from 1 Seal ──
   if(fc.card.id===2){
     return [{
@@ -37,21 +42,18 @@ function getCardSkills(fc){
   }
   // ── Desert Chimera (id=7): Poison Curse 3 Turn — fused + At Line ──
   if(fc.card.id===7){
-    if((fc.fused||fc.willMind)&&isOnAtLine(fc)){
+    if((fc.fused||fc.willMind||_isThunderiaFused(fc))&&isOnAtLine(fc)){
       return [{
         label:'✦ [Skill] ติด Poison Curse 3 Turn บน Seal ศัตรู (Mp 2)',
         mp:2, type:'fieldTarget', effect:'poisonCurse', turns:3,
-        filter:t=>{
-          const ai=G.players[1];
-          return [...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&!t.curses?.some(c=>c.type==='poison');
-        }
+        filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&!t.curses?.some(c=>c.type==='poison')
       }];
     }
     return[];
   }
   // ── Ghost Ship (id=16): return self to deck + shuffle — Double Combination (1 material) ──
   if(fc.card.id===16){
-    if((fc.fused&&fc.fusionStack.length>=1)||fc.willMind){
+    if((fc.fused&&fc.fusionStack.length>=1)||fc.willMind||_isThunderiaFused(fc)){
       return [{
         label:'✦ [Skill] คืน Ghost Ship สู่กอง + สลับ (Mp 0)',
         mp:0, type:'selfSkill', effect:'returnSelfToDeck'
@@ -61,7 +63,7 @@ function getCardSkills(fc){
   }
   // ── Cockatrice (id=11): Stone Curse 1 Turn — fused ──
   if(fc.card.id===11){
-    if(fc.fused||fc.willMind){
+    if(fc.fused||fc.willMind||_isThunderiaFused(fc)){
       return [{
         label:'✦ [Skill] ติด Stone Curse 1 Turn (Mp 2)',
         mp:2, type:'fieldTarget', effect:'stoneCurse', turns:1,
@@ -77,17 +79,14 @@ function getCardSkills(fc){
       return [{
         label:'✦ [Skill] ติด Charm Curse 3 Turn บน Seal ศัตรู (Mp 2)',
         mp:2, type:'fieldTarget', effect:'charmCurse', turns:3,
-        filter:t=>{
-          const ai=G.players[1];
-          return [...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='charm');
-        }
+        filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='charm')
       }];
     }
     return[];
   }
   // ── Armadillon (id=15): Freeze Curse 1 Turn — fused + At Line ──
   if(fc.card.id===15){
-    if((fc.fused||fc.willMind)&&isOnAtLine(fc)){
+    if((fc.fused||fc.willMind||_isThunderiaFused(fc))&&isOnAtLine(fc)){
       return [{
         label:'✦ [Skill] ติด Freeze Curse 1 Turn (Mp 2)',
         mp:2, type:'fieldTarget', effect:'freezeCurse', turns:1,
@@ -98,21 +97,20 @@ function getCardSkills(fc){
   }
   // ── Assassin Doll (id=46): Death Curse on lowest-At enemy — At Line, 2+ enemy Seals ──
   if(fc.card.id===46){
-    const ai=G.players[1];
-    const allEnemy=[...ai.atLine,...ai.dfLine];
+    const allEnemy=[...opp.atLine,...opp.dfLine];
     if(isOnAtLine(fc)&&allEnemy.length>=2){
       const minAt=Math.min(...allEnemy.map(x=>getEffectiveAt(x)));
       return [{
         label:'✦ [Skill] Death Curse บน Seal At น้อยสุดของศัตรู (Mp 2)',
         mp:2, type:'fieldTarget', effect:'deathCurse',
-        filter:t=>[...G.players[1].atLine,...G.players[1].dfLine].some(x=>x.uid===t.uid)&&getEffectiveAt(t)===minAt
+        filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&getEffectiveAt(t)===minAt
       }];
     }
     return[];
   }
   // ── Delta-D (id=22): draw 1 card — Df Line, Mp 3 ──
   if(fc.card.id===22){
-    if(G.players[0].dfLine.some(x=>x.uid===fc.uid)){
+    if(p.dfLine.some(x=>x.uid===fc.uid)){
       return [{label:'✦ [Skill] จั่วการ์ด 1 ใบ (Mp 3)',mp:3,type:'selfSkill',effect:'drawCard'}];
     }
     return[];
@@ -124,25 +122,24 @@ function getCardSkills(fc){
       return [{
         label:'✦ [Skill] Death Curse บน Seal Sp 1-3 ของศัตรู (Mp 3)',
         mp:3, type:'fieldTarget', effect:'deathCurse',
-        filter:t=>{const ai=G.players[1];return [...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[1,2,3].includes(t.card.sp);}
+        filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[1,2,3].includes(t.card.sp)
       }];
     }
     return[];
   }
   // ── Mysterious Elephant (id=42): Poison 1 Turn Sp 2-5 — fused+At Line, Mp 3 ──
   if(fc.card.id===42){
-    if((fc.fused||fc.willMind)&&isOnAtLine(fc)){
+    if((fc.fused||fc.willMind||_isThunderiaFused(fc))&&isOnAtLine(fc)){
       return [{
         label:'✦ [Skill] ติด Poison Curse 1 Turn บน Seal Sp 2-5 (Mp 3)',
         mp:3, type:'fieldTarget', effect:'poisonCurse', turns:1,
-        filter:t=>{const ai=G.players[1];return [...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[2,3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison');}
+        filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[2,3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison')
       }];
     }
     return[];
   }
   // ── Blue Wings Pegasus (id=47): deploy Beast from hand — Mp 2 ──
   if(fc.card.id===47){
-    const p=G.players[0];
     const hasBeast=p.hand.some(c=>c.tribe==='Beast');
     if(hasBeast){
       return [{label:'✦ [Skill] นำ [Beast] 1 ใบจากมือเข้าสนาม (Mp 2)',mp:2,type:'handPickBeast',effect:'handPickBeast'}];
@@ -151,11 +148,11 @@ function getCardSkills(fc){
   }
   // ── Hydra of Warok (id=50): Poison 2 Turn Sp 3-5 — fused+At Line, Mp 2 ──
   if(fc.card.id===50){
-    if((fc.fused||fc.willMind)&&isOnAtLine(fc)){
+    if((fc.fused||fc.willMind||_isThunderiaFused(fc))&&isOnAtLine(fc)){
       return [{
         label:'✦ [Skill] ติด Poison Curse 2 Turn บน Seal Sp 3-5 (Mp 2)',
         mp:2, type:'fieldTarget', effect:'poisonCurse', turns:2,
-        filter:t=>{const ai=G.players[1];return [...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison');}
+        filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison')
       }];
     }
     return[];
@@ -172,7 +169,7 @@ function getCardSkills(fc){
     return [{
       label:'✦ [Skill] Seal ใบใด +At 1 จนจบ Subturn (Mp 1)',
       mp:1, type:'fieldTarget', effect:'atBoost1SubTurn',
-      filter:t=>[...G.players[0].atLine,...G.players[0].dfLine].some(x=>x.uid===t.uid)
+      filter:t=>[...p.atLine,...p.dfLine].some(x=>x.uid===t.uid)
     }];
   }
   // ── Blue Wind Griffin (id=59): +Sp 1 any seal, 1 subturn, Interfere, Mp 2 ──
@@ -191,7 +188,7 @@ function getCardSkills(fc){
   }
   // ── Yggdrasil (id=77): retrieve seal from shrine to hand when fused, Mp 3 ──
   if(fc.card.id===77){
-    if((fc.fused||fc.willMind)&&G.players[0].shrine.length>0){
+    if((fc.fused||fc.willMind||_isThunderiaFused(fc))&&p.shrine.length>0){
       return [{label:'✦ [Skill] หยิบ Seal จาก Shrine ขึ้นมือ (Mp 3)',mp:3,type:'selfSkill',effect:'shrineToHand'}];
     }
     return[];
@@ -221,18 +218,17 @@ function getCardSkills(fc){
     return [{
       label:'✦ [Skill/Interfere] Seal ใบใด +Df ตาม Mp ค่าร่ายจนจบ Subturn (Mp 2)',
       mp:2, type:'fieldTarget', effect:'dfBoostMc', interfere:false,
-      filter:t=>[...G.players[0].atLine,...G.players[0].dfLine].some(x=>x.uid===t.uid)
+      filter:t=>[...p.atLine,...p.dfLine].some(x=>x.uid===t.uid)
     }];
   }
   // ── Blaze Sage (id=74): Sacrifice own seal → another own seal +At=mc for 1 turn, Mp 2 ──
   if(fc.card.id===74){
-    const p=G.players[0];
     const ownField=[...p.atLine,...p.dfLine];
     if(ownField.length>=2){
       return [{
         label:'✦ [Skill] Sacrifice Seal → Seal อื่น +At ตาม Mc 1 Turn (Mp 2)',
         mp:2, type:'fieldTarget', effect:'sacrificeStep1',
-        filter:t=>[...G.players[0].atLine,...G.players[0].dfLine].some(x=>x.uid===t.uid)&&t.uid!==fc.uid
+        filter:t=>[...p.atLine,...p.dfLine].some(x=>x.uid===t.uid)&&t.uid!==fc.uid
       }];
     }
     return[];
@@ -268,7 +264,7 @@ function getCardSkills(fc){
   }
   // ── Angel of Sword (id=20): opponent discards random mystic — fused+AtLine, Mp 3 ──
   if(fc.card.id===20){
-    if((fc.fused||fc.willMind)&&isOnAtLine(fc)&&(G.players[1].mysticHand||[]).length>0){
+    if((fc.fused||fc.willMind||_isThunderiaFused(fc))&&isOnAtLine(fc)&&(opp.mysticHand||[]).length>0){
       return [{label:'✦ [Skill] ฝ่ายตรงข้ามทิ้ง Mystic แบบสุ่ม (Mp 3)',mp:3,type:'selfSkill',effect:'discardRandomMystic'}];
     }
     return[];
@@ -309,13 +305,13 @@ function getCardSkills(fc){
     const skills=[];
     const fusedWithBW=(fc.fused&&fc.fusionStack.some(m=>m.card.id===41))||fc.willMind;
     const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind;
-    if(fusedWithBW&&isOnAtLine(fc))skills.push({label:'✦ [Skill] Last Dance Curse At+3 / 2 Turn (Black Wiser) (Mp 3)',mp:3,type:'fieldTarget',effect:'lastDanceCurse',atBonus:3,turns:2,filter:t=>{const ai=G.players[1];return[...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance');}});
-    if(fusedWithDark&&isOnAtLine(fc))skills.push({label:'✦ [Skill] Last Dance Curse At+2 / 3 Turn (Dark) (Mp 2)',mp:2,type:'fieldTarget',effect:'lastDanceCurse',atBonus:2,turns:3,filter:t=>{const ai=G.players[1];return[...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance');}});
+    if(fusedWithBW&&isOnAtLine(fc))skills.push({label:'✦ [Skill] Last Dance Curse At+3 / 2 Turn (Black Wiser) (Mp 3)',mp:3,type:'fieldTarget',effect:'lastDanceCurse',atBonus:3,turns:2,filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance')});
+    if(fusedWithDark&&isOnAtLine(fc))skills.push({label:'✦ [Skill] Last Dance Curse At+2 / 3 Turn (Dark) (Mp 2)',mp:2,type:'fieldTarget',effect:'lastDanceCurse',atBonus:2,turns:3,filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance')});
     return skills;
   }
   // ── Succubus (id=45): Charm Curse 1 Turn — fused + At Line, non-Light ──
   if(fc.card.id===45){
-    if((fc.fused||fc.willMind)&&isOnAtLine(fc))return[{label:'✦ [Skill] Charm Curse 1 Turn — Seal ที่ไม่ใช่ [Light] (Mp 2)',mp:2,type:'fieldTarget',effect:'charmCurse',turns:1,filter:t=>{const ai=G.players[1];return[...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&t.card.el!=='light'&&!t.curses?.some(c=>c.type==='charm');}}];
+    if((fc.fused||fc.willMind||_isThunderiaFused(fc))&&isOnAtLine(fc))return[{label:'✦ [Skill] Charm Curse 1 Turn — Seal ที่ไม่ใช่ [Light] (Mp 2)',mp:2,type:'fieldTarget',effect:'charmCurse',turns:1,filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&t.card.el!=='light'&&!t.curses?.some(c=>c.type==='charm')}];
     return[];
   }
   // ── Medusa (id=48): Stone ∞ (Earth,Mp3) or Poison 3T (Water,Mp2) — fused ──
@@ -323,14 +319,14 @@ function getCardSkills(fc){
     const skills=[];
     const fusedWithEarth=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='earth'))||fc.willMind;
     const fusedWithWater=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='water'))||fc.willMind;
-    if(fusedWithEarth)skills.push({label:'✦ [Skill] Stone Curse ∞ — Seal ศัตรู Sp 1-4 (Mp 3)',mp:3,type:'fieldTarget',effect:'stoneCurse',turns:Infinity,filter:t=>{const ai=G.players[1];return[...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone');}});
-    if(fusedWithWater)skills.push({label:'✦ [Skill] Poison Curse 3 Turn — Seal ศัตรู Sp 1-3 (Mp 2)',mp:2,type:'fieldTarget',effect:'poisonCurse',turns:3,filter:t=>{const ai=G.players[1];return[...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison');}});
+    if(fusedWithEarth)skills.push({label:'✦ [Skill] Stone Curse ∞ — Seal ศัตรู Sp 1-4 (Mp 3)',mp:3,type:'fieldTarget',effect:'stoneCurse',turns:Infinity,filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone')});
+    if(fusedWithWater)skills.push({label:'✦ [Skill] Poison Curse 3 Turn — Seal ศัตรู Sp 1-3 (Mp 2)',mp:2,type:'fieldTarget',effect:'poisonCurse',turns:3,filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison')});
     return skills;
   }
   // ── Siren (id=58): Charm Curse 2 Turn — fused+Dark+At Line, Sp 3-5 ──
   if(fc.card.id===58){
     const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind;
-    if(fusedWithDark&&isOnAtLine(fc))return[{label:'✦ [Skill] Charm Curse 2 Turn — Seal ศัตรู Sp 3-5 (Mp 2)',mp:2,type:'fieldTarget',effect:'charmCurse',turns:2,filter:t=>{const ai=G.players[1];return[...ai.atLine,...ai.dfLine].some(x=>x.uid===t.uid)&&[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='charm');}}];
+    if(fusedWithDark&&isOnAtLine(fc))return[{label:'✦ [Skill] Charm Curse 2 Turn — Seal ศัตรู Sp 3-5 (Mp 2)',mp:2,type:'fieldTarget',effect:'charmCurse',turns:2,filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='charm')}];
     return[];
   }
   // ── Harison, Knight of Pentacles (id=88): destroy Stone-cursed Seal — At Line, Mp 3 ──
@@ -342,7 +338,7 @@ function getCardSkills(fc){
   // ── Zadin, Knight of Wands (id=91): Dragon Strike ×2 At=8 — fused+Dragon+At Line, Mp 4 ──
   if(fc.card.id===91){
     const fusedWithDragon=(fc.fused&&fc.fusionStack.some(m=>m.card.tribe==='Dragon'))||fc.willMind;
-    if(fusedWithDragon&&isOnAtLine(fc)&&[...G.players[1].atLine,...G.players[1].dfLine].length>0)return[{label:'✦ [Skill] Dragon Strike ×2 At=8 (Mp 4)',mp:4,type:'selfSkill',effect:'zadinDoubleAttack'}];
+    if(fusedWithDragon&&isOnAtLine(fc)&&[...opp.atLine,...opp.dfLine].length>0)return[{label:'✦ [Skill] Dragon Strike ×2 At=8 (Mp 4)',mp:4,type:'selfSkill',effect:'zadinDoubleAttack'}];
     return[];
   }
   return[];
@@ -457,6 +453,7 @@ function executeSelfSkill(skillFC,skillIdx){
   const p=G.players[0];
   const skill=getCardSkills(skillFC)[skillIdx];
   if(!skill||p.mp<skill.mp){logErr('Mp ไม่พอ');return;}
+  updateAIPreview(skillFC.card,'✦ Skill');
   playSound('Skill');
   if(skill.effect==='drawCard'){
     showActionQueue(`${skillFC.card.name} [Skill] จั่วการ์ด 1 ใบ`,()=>{
@@ -517,8 +514,7 @@ function executeSelfSkill(skillFC,skillIdx){
         showActionQueue(`${skillFC.card.name} [Skill] → <b>${card.name}</b> จาก Shrine ขึ้นมือ`,()=>{
           p.mp-=skill.mp;skillFC.hasUsedSkill=true;
           if(p.hand.length>=getEffectiveHandMax(0)){logErr('มือเต็ม!');return;}
-          const si=p.shrine.indexOf(card);
-          if(si>=0)p.shrine.splice(si,1);
+          const si=p.shrine.indexOf(card);if(si>=0)p.shrine.splice(si,1);
           p.hand.push(card);
           log(`${skillFC.card.name} [Skill]: ${card.name} จาก Shrine ขึ้นมือ!`,'good');
           checkLose();render();
@@ -630,6 +626,7 @@ function executeSelfSkill(skillFC,skillIdx){
 }
 
 function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
+  updateAIPreview(skillFC.card,'✦ Skill');
   // Blaze Sage step 2: apply At boost to the chosen boost target
   if(skillIdx===-99&&pendingSacrifice){
     const {skillFC:blazeFC,mc}=pendingSacrifice;
