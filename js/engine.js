@@ -523,6 +523,7 @@ function endGuestTurn(){
 
 function guestDeploy(card,idx,line){
   if(G.currentPlayer!==1){return;}
+  if(pendingCb){logErr('ไม่สามารถลงการ์ดระหว่าง Interfere Step');Online.broadcastState();return;}
   if(phase!=='main'&&phase!=='main2'){logErr('Deploy ได้เฉพาะ Main Phase');Online.broadcastState();return;}
   const p=G.players[1];
   const mc=getEffectiveMc(card);
@@ -541,6 +542,7 @@ function guestDeploy(card,idx,line){
 
 function guestLineSwitch(fc,fromLine,toLine){
   if(G.currentPlayer!==1)return;
+  if(pendingCb){logErr('ไม่สามารถเปลี่ยน Line ระหว่าง Interfere Step');Online.broadcastState();return;}
   if(phase!=='main'&&phase!=='main2'){logErr('เปลี่ยน Line ได้เฉพาะ Main Phase');Online.broadcastState();return;}
   if(fc.exhausted){logErr(`${fc.card.name} inactive`);Online.broadcastState();return;}
   if(fc.deployedTurn>=turnNum){logErr(`${fc.card.name} ลงในเทิร์นนี้ ยังเปลี่ยน line ไม่ได้`);Online.broadcastState();return;}
@@ -1682,6 +1684,7 @@ function getEffectiveMc(card){
 
 function clickHandCard(card,idx){
   if(G.currentPlayer!==0)return;
+  if(pendingCb){logErr('ไม่สามารถลงการ์ดระหว่าง Interfere Step');return;}
   if(phase!=='main'&&phase!=='main2'){log('Can only deploy during Main Phase','');return;}
   if(handPickMode){executeHandPickBeast(card,idx);return;}
   const mc=getEffectiveMc(card);
@@ -1695,6 +1698,7 @@ function clickHandCard(card,idx){
 function doDeploy(line){
   if(window.Online?.isOnline&&!Online.isHost){
     if(!pendingDeploy)return;
+    if(pendingCb){logErr('ไม่สามารถลงการ์ดระหว่าง Interfere Step');pendingDeploy=null;closeDeployModal();return;}
     const{idx}=pendingDeploy;
     Online.sendGuestAction({action:'deploy',cardIdx:idx,line});
     pendingDeploy=null;closeDeployModal();
@@ -1702,6 +1706,7 @@ function doDeploy(line){
   }
   if(!pendingDeploy)return;
   const {card,idx}=pendingDeploy;
+  if(pendingCb){logErr('ไม่สามารถลงการ์ดระหว่าง Interfere Step');pendingDeploy=null;closeDeployModal();return;}
   if((phase!=='main'&&phase!=='main2')||G.currentPlayer!==0){logErr('Deploy ได้เฉพาะ Main Phase ของผู้เล่น');closeDeployModal();return;}
   const mc=getEffectiveMc(card);
   if(G.players[0].mp<mc){logErr(`Mp ไม่พอ (ต้องการ ${mc})`);closeDeployModal();return;}
@@ -1736,6 +1741,7 @@ function doDeploy(line){
 
 // Deploy from hand by dragging to a specific line slot position
 function doDeployAtSlot(card,cardIdx,lineKey,insertAt){
+  if(pendingCb){logErr('ไม่สามารถลงการ์ดระหว่าง Interfere Step');return;}
   if((phase!=='main'&&phase!=='main2')||G.currentPlayer!==0){logErr('Deploy ได้เฉพาะ Main Phase ของผู้เล่น');return;}
   const mc=getEffectiveMc(card);
   if(G.players[0].mp<mc){logErr(`Mp ไม่พอ (ต้องการ ${mc})`);return;}
@@ -1870,6 +1876,7 @@ function closeFAModal(){
 }
 
 function doLineSwitch(fc,fromLine,toLine){
+  if(pendingCb){logErr('ไม่สามารถเปลี่ยน Line ระหว่าง Interfere Step');closeFAModal();return;}
   if(phase!=='main'&&phase!=='main2'){logErr('เปลี่ยน line ได้เฉพาะ Main Phase');closeFAModal();return;}
   updateAIPreview(fc.card,`→ ${toLine==='at'?'At':'Df'} Line`);
   if(fc.exhausted){logErr(`${fc.card.name} inactive ไม่สามารถเปลี่ยน line ได้`);closeFAModal();return;}

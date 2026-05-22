@@ -202,7 +202,7 @@ function handCardEl(card,idx,pi=0){
   div.className='card hand-card';
   const p=G.players[pi];
   const effMc=getEffectiveMc(card);
-  const canPlay=p.mp>=effMc&&(phase==='main'||phase==='main2')&&G.currentPlayer===pi;
+  const canPlay=p.mp>=effMc&&(phase==='main'||phase==='main2')&&G.currentPlayer===pi&&!pendingCb;
   if(canPlay)div.classList.add('playable');
   const ec=EL_COLOR[card.el]||'#fff';
   const mcDisp=effMc!==card.mc?`<span style="color:#fde68a">${effMc}</span>`:effMc;
