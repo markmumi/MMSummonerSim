@@ -19,6 +19,8 @@ let handDiscardMode = null; // {fc, skillIdx, onDiscard}
 let handPickMode = null;   // {fc, skillIdx} — Blue Wings Pegasus beast deploy
 let pendingFusionMain = null; // mainFC currently in AI fusion action queue (Gale Garuda hook)
 let _aqTimerId = null;
+let _interfereStack = []; // LIFO queue of interfere effects: [{desc, cb}]; last pushed resolves first
+let _aqPendingSpend = null; // mystic handlers set this to spend() before calling showActionQueue in interfere context
 
 // ── BGM system ──
 const _AI_BGM={zadin:'Zalom',andre:'Tidebound Sigil',sigmund:'Windbound Duel',harison:'Bone Drum Ritual'};
@@ -74,6 +76,8 @@ let guestMysticPlayMode = null;  // {mysticCard, mysticIdx} — guest PS placeme
 let guestPendingAtkIdx = null;   // fusion attack index chosen by guest
 
 let _hostLogBuffer = []; // accumulated log messages to send with next broadcastState
+let _aqPassBits = 0;    // chain-mode pass tracking: 0b01=host passed, 0b10=guest passed
+let _aqChainMode = false; // true after any interfere card played — both must pass to resolve
 
 const _SFX={};
 ['Deploy','Draw','Flip','Skill','Confirm','Damage','Fusion Complete',
@@ -176,10 +180,16 @@ function initDragDrop(){
       try{
         const data=JSON.parse(e.dataTransfer.getData('text/plain'));
         if(data.type==='hand'){
-          const card=G.players[0].hand[data.idx];
-          if(!card)return;
-          pendingDeploy={card,idx:data.idx};
-          doDeploy(targetLine);
+          if(window.Online?.isOnline&&!Online.isHost){
+            const card=G.players[1].hand[data.idx];
+            if(!card)return;
+            Online.sendGuestAction({action:'deploy',cardIdx:data.idx,line:targetLine});
+          } else {
+            const card=G.players[0].hand[data.idx];
+            if(!card)return;
+            pendingDeploy={card,idx:data.idx};
+            doDeploy(targetLine);
+          }
         } else if(data.type==='field'){
           const fc=[...G.players[0].atLine,...G.players[0].dfLine].find(f=>f.uid===data.uid);
           if(fc&&data.fromLine!==targetLine)doLineSwitch(fc,data.fromLine,targetLine);
@@ -468,14 +478,15 @@ function initGameOnline(guestDeckJSON){
 }
 
 function startGuestTurn(){
-  phase='draw';
   drawsRemaining=turnNum>1?2:0;
-  log(`Guest's turn — Draw Phase`,'hi');
-  render();
-  Online.broadcastState();
   if(drawsRemaining===0){
     phase='main';
     log('Guest: MAIN PHASE','hi');
+    render();
+    Online.broadcastState();
+  } else {
+    phase='draw';
+    log(`Guest's turn — Draw Phase`,'hi');
     render();
     Online.broadcastState();
   }
@@ -1222,7 +1233,8 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
       if(flags.curseType){fc.curses=(fc.curses||[]);fc.curses.push({type:flags.curseType,expiresAtSubTurn:Infinity,fromPS:mysticCard.id});playSound(flags.curseType==='stone'?'Stone':flags.curseType==='freeze'?'Freeze':flags.curseType==='poison'?'Poison':flags.curseType==='charm'?'Charm':'Skill');}
     }
     log(`${mysticCard.name} [Mystic] ติดกับ ${fc.card.name}!`,'good');
-    checkLose();render();Online.broadcastState();
+    checkLose();render();
+    if(pendingCb)_enterChainMode(mysticCard.name);else Online.broadcastState();
   }
   function doAttach(atBonus=0,dfBonus=0,spBonus=0,flags={}){spend();addMysticEntry(atBonus,dfBonus,spBonus,flags);}
   if(id===37){
@@ -1313,7 +1325,7 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
 function guestPlayNonPMystic(mysticCard,mysticIdx){
   const p=G.players[1];
   const id=mysticCard.id;
-  function spend(){p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
+  let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
   const allField=()=>[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
   if(id===17){
     showMysticPicker('Holy Prayer — เลือก',[
@@ -1324,7 +1336,7 @@ function guestPlayNonPMystic(mysticCard,mysticIdx){
         const cursed=allField().filter(fc=>fc.curses?.length);
         if(!cursed.length){log('ไม่มี Seal ที่ติด Curse','bad');return;}
         showMysticPicker('เลือก Seal',cursed.map(fc=>({label:`${fc.card.name}`,data:fc})),tfc=>{
-          showActionQueue(`Holy Prayer → รักษา ${tfc.card.name}`,()=>{spend();tfc.curses=[];log(`Holy Prayer: รักษา Curse!`,'good');checkLose();render();Online.broadcastState();});
+          _aqPendingSpend=spend;showActionQueue(`Holy Prayer → รักษา ${tfc.card.name}`,()=>{spend();tfc.curses=[];log(`Holy Prayer: รักษา Curse!`,'good');checkLose();render();Online.broadcastState();});
         });
       } else {
         const withPS=allField().filter(fc=>(fc.mystics||[]).some(m=>m.expiresBeforeSubTurn===Infinity||subTurnNum<m.expiresBeforeSubTurn));
@@ -1332,7 +1344,7 @@ function guestPlayNonPMystic(mysticCard,mysticIdx){
         showMysticPicker('เลือก Seal',withPS.map(fc=>({label:`${fc.card.name}`,data:fc})),tfc=>{
           const actMys=getActiveMystics(tfc);
           showMysticPicker('เลือก Mystic',actMys.map((m,i)=>({label:m.mystic.name,data:i})),mIdx=>{
-            showActionQueue(`Holy Prayer → ทำลาย ${actMys[mIdx].mystic.name}`,()=>{spend();tfc.mystics.splice(tfc.mystics.indexOf(actMys[mIdx]),1);log(`Holy Prayer: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();});
+            _aqPendingSpend=spend;showActionQueue(`Holy Prayer → ทำลาย ${actMys[mIdx].mystic.name}`,()=>{spend();const _m=actMys[mIdx];tfc.mystics.splice(tfc.mystics.indexOf(_m),1);clearPSCurseFromEntry(tfc,_m);log(`Holy Prayer: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();});
           });
         });
       }
@@ -1342,7 +1354,7 @@ function guestPlayNonPMystic(mysticCard,mysticIdx){
     const valid=p.shrine.filter(c=>!(mysticCard.exception_tribes||[]).includes(c.tribe));
     if(!valid.length){log('ไม่มี Seal ใน Shrine','bad');return;}
     showMysticPicker('Benediction — เลือก Seal',valid.map(c=>({label:`${c.name} (Lv${c.lv})`,data:c})),c=>{
-      showActionQueue(`Benediction → ${c.name} ขึ้นมือ`,()=>{
+      _aqPendingSpend=spend;showActionQueue(`Benediction → ${c.name} ขึ้นมือ`,()=>{
         spend();const i=p.shrine.indexOf(c);
         if(i>=0&&p.hand.length<HAND_MAX){p.shrine.splice(i,1);p.hand.push(c);log(`Benediction: ${c.name} ขึ้นมือ!`,'good');}
         else log('มือเต็ม!','bad');
@@ -1361,21 +1373,21 @@ function guestPlayNonPMystic(mysticCard,mysticIdx){
     ];
     showMysticPicker('Inquisition — เลือก Mystic',opts,choice=>{
       if(choice.type==='pa'){
-        showActionQueue(`Inquisition → ทำลาย [PA] ${G.players[choice.pi].areaMystics[choice.amIdx].mystic.name}`,()=>{
+        _aqPendingSpend=spend;showActionQueue(`Inquisition → ทำลาย [PA] ${G.players[choice.pi].areaMystics[choice.amIdx].mystic.name}`,()=>{
           spend();G.players[choice.pi].areaMystics.splice(choice.amIdx,1);
           log(`Inquisition: ทำลาย PA Mystic!`,'good');checkLose();render();Online.broadcastState();
         });
       } else {
         const actMys=getActiveMystics(choice.fc);
         if(actMys.length===1){
-          showActionQueue(`Inquisition → ทำลาย ${actMys[0].mystic.name}`,()=>{
-            spend();choice.fc.mystics.splice(choice.fc.mystics.indexOf(actMys[0]),1);
+          _aqPendingSpend=spend;showActionQueue(`Inquisition → ทำลาย ${actMys[0].mystic.name}`,()=>{
+            spend();const _m0=actMys[0];choice.fc.mystics.splice(choice.fc.mystics.indexOf(_m0),1);clearPSCurseFromEntry(choice.fc,_m0);
             log(`Inquisition: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();
           });
         } else {
           showMysticPicker('เลือก Mystic ที่จะทำลาย',actMys.map((m,i)=>({label:m.mystic.name,data:i})),mIdx=>{
-            showActionQueue(`Inquisition → ทำลาย ${actMys[mIdx].mystic.name}`,()=>{
-              spend();choice.fc.mystics.splice(choice.fc.mystics.indexOf(actMys[mIdx]),1);
+            _aqPendingSpend=spend;showActionQueue(`Inquisition → ทำลาย ${actMys[mIdx].mystic.name}`,()=>{
+              spend();const _mN=actMys[mIdx];choice.fc.mystics.splice(choice.fc.mystics.indexOf(_mN),1);clearPSCurseFromEntry(choice.fc,_mN);
               log(`Inquisition: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();
             });
           });
@@ -1384,7 +1396,7 @@ function guestPlayNonPMystic(mysticCard,mysticIdx){
     });
     return;
   }
-  showActionQueue(`${mysticCard.name}`,()=>{spend();log(`${mysticCard.name} ใช้แล้ว`,'');render();Online.broadcastState();});
+  _aqPendingSpend=spend;showActionQueue(`${mysticCard.name}`,()=>{spend();log(`${mysticCard.name} ใช้แล้ว`,'');render();Online.broadcastState();});
 }
 
 function guestPlayPAMystic(mysticCard,mysticIdx){
@@ -1438,10 +1450,11 @@ function guestPlayPAMystic(mysticCard,mysticIdx){
   showActionQueue(`${mysticCard.name}`,()=>{spend();addAreaMystic();log(`${mysticCard.name} ใช้แล้ว`,'');render();Online.broadcastState();});}
 
 function guestShowMysticAction(mysticCard,mysticIdx){
-  if(G.currentPlayer!==1)return;
   const p=G.players[1];
+  const inInterfere=!!pendingCb&&mysticCard.interfere;
+  if(G.currentPlayer!==1&&!inInterfere)return;
   const inMain=phase==='main'||phase==='main2';
-  if(!inMain)return;
+  if(!inMain&&!inInterfere)return;
   if(p.mp<mysticCard.mc){logErr(`Mp ไม่พอ (ต้องการ ${mysticCard.mc}, มี ${p.mp})`);return;}
   if(mysticCard.pasted==='PS'){
     if(guestMysticPlayMode&&guestMysticPlayMode.mysticIdx===mysticIdx){
@@ -1454,19 +1467,12 @@ function guestShowMysticAction(mysticCard,mysticIdx){
     render();
   } else if(mysticCard.pasted==='PA'){
     Online.sendGuestAction({action:'guestMysticPA',mysticIdx});
-  } else if(mysticCard.id===27){ // Lighthouse — handle reveal locally on guest
+  } else if(mysticCard.id===27){ // Lighthouse — send choice to HOST; HOST builds reveal and broadcasts back
     showMysticPicker('Lighthouse — เลือก',[
       {label:'ดูการ์ดทุกใบในมือฝ่ายตรงข้าม',data:'hand'},
       {label:'ดูการ์ดใบบนสุด 1 ใบของกองการ์ดเราทุกกอง',data:'deck'}
     ],choice=>{
-      Online.sendGuestAction({action:'guestMysticInstant',mysticIdx});
-      if(choice==='hand'){
-        showRevealModal('🔍 Lighthouse: มือ Host',[...G.players[0].hand,...(G.players[0].mysticHand||[])]);
-      } else {
-        const topSeal=G.players[1].deck.slice(0,1);
-        const topMystic=(G.players[1].mysticDeck||[]).slice(0,1);
-        showRevealModal('🔍 Lighthouse: ใบบนสุดกอง',[...topSeal,...topMystic]);
-      }
+      Online.sendGuestAction({action:'guestLighthouse',mysticIdx,choice});
     });
   } else if(mysticCard.id===17){ // Holy Prayer — pick choice locally on guest
     const allF=()=>[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
@@ -1500,13 +1506,17 @@ function guestShowMysticAction(mysticCard,mysticIdx){
     const psTargets=allF().filter(fc=>getActiveMystics(fc).length);
     const paTargets=[];
     [0,1].forEach(pi=>{(G.players[pi].areaMystics||[]).forEach((am,i)=>{paTargets.push({pi,amIdx:i,am});});});
-    if(!psTargets.length&&!paTargets.length){log('ไม่มี Mystic ในสนาม','bad');return;}
+    const stackItems=_interfereStack.map((item,i)=>({label:`[Queued] ${item.desc}`,data:{type:'stack',stackIdx:i}}));
+    if(!psTargets.length&&!paTargets.length&&!stackItems.length){log('ไม่มี Mystic ในสนาม','bad');return;}
     const opts=[
       ...psTargets.map(fc=>({label:`[PS] ${fc.card.name}: ${getActiveMystics(fc).map(m=>m.mystic.name).join(',')}`,data:{type:'ps',fc}})),
-      ...paTargets.map(({pi,amIdx,am})=>({label:`[PA] ${am.mystic.name} (${pi===0?'Host':'Guest'})`,data:{type:'pa',pi,amIdx}}))
+      ...paTargets.map(({pi,amIdx,am})=>({label:`[PA] ${am.mystic.name} (${pi===0?'Host':'Guest'})`,data:{type:'pa',pi,amIdx}})),
+      ...stackItems
     ];
     showMysticPicker('Inquisition — เลือก Mystic',opts,choice=>{
-      if(choice.type==='pa'){
+      if(choice.type==='stack'){
+        Online.sendGuestAction({action:'guestNonPResolved',mysticIdx,resolution:{id:26,type:'stack',stackIdx:choice.stackIdx}});
+      } else if(choice.type==='pa'){
         Online.sendGuestAction({action:'guestNonPResolved',mysticIdx,resolution:{id:26,type:'pa',pi:choice.pi,amIdx:choice.amIdx}});
       } else {
         const actMys=getActiveMystics(choice.fc);
@@ -1533,33 +1543,36 @@ function guestShowMysticAction(mysticCard,mysticIdx){
 
 function guestPlayNonPMysticResolved(mysticCard,mysticIdx,resolution){
   const p=G.players[1];
-  function spend(){p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
+  let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
   const allF=[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
   if(resolution.id===17){ // Holy Prayer
     if(resolution.type==='cure'){
       const tfc=allF.find(fc=>fc.uid===resolution.targetUid);if(!tfc)return;
-      showActionQueue(`Holy Prayer → รักษา ${tfc.card.name}`,()=>{spend();tfc.curses=[];log(`Holy Prayer: รักษา Curse!`,'good');checkLose();render();Online.broadcastState();});
+      _aqPendingSpend=spend;showActionQueue(`Holy Prayer → รักษา ${tfc.card.name}`,()=>{spend();tfc.curses=[];log(`Holy Prayer: รักษา Curse!`,'good');checkLose();render();Online.broadcastState();});
     } else {
       const tfc=allF.find(fc=>fc.uid===resolution.targetUid);if(!tfc)return;
       const actMys=getActiveMystics(tfc);const mEntry=actMys[resolution.mIdx];if(!mEntry)return;
-      showActionQueue(`Holy Prayer → ทำลาย ${mEntry.mystic.name}`,()=>{spend();tfc.mystics.splice(tfc.mystics.indexOf(mEntry),1);log(`Holy Prayer: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();});
+      _aqPendingSpend=spend;showActionQueue(`Holy Prayer → ทำลาย ${mEntry.mystic.name}`,()=>{spend();tfc.mystics.splice(tfc.mystics.indexOf(mEntry),1);clearPSCurseFromEntry(tfc,mEntry);log(`Holy Prayer: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();});
     }
     return;
   }
   if(resolution.id===26){ // Inquisition
-    if(resolution.type==='pa'){
+    if(resolution.type==='stack'){
+      const idx=resolution.stackIdx;const targetItem=_interfereStack[idx];if(!targetItem)return;
+      _aqPendingSpend=spend;showActionQueue(`Inquisition → ยกเลิก: ${targetItem.desc}`,()=>{spend();_interfereStack.splice(idx,1);log(`Inquisition: ยกเลิก Effect!`,'good');checkLose();render();Online.broadcastState();});
+    } else if(resolution.type==='pa'){
       const amArr=G.players[resolution.pi].areaMystics;const am=amArr?.[resolution.amIdx];if(!am)return;
-      showActionQueue(`Inquisition → ทำลาย [PA] ${am.mystic.name}`,()=>{spend();amArr.splice(resolution.amIdx,1);log(`Inquisition: ทำลาย PA Mystic!`,'good');checkLose();render();Online.broadcastState();});
+      _aqPendingSpend=spend;showActionQueue(`Inquisition → ทำลาย [PA] ${am.mystic.name}`,()=>{spend();amArr.splice(resolution.amIdx,1);log(`Inquisition: ทำลาย PA Mystic!`,'good');checkLose();render();Online.broadcastState();});
     } else {
       const tfc=allF.find(fc=>fc.uid===resolution.targetUid);if(!tfc)return;
       const actMys=getActiveMystics(tfc);const mEntry=actMys[resolution.mIdx];if(!mEntry)return;
-      showActionQueue(`Inquisition → ทำลาย ${mEntry.mystic.name}`,()=>{spend();tfc.mystics.splice(tfc.mystics.indexOf(mEntry),1);log(`Inquisition: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();});
+      _aqPendingSpend=spend;showActionQueue(`Inquisition → ทำลาย ${mEntry.mystic.name}`,()=>{spend();tfc.mystics.splice(tfc.mystics.indexOf(mEntry),1);clearPSCurseFromEntry(tfc,mEntry);log(`Inquisition: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();});
     }
     return;
   }
   if(resolution.id===40){ // Benediction
     const c=p.shrine[resolution.shrineIdx];if(!c)return;
-    showActionQueue(`Benediction → ${c.name} ขึ้นมือ`,()=>{
+    _aqPendingSpend=spend;showActionQueue(`Benediction → ${c.name} ขึ้นมือ`,()=>{
       spend();const i=p.shrine.indexOf(c);
       if(i>=0&&p.hand.length<HAND_MAX){p.shrine.splice(i,1);p.hand.push(c);log(`Benediction: ${c.name} ขึ้นมือ!`,'good');}
       else log('มือเต็ม!','bad');
@@ -1576,7 +1589,8 @@ function guestPlayNonPMysticResolved(mysticCard,mysticIdx,resolution){
 // MYSTIC HELPERS
 // ══════════════════════════════════════════════
 function getActiveMystics(fc){
-  return (fc.mystics||[]).filter(m=>m.expiresBeforeSubTurn===Infinity||subTurnNum<m.expiresBeforeSubTurn);
+  // expiresBeforeSubTurn===Infinity serializes to null over JSON (GUEST side) — treat null as Infinity
+  return (fc.mystics||[]).filter(m=>{const e=m.expiresBeforeSubTurn;return e===Infinity||e===null||subTurnNum<e;});
 }
 function _mysticOwnerPi(fc){
   for(let pi=0;pi<2;pi++){if([...G.players[pi].atLine,...G.players[pi].dfLine].some(x=>x.uid===fc.uid))return pi;}
@@ -3270,13 +3284,37 @@ function aiTurn(){
 // ACTION QUEUE (interfere window)
 // ══════════════════════════════════════════════
 let _aqPreviewCard=null;
+// Called after any interfere card is played — resets pass state so both players can respond again
+function _enterChainMode(cardName){
+  _aqChainMode=true;
+  _aqPassBits=0;
+  document.getElementById('aq-desc').innerHTML=`🔗 <b>${cardName}</b> — Interfere เพิ่ม หรือกด "ไปต่อ"`;
+  const bp=document.getElementById('btn-proceed');
+  const aw=document.getElementById('aq-waiting');
+  if(bp)bp.style.display='inline-block';
+  if(aw)aw.style.display='none';
+  // Re-show interfere buttons for HOST (may have been hidden)
+  const p=G.players[0];
+  document.getElementById('btn-aq-garuda').style.display=(pendingFusionMain&&p.hand.some(c=>c.id===53)&&p.mp>=4)?'inline-block':'none';
+  document.getElementById('btn-aq-woolwyvern').style.display=(p.hand.some(c=>c.id===80)&&p.mp>=4)?'inline-block':'none';
+  document.getElementById('btn-aq-phoenix').style.display=(p.shrine.some(c=>c.id===78)&&p.mp>=2)?'inline-block':'none';
+  render();
+  if(window.Online?.isOnline&&Online.isHost){Online.broadcastState();_startAQTimer(10000);}
+}
+
 function showActionQueue(desc, onProceed, fusionMainFC=null, previewCard=null, previewAction=''){
   if(pendingCb){
-    onProceed();
-    render();
+    // Queue this effect on the interfere stack (LIFO) instead of resolving immediately.
+    // Spend the card immediately so it leaves hand at queue time (not resolve time).
+    if(_aqPendingSpend){_aqPendingSpend();_aqPendingSpend=null;}
+    _interfereStack.push({desc, cb: onProceed});
+    _enterChainMode(desc);
     return;
   }
   pendingCb=onProceed;
+  _aqPassBits=0;
+  _aqChainMode=false;
+  _interfereStack=[];
   pendingFusionMain=fusionMainFC;
   if(previewCard){_aqPreviewCard=previewCard;updateAIPreview(previewCard,previewAction);}
   document.getElementById('aq-desc').innerHTML=desc;
@@ -3342,6 +3380,7 @@ function executeWoolWyvernInterfere(){
   document.getElementById('btn-aq-woolwyvern').style.display='none';
   log('Wool Wyvern [Interfere]: ลงสนาม! (Fire At −2 passive active)','good');
   checkLose();render();
+  _enterChainMode('Wool Wyvern');
 }
 
 function executePhoenixInterfere(){
@@ -3357,24 +3396,63 @@ function executePhoenixInterfere(){
   document.getElementById('btn-aq-phoenix').style.display='none';
   log('Phoenix [Interfere]: ฟื้นคืนชีพจาก Shrine!','good');
   checkLose();render();
+  _enterChainMode('Phoenix');
 }
 
 function proceedAction(){
   _stopAQTimer();
   const _isGuestAct=!!(window.Online?.isOnline&&Online.isHost&&G.currentPlayer===1);
   if(!_isGuestAct){_aqPreviewCard=null;updateAIPreview(null);}
+
+  // GUEST side: send proceed signal, keep AQ open in chain mode
   if(window.Online?.isOnline&&!Online.isHost){
     Online.sendGuestAction({action:'proceed'});
-    document.getElementById('action-queue').style.display='none';
-    pendingCb=null;
+    if(_aqChainMode){
+      // Keep AQ visible — wait for HOST to confirm both passed
+      const bp=document.getElementById('btn-proceed');
+      const aw=document.getElementById('aq-waiting');
+      if(bp)bp.style.display='none';
+      if(aw)aw.style.display='inline-block';
+    } else {
+      document.getElementById('action-queue').style.display='none';
+      pendingCb=null;
+    }
     return;
   }
+
+  // HOST in chain mode: require bilateral pass
+  if(window.Online?.isOnline&&Online.isHost&&_aqChainMode){
+    _aqPassBits|=0b01;
+    if(!(_aqPassBits&0b10)){
+      // GUEST hasn't passed yet
+      const bp=document.getElementById('btn-proceed');
+      const aw=document.getElementById('aq-waiting');
+      if(bp)bp.style.display='none';
+      if(aw)aw.style.display='inline-block';
+      Online.broadcastState();
+      return;
+    }
+    // Both passed — fall through to resolve
+    _aqChainMode=false;
+    _aqPassBits=0;
+  }
+
+  // LIFO: pop and execute the top queued interfere effect before resolving original action
+  if(_interfereStack.length > 0){
+    const item=_interfereStack.pop();
+    item.cb();
+    if(pendingCb) _enterChainMode(item.desc+' ✓');
+    if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
+    return;
+  }
+
+  // Stack empty — execute original action
   document.getElementById('action-queue').style.display='none';
-  // Reset proceed/waiting for next queue open
   const _bp=document.getElementById('btn-proceed');if(_bp)_bp.style.display='inline-block';
   const _aw=document.getElementById('aq-waiting');if(_aw)_aw.style.display='none';
   const cb=pendingCb;
   pendingCb=null;
+  _interfereStack=[];
   if(cb)cb();
   if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
 }
@@ -3570,6 +3648,8 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
     }
     log(`${mysticCard.name} [Mystic] ติดกับ ${fc.card.name}!`,'good');
     checkLose();render();
+    if(pendingCb)_enterChainMode(mysticCard.name);
+    else if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
   }
 
   // ── Thunder Bolt (37): instant, split fusion ──
@@ -3718,7 +3798,7 @@ function playNonPMystic(mysticCard,mysticIdx){
   updateAIPreview(mysticCard,'🃏 Mystic');
   const p=G.players[0];
   const id=mysticCard.id;
-  function spend(){p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
+  let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
   const allField=()=>[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
 
   if(id===17){ // Holy Prayer
@@ -3730,6 +3810,7 @@ function playNonPMystic(mysticCard,mysticIdx){
         const cursed=allField().filter(fc=>fc.curses?.length);
         if(!cursed.length){log('ไม่มี Seal ที่ติด Curse','bad');return;}
         showMysticPicker('เลือก Seal ที่จะรักษา',cursed.map(fc=>({label:`${fc.card.name} (${fc.curses.map(c=>c.type).join(',')})`,data:fc})),tfc=>{
+          _aqPendingSpend=spend;
           showActionQueue(`Holy Prayer → รักษา Curse ${tfc.card.name}`,()=>{
             spend();tfc.curses=[];
             log(`Holy Prayer: รักษา Curse ${tfc.card.name}!`,'good');
@@ -3742,8 +3823,9 @@ function playNonPMystic(mysticCard,mysticIdx){
         showMysticPicker('เลือก Seal',withPS.map(fc=>({label:`${fc.card.name} [${getActiveMystics(fc).map(m=>m.mystic.name).join(',')}]`,data:fc})),tfc=>{
           const actMys=getActiveMystics(tfc);
           showMysticPicker('เลือก Mystic ที่จะทำลาย',actMys.map((m,i)=>({label:m.mystic.name,data:i})),mIdx=>{
+            _aqPendingSpend=spend;
             showActionQueue(`Holy Prayer → ทำลาย ${actMys[mIdx].mystic.name}`,()=>{
-              spend();tfc.mystics.splice(tfc.mystics.indexOf(actMys[mIdx]),1);
+              spend();const _m=actMys[mIdx];tfc.mystics.splice(tfc.mystics.indexOf(_m),1);clearPSCurseFromEntry(tfc,_m);
               log(`Holy Prayer: ทำลาย Mystic!`,'good');checkLose();render();
             });
           });
@@ -3753,17 +3835,27 @@ function playNonPMystic(mysticCard,mysticIdx){
     return;
   }
 
-  if(id===26){ // Inquisition — destroy any mystic (PS on seal OR PA area)
+  if(id===26){ // Inquisition — destroy any mystic (PS on seal OR PA area) or cancel a queued interfere effect
     const psTargets=allField().filter(fc=>getActiveMystics(fc).length);
     const paTargets=[];
     [0,1].forEach(pi=>{(G.players[pi].areaMystics||[]).forEach((am,i)=>{paTargets.push({pi,amIdx:i,am});});});
-    if(!psTargets.length&&!paTargets.length){log('ไม่มี Mystic ในสนาม','bad');return;}
+    const stackItems=_interfereStack.map((item,i)=>({label:`[Queued] ${item.desc}`,data:{type:'stack',stackIdx:i}}));
+    if(!psTargets.length&&!paTargets.length&&!stackItems.length){log('ไม่มี Mystic ในสนาม','bad');return;}
     const opts=[
       ...psTargets.map(fc=>({label:`[PS] ${fc.card.name}: ${getActiveMystics(fc).map(m=>m.mystic.name).join(',')}`,data:{type:'ps',fc}})),
-      ...paTargets.map(({pi,amIdx,am})=>({label:`[PA] ${am.mystic.name} (${pi===0?'Player':'AI'})`,data:{type:'pa',pi,amIdx}}))
+      ...paTargets.map(({pi,amIdx,am})=>({label:`[PA] ${am.mystic.name} (${pi===0?'Player':'AI'})`,data:{type:'pa',pi,amIdx}})),
+      ...stackItems
     ];
     showMysticPicker('Inquisition — เลือก Mystic',opts,choice=>{
-      if(choice.type==='pa'){
+      if(choice.type==='stack'){
+        const idx=choice.stackIdx;const targetItem=_interfereStack[idx];if(!targetItem)return;
+        _aqPendingSpend=spend;
+        showActionQueue(`Inquisition → ยกเลิก: ${targetItem.desc}`,()=>{
+          spend();_interfereStack.splice(idx,1);
+          log(`Inquisition: ยกเลิก Effect!`,'good');checkLose();render();
+        });
+      } else if(choice.type==='pa'){
+        _aqPendingSpend=spend;
         showActionQueue(`Inquisition → ทำลาย [PA] ${G.players[choice.pi].areaMystics[choice.amIdx].mystic.name}`,()=>{
           spend();G.players[choice.pi].areaMystics.splice(choice.amIdx,1);
           log(`Inquisition: ทำลาย PA Mystic!`,'good');checkLose();render();
@@ -3771,14 +3863,16 @@ function playNonPMystic(mysticCard,mysticIdx){
       } else {
         const actMys=getActiveMystics(choice.fc);
         if(actMys.length===1){
+          _aqPendingSpend=spend;
           showActionQueue(`Inquisition → ทำลาย ${actMys[0].mystic.name}`,()=>{
-            spend();choice.fc.mystics.splice(choice.fc.mystics.indexOf(actMys[0]),1);
+            spend();const _m0=actMys[0];choice.fc.mystics.splice(choice.fc.mystics.indexOf(_m0),1);clearPSCurseFromEntry(choice.fc,_m0);
             log(`Inquisition: ทำลาย Mystic!`,'good');checkLose();render();
           });
         } else {
           showMysticPicker('เลือก Mystic ที่จะทำลาย',actMys.map((m,i)=>({label:m.mystic.name,data:i})),mIdx=>{
+            _aqPendingSpend=spend;
             showActionQueue(`Inquisition → ทำลาย ${actMys[mIdx].mystic.name}`,()=>{
-              spend();choice.fc.mystics.splice(choice.fc.mystics.indexOf(actMys[mIdx]),1);
+              spend();const _mN=actMys[mIdx];choice.fc.mystics.splice(choice.fc.mystics.indexOf(_mN),1);clearPSCurseFromEntry(choice.fc,_mN);
               log(`Inquisition: ทำลาย Mystic!`,'good');checkLose();render();
             });
           });
@@ -3793,17 +3887,19 @@ function playNonPMystic(mysticCard,mysticIdx){
       {label:'ดูการ์ดทุกใบในมือฝ่ายตรงข้าม',data:'hand'},
       {label:'ดูการ์ดใบบนสุด 1 ใบของกองการ์ดเราทุกกอง',data:'deck'}
     ],choice=>{
+      const wasInterfere=!!pendingCb;
       spend();
       if(choice==='hand'){
-        const ai=G.players[1];
-        showRevealModal('🔍 Lighthouse: มือ AI',[...ai.hand,...(ai.mysticHand||[])]);
+        const opp=G.players[1];
+        showRevealModal('🔍 Lighthouse: มือฝั่งตรงข้าม',[...opp.hand,...(opp.mysticHand||[])]);
       } else {
         const topSeal=p.deck.slice(0,1);
         const topMystic=(p.mysticDeck||[]).slice(0,1);
-        const combined=[...topSeal,...topMystic];
-        showRevealModal('🔍 Lighthouse: ใบบนสุดของกองเรา',combined);
+        showRevealModal('🔍 Lighthouse: ใบบนสุดของกองเรา',[...topSeal,...topMystic]);
       }
       render();
+      if(wasInterfere) _enterChainMode('Lighthouse');
+      else if(window.Online?.isOnline&&Online.isHost) Online.broadcastState();
     });
     return;
   }
@@ -3881,6 +3977,13 @@ function playPAMystic(mysticCard,mysticIdx){
   }
 
   showActionQueue(`${mysticCard.name}`,()=>{spend();addAreaMystic();log(`${mysticCard.name} ใช้แล้ว`,'');render();_bcPA();});
+}
+
+function clearPSCurseFromEntry(fc,mEntry){
+  if(mEntry.curseType){
+    fc.curses=(fc.curses||[]).filter(c=>!(c.type===mEntry.curseType&&c.fromPS===mEntry.mystic.id));
+    if(mEntry.curseType==='charm')fc.charmed=null;
+  }
 }
 
 function tickMystics(){

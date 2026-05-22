@@ -146,6 +146,10 @@ var Online = (() => {
           winner: (typeof gameWinner !== 'undefined') ? gameWinner : null,
           pendingFusionMainUid: (typeof pendingFusionMain !== 'undefined' && pendingFusionMain) ? pendingFusionMain.uid : null,
           aqPreviewCard: (pendingCb && typeof _aqPreviewCard !== 'undefined') ? _aqPreviewCard : null,
+          aqChainMode: (typeof _aqChainMode !== 'undefined') ? _aqChainMode : false,
+          aqPassBits: (typeof _aqPassBits !== 'undefined') ? _aqPassBits : 0,
+          interfereStack: (typeof _interfereStack !== 'undefined') ? _interfereStack.map(i=>i.desc) : [],
+          lighthouseReveal: E._pendingLighthouseReveal || null,
         };
         conn.send(payload);
       } catch (e) {
@@ -254,6 +258,12 @@ var Online = (() => {
         if (drawModal) drawModal.style.display = 'none';
       }
 
+      // Sync chain state from host
+      if(typeof _aqChainMode !== 'undefined') _aqChainMode = data.aqChainMode || false;
+      if(typeof _aqPassBits !== 'undefined') _aqPassBits = data.aqPassBits || 0;
+      // Sync interfere stack (display-only on guest — cb is null; HOST holds actual callbacks)
+      if(typeof _interfereStack !== 'undefined') _interfereStack = (data.interfereStack||[]).map(desc=>({desc,cb:null}));
+
       // Action queue — show/hide based on host state
       const aqEl = document.getElementById('action-queue');
       if (data.pendingCb) {
@@ -264,26 +274,40 @@ var Online = (() => {
           const descEl = document.getElementById('aq-desc');
           if (descEl && data.aqDesc) descEl.innerHTML = data.aqDesc;
           if (data.aqPreviewCard) updateAIPreview(data.aqPreviewCard, '');
-          // Guest is defender when it's the host's turn (G.currentPlayer===0)
+          // Determine proceed/wait display
           const guestIsDefender = G.currentPlayer === 0;
+          const inChain = _aqChainMode || false;
+          const guestPassedInChain = inChain && ((_aqPassBits||0) & 0b10);
           const btnProceed = document.getElementById('btn-proceed');
           const aqWait = document.getElementById('aq-waiting');
-          if (btnProceed) btnProceed.style.display = guestIsDefender ? 'inline-block' : 'none';
-          if (aqWait) aqWait.style.display = guestIsDefender ? 'none' : 'inline-block';
-          // Show special interfere buttons for guest when guest is the defender
+          if(guestPassedInChain){
+            // GUEST already passed, waiting for HOST
+            if(btnProceed)btnProceed.style.display='none';
+            if(aqWait)aqWait.style.display='inline-block';
+          } else if(inChain || guestIsDefender){
+            // Chain mode: GUEST can proceed; or normal defender role
+            if(btnProceed)btnProceed.style.display='inline-block';
+            if(aqWait)aqWait.style.display='none';
+          } else {
+            // GUEST is attacker (currentPlayer===1) — wait
+            if(btnProceed)btnProceed.style.display='none';
+            if(aqWait)aqWait.style.display='inline-block';
+          }
+          // Show special interfere buttons for GUEST
           const p1=G.players[1];
           const pfmUid=data.pendingFusionMainUid;
-          const canGaruda=guestIsDefender&&p1.hand.some(c=>c.id===53)&&p1.mp>=4&&!!pfmUid;
-          const canWyvern=guestIsDefender&&p1.hand.some(c=>c.id===80)&&p1.mp>=4;
-          const canPhoenix=guestIsDefender&&p1.shrine.some(c=>c.id===78)&&p1.mp>=2;
+          const guestCanAct = (inChain || guestIsDefender) && !guestPassedInChain;
+          const canGaruda=guestCanAct&&p1.hand.some(c=>c.id===53)&&p1.mp>=4&&!!pfmUid;
+          const canWyvern=guestCanAct&&p1.hand.some(c=>c.id===80)&&p1.mp>=4;
+          const canPhoenix=guestCanAct&&p1.shrine.some(c=>c.id===78)&&p1.mp>=2;
           const garudaBtn=document.getElementById('btn-aq-garuda');
           const wyvernBtn=document.getElementById('btn-aq-woolwyvern');
           const phoenixBtn=document.getElementById('btn-aq-phoenix');
           if(garudaBtn){garudaBtn.style.display=canGaruda?'inline-block':'none';if(canGaruda)garudaBtn.onclick=()=>{Online.sendGuestAction({action:'guestGaruda',targetUid:pfmUid});garudaBtn.style.display='none';};}
           if(wyvernBtn){wyvernBtn.style.display=canWyvern?'inline-block':'none';if(canWyvern)wyvernBtn.onclick=()=>{Online.sendGuestAction({action:'guestWyvern'});wyvernBtn.style.display='none';};}
           if(phoenixBtn){phoenixBtn.style.display=canPhoenix?'inline-block':'none';if(canPhoenix)phoenixBtn.onclick=()=>{Online.sendGuestAction({action:'guestPhoenix'});phoenixBtn.style.display='none';};};
-          // Start guest-side 10s timer (fresh open only); auto-proceeds for both defender and waiting
-          if (!wasAlreadyOpen && typeof _startAQTimer === 'function') {
+          // Start/restart guest-side 10s timer on fresh open or chain reset
+          if ((!wasAlreadyOpen || (inChain && !guestPassedInChain)) && typeof _startAQTimer === 'function') {
             _startAQTimer(10000);
           }
         }
@@ -298,6 +322,11 @@ var Online = (() => {
       }
 
       render();
+
+      // Lighthouse reveal: HOST sends actual card data; GUEST shows modal
+      if(data.lighthouseReveal && typeof showRevealModal === 'function'){
+        showRevealModal(data.lighthouseReveal.title, data.lighthouseReveal.cards);
+      }
 
       // Win/lose screen for guest
       if (data.winner !== null && data.winner !== undefined) {
@@ -332,7 +361,21 @@ var Online = (() => {
           guestNextPhase();
           break;
         case 'proceed':
-          if (pendingCb) proceedAction();
+          if(pendingCb){
+            if(_aqChainMode){
+              _aqPassBits|=0b10; // GUEST passed in chain mode
+              if(_aqPassBits&0b01){
+                // HOST already passed → both passed → resolve
+                _aqChainMode=false;_aqPassBits=0;
+                proceedAction();
+              } else {
+                // HOST hasn't passed yet → tell GUEST to keep waiting
+                E.broadcastState();
+              }
+            } else {
+              proceedAction(); // normal resolve
+            }
+          }
           break;
         case 'deploy': {
           const card = G.players[1].hand[data.cardIdx];
@@ -372,7 +415,7 @@ var Online = (() => {
         case 'handDiscard': {
           // Interfere handDiscard (for host's Tiamat-style skills during action queue)
           const card = G.players[1].hand[data.cardIdx];
-          if (card) executeInterfere(card);
+          if (card){ executeInterfere(card); } // _enterChainMode called inside executeInterfere
           break;
         }
         // ── Draw phase ──
@@ -463,7 +506,7 @@ var Online = (() => {
           wyvernFC.deployedTurn=turnNum;
           p.atLine.push(wyvernFC);
           log('Wool Wyvern (Guest) [Interfere]: ลงสนาม!','good');
-          checkLose();render();E.broadcastState();
+          checkLose();render();_enterChainMode('Wool Wyvern');
           break;
         }
         case 'guestPhoenix': {
@@ -477,7 +520,7 @@ var Online = (() => {
           phoenixFC.deployedTurn=turnNum;
           p.atLine.push(phoenixFC);
           log('Phoenix (Guest) [Interfere]: ฟื้นคืนชีพจาก Shrine!','good');
-          checkLose();render();E.broadcastState();
+          checkLose();render();_enterChainMode('Phoenix');
           break;
         }
         case 'guestSelfSkill': {
@@ -515,6 +558,31 @@ var Online = (() => {
         case 'guestMysticInstant': {
           const m = (G.players[1].mysticHand || [])[data.mysticIdx];
           if (m) guestPlayNonPMystic(m, data.mysticIdx);
+          break;
+        }
+        case 'guestLighthouse': {
+          const m = (G.players[1].mysticHand || [])[data.mysticIdx];
+          if(!m) break;
+          const p1 = G.players[1];
+          p1.mp -= m.mc;
+          p1.mysticHand.splice(data.mysticIdx, 1);
+          playSound('Spell');
+          let revealCards, revealTitle;
+          if(data.choice === 'hand'){
+            const hp = G.players[0];
+            revealCards = [...hp.hand, ...(hp.mysticHand||[])];
+            revealTitle = '🔍 Lighthouse: มือ HOST';
+            log(`Lighthouse (Guest): เปิดดูมือ HOST!`, 'good');
+          } else {
+            revealCards = [...p1.deck.slice(0,1), ...(p1.mysticDeck||[]).slice(0,1)];
+            revealTitle = '🔍 Lighthouse: ใบบนสุดกอง Guest';
+            log(`Lighthouse (Guest): เปิดดูใบบนสุด!`, 'good');
+          }
+          checkLose(); render();
+          E._pendingLighthouseReveal = {title: revealTitle, cards: revealCards};
+          if(pendingCb) _enterChainMode('Lighthouse');
+          else E.broadcastState();
+          E._pendingLighthouseReveal = null;
           break;
         }
         case 'guestNonPResolved': {

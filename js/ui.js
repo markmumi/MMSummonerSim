@@ -243,7 +243,7 @@ function handCardEl(card,idx,pi=0){
     }
   }
   div.ondblclick=e=>{e.stopPropagation();openCardViewer(card);};
-  if(!handDiscardMode&&canPlay&&!isGuest){
+  if(!handDiscardMode&&canPlay){
     div.draggable=true;
     div.ondragstart=e=>{e.dataTransfer.setData('text/plain',JSON.stringify({type:'hand',idx}));e.dataTransfer.effectAllowed='move';};
   }
@@ -288,7 +288,11 @@ function renderLine(id,seals,pi,lineKey){
           e.stopPropagation(); // only block bubble for hand deploys (prevent double-deploy)
           const card=G.players[lpi].hand[data.idx];
           if(!card)return;
-          doDeployAtSlot(card,data.idx,lineKey,insertAt);
+          if(window.Online?.isOnline&&!Online.isHost){
+            Online.sendGuestAction({action:'deploy',cardIdx:data.idx,line:lineKey});
+          } else {
+            doDeployAtSlot(card,data.idx,lineKey,insertAt);
+          }
         }catch(err){}
       };
       return s;
@@ -312,6 +316,9 @@ function render(){
   // Online: lpi = local player index (0=host/offline, 1=guest), rpi = remote
   const lpi=(window.Online?.isOnline&&!Online.isHost)?1:0;
   const rpi=1-lpi;
+  if(window.Online?.isOnline&&!Online.isHost){
+    console.log('[GUEST render] lpi='+lpi+' rpi='+rpi+' G.currentPlayer='+G.currentPlayer+' phase='+phase+' pendingCb='+!!pendingCb+' isOnline='+Online.isOnline+' isHost='+Online.isHost);
+  }
   const pL=G.players[lpi],pR=G.players[rpi];
 
   renderLine('enemy-df',pR.dfLine,rpi,'df');
@@ -719,7 +726,7 @@ function mysticCardEl(mysticCard,idx,pi=0){
   const isGuest=window.Online?.isOnline&&!Online.isHost&&pi===1;
   const p=G.players[pi];
   const inMainPhase=(phase==='main'||phase==='main2')&&G.currentPlayer===pi;
-  const inInterfere=!!pendingCb&&!isGuest; // guest interfere handled separately
+  const inInterfere=!!pendingCb;
   const canPlay=p.mp>=mysticCard.mc&&(inMainPhase||(mysticCard.interfere&&inInterfere));
   if(canPlay)div.classList.add('playable');
   const activeSel=isGuest?(guestMysticPlayMode&&guestMysticPlayMode.mysticIdx===idx):(mysticPlayMode&&mysticPlayMode.mysticIdx===idx);

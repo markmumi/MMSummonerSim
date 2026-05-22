@@ -428,6 +428,7 @@ function executeInterfere(card){
   log(`${fc.card.name} [Interfere]: ทิ้ง ${card.name} (Lv${card.lv}) → At +${card.lv} turn นี้!`,'good');
   handDiscardMode=null;
   checkLose();render();
+  _enterChainMode(fc.card.name);
 }
 
 // Inline executor for interfere selfSkill — does NOT nest showActionQueue.
@@ -821,7 +822,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       showActionQueue(`${skillFC.card.name} [Skill] → ทำลาย Mystic <b>${mEntry.mystic.name}</b> บน ${targetFC.card.name}`,()=>{
         p.mp-=skill.mp;skillFC.hasUsedSkill=true;
         const mIdx=(targetFC.mystics||[]).indexOf(mEntry);
-        if(mIdx>=0)targetFC.mystics.splice(mIdx,1);
+        if(mIdx>=0){targetFC.mystics.splice(mIdx,1);clearPSCurseFromEntry(targetFC,mEntry);}
         log(`${skillFC.card.name} [Skill]: ทำลาย ${mEntry.mystic.name} บน ${targetFC.card.name}!`,'good');
         checkLose();render();
       });
