@@ -330,6 +330,31 @@ var Online = (() => {
         _guestBattleAnimFired = false;
       }
 
+      // Dark Destiny GUEST shrine discard — Dark Destiny died, must discard 1 mystic immediately
+      if (!E.isHost && G._pendingGuestDDShrine && (G.players[1].mysticHand||[]).length > 0) {
+        const hand = G.players[1].mysticHand;
+        const faModal = document.getElementById('fa-modal');
+        if (faModal && !faModal.classList.contains('show')) {
+          const faTitle = document.getElementById('fa-title');
+          const faOpts = document.getElementById('fa-opts');
+          if (faTitle) faTitle.textContent = 'Dark Destiny [Ability]: ต้องทิ้ง Mystic 1 ใบ';
+          if (faOpts) {
+            faOpts.innerHTML = '';
+            hand.forEach((mc, i) => {
+              const btn = document.createElement('button');
+              btn.className = 'btn btn-red';
+              btn.textContent = `ทิ้ง ${mc.name}`;
+              btn.onclick = () => {
+                faModal.classList.remove('show');
+                Online.sendGuestAction({ action: 'guestDarkDestinyDiscard', handIdx: i });
+              };
+              faOpts.appendChild(btn);
+            });
+          }
+          faModal.classList.add('show');
+        }
+      }
+
       // Dark Destiny GUEST pick — show after state update
       if (!E.isHost && G._pendingGuestDD && (G.players[1].mysticGrave||[]).length > 0) {
         const grave = G.players[1].mysticGrave;
@@ -641,6 +666,18 @@ var Online = (() => {
         }
         case 'guestDarkDestinySkip': {
           G._pendingGuestDD = false;
+          render(); Online.broadcastState();
+          break;
+        }
+        case 'guestDarkDestinyDiscard': {
+          G._pendingGuestDDShrine = false;
+          const p = G.players[1];
+          const hand = p.mysticHand || [];
+          if (data.handIdx >= 0 && data.handIdx < hand.length) {
+            const mc = hand.splice(data.handIdx, 1)[0];
+            (p.mysticGrave = p.mysticGrave || []).push(mc);
+            log(`Guest Dark Destiny [Ability]: ทิ้ง Mystic ${mc.name}!`, 'bad');
+          }
           render(); Online.broadcastState();
           break;
         }

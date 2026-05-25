@@ -279,7 +279,7 @@ body{background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;height:100vh;
 /* ── BATTLE PHASE ANIMATION ── */
 #battle-anim-overlay{display:none;position:fixed;inset:0;z-index:9990;pointer-events:none;overflow:hidden;align-items:center;justify-content:center}
 #battle-anim-overlay.active{display:flex}
-#battle-flash{position:absolute;inset:0;background:rgba(239,68,68,0.35);opacity:0}
+#battle-flash{position:absolute;inset:0;background:rgba(96,165,250,0.28);opacity:0}
 #battle-anim-overlay.active #battle-flash{animation:bFlash .28s ease-out .38s both}
 @keyframes bFlash{0%{opacity:1}100%{opacity:0}}
 .battle-sword{position:absolute;width:340px;height:8px;border-radius:2px 6px 6px 2px;background:linear-gradient(90deg,#334155,#94a3b8 25%,#f1f5f9 50%,#94a3b8 75%,#334155);box-shadow:0 0 14px rgba(226,232,240,.7),0 0 4px rgba(248,250,252,.9)}
@@ -287,5 +287,5 @@ body{background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;height:100vh;
 #battle-sword-r{animation:bSwordR 1.15s cubic-bezier(.22,.61,.36,1) both}
 @keyframes bSwordL{0%{transform:translate(-110vw,-80px) rotate(-40deg);opacity:1}40%{transform:translate(-55px,-30px) rotate(-40deg);opacity:1}72%{transform:translate(-55px,-30px) rotate(-40deg);opacity:1}100%{transform:translate(-55px,-30px) rotate(-40deg);opacity:0}}
 @keyframes bSwordR{0%{transform:translate(110vw,80px) rotate(-40deg);opacity:1}40%{transform:translate(55px,30px) rotate(-40deg);opacity:1}72%{transform:translate(55px,30px) rotate(-40deg);opacity:1}100%{transform:translate(55px,30px) rotate(-40deg);opacity:0}}
-#battle-phase-text{position:absolute;font-size:2.6rem;font-weight:900;letter-spacing:7px;color:#fef2f2;text-shadow:0 0 24px #ef4444,0 0 50px rgba(239,68,68,.55);white-space:nowrap;animation:bText 1.15s ease-out both}
+#battle-phase-text{position:absolute;font-size:2.6rem;font-weight:900;letter-spacing:7px;color:#e0f2fe;text-shadow:0 0 20px #60a5fa,0 0 48px rgba(96,165,250,.6),0 0 80px rgba(148,163,184,.35);white-space:nowrap;animation:bText 1.15s ease-out both}
 @keyframes bText{0%{opacity:0;transform:scale(.55)}38%{opacity:0;transform:scale(.55)}52%{opacity:1;transform:scale(1.1)}70%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1)}}

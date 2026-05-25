@@ -13,6 +13,7 @@ let fusionMainFC = null;
 let pendingFusionMaterials = []; // staged (chosen) materials before fusion is confirmed
 let _battleAnimPlaying = false;
 let _guestBattleAnimFired = false;
+let _ddDiscardResume = null; // resume callback paused by Dark Destiny shrine discard
 let fieldActionTarget = null; // {fc, line}
 let handTargetMode = false;
 let handAttackedThisTurn = false;
@@ -96,6 +97,12 @@ function playSound(name){
   a.volume=vol;
   a.currentTime=0;
   a.play().catch(()=>{});
+}
+
+// Run fn immediately, or defer it until after Dark Destiny shrine discard resolves
+function afterDD(fn){
+  if(G._ddDiscardPending){_ddDiscardResume=fn;}
+  else{fn();}
 }
 
 function showBattlePhaseAnim(cb){
@@ -1946,6 +1953,7 @@ function addFAOpt(label,fn){
 }
 
 function closeFAModal(){
+  if(G._ddDiscardPending)return; // forced discard — cannot cancel
   document.getElementById('fa-modal').classList.remove('show');
   fieldActionTarget=null;
 }
@@ -2673,7 +2681,7 @@ function animateAllTargets(attFC,targets,attAt,atkName,attPi,defPi,onDone){
     if(!stillHere){next(i+1);return;}
     combatAnim(attFC,defFC,attAt,defLine,true,()=>{
       dealDamage(attFC,defFC,attAt,atkName,attPi,defPi,defLine,true);
-      render();next(i+1);
+      afterDD(()=>{render();next(i+1);});
     });
   }
   next(0);
@@ -2871,29 +2879,39 @@ function sendToShrine(fc,ownerPi){
       log(`${mfc.card.name} also sent to shrine (fusion collapse)`,'bad');
     });
   }
-  // Dark Destiny (72): when sent to shrine, owner must discard 1 mystic from hand
+  // Dark Destiny (72): when sent to shrine, owner must discard 1 mystic from hand immediately
   if(fc.card.id===72){
     const owner=G.players[ownerPi];
     if((owner.mysticHand||[]).length>0){
       if(ownerPi===0){
-        setTimeout(()=>{
-          document.getElementById('fa-title').textContent='Dark Destiny [Ability]: ต้องทิ้ง Mystic 1 ใบ';
-          const opts=document.getElementById('fa-opts');opts.innerHTML='';
-          owner.mysticHand.forEach((mc,i)=>{
-            addFAOpt(`ทิ้ง ${mc.name}`,()=>{
-              closeFAModal();
-              owner.mysticHand.splice(i,1);
-              (owner.mysticGrave=owner.mysticGrave||[]).push(mc);
-              log(`Dark Destiny [Ability]: ทิ้ง Mystic ${mc.name}!`,'bad');
-              render();
-            });
+        G._ddDiscardPending=true;
+        document.getElementById('fa-title').textContent='Dark Destiny [Ability]: ต้องทิ้ง Mystic 1 ใบ';
+        const opts=document.getElementById('fa-opts');opts.innerHTML='';
+        const cancelBtn=document.getElementById('fa-cancel-btn');
+        if(cancelBtn)cancelBtn.style.display='none';
+        owner.mysticHand.forEach((mc,i)=>{
+          addFAOpt(`ทิ้ง ${mc.name}`,()=>{
+            if(cancelBtn)cancelBtn.style.display='';
+            document.getElementById('fa-modal').classList.remove('show');
+            owner.mysticHand.splice(i,1);
+            (owner.mysticGrave=owner.mysticGrave||[]).push(mc);
+            log(`Dark Destiny [Ability]: ทิ้ง Mystic ${mc.name}!`,'bad');
+            G._ddDiscardPending=false;
+            render();
+            if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
+            if(_ddDiscardResume){const r=_ddDiscardResume;_ddDiscardResume=null;r();}
           });
-          document.getElementById('fa-modal').classList.add('show');
-        },300);
+        });
+        document.getElementById('fa-modal').classList.add('show');
+      } else if(window.Online?.isOnline&&Online.isHost){
+        // GUEST player's Dark Destiny died — signal GUEST to pick which mystic to discard
+        G._pendingGuestDDShrine=true;
       } else {
+        // Offline AI auto-discard random
         const mc=owner.mysticHand.splice(Math.floor(Math.random()*owner.mysticHand.length),1)[0];
         (owner.mysticGrave=owner.mysticGrave||[]).push(mc);
         log(`Dark Destiny [Ability]: AI ทิ้ง Mystic ${mc.name}!`,'bad');
+        render();
       }
     }
   }
@@ -3350,22 +3368,26 @@ function aiTurn(){
           if(htgt){
             combatAnim(afc,htgt.fc,winSp.at,htgt.line,false,()=>{
               dealDamage(afc,htgt.fc,winSp.at,winSp.name,1,0,htgt.line);
-              hitsDone++;render();doHit();
+              afterDD(()=>{hitsDone++;render();doHit();});
             });
           } else {hitsDone++;doHit();}
         }
-        showActionQueue(`🤖 ${afc.card.name} → <b>${winSp.name}</b>${hitCount>1?' ×'+hitCount:''}`,()=>{
-          if(afc.curses?.some(c=>c.type==='stone'||c.type==='freeze')){log(`${afc.card.name} ถูก Stone/Freeze Curse — โจมตีถูกยกเลิก!`,'');done();return;}
-          log(`AI: ${afc.card.name} uses ${winSp.name}${hitCount>1?` (×${hitCount})`:''}`);
-          doHit();
-        });
+        {
+          const preT=[...G.players[0].atLine.map(f=>({fc:f,line:'at'})),...G.players[0].dfLine.map(f=>({fc:f,line:'df'}))];
+          const firstTgt=preT.find(({fc:d,line:dl})=>winSp.at>(dl==='at'?getEffectiveAt(d):getEffectiveDf(d)))||preT.reduce((b,{fc:d,line:dl})=>{const ds=dl==='at'?getEffectiveAt(d):getEffectiveDf(d);return(!b||ds<b.ds)?{fc:d,line:dl,ds}:b;},null);
+          showActionQueue(`🤖 ${afc.card.name} → <b>${winSp.name}</b>${hitCount>1?' ×'+hitCount:''} ⚔ ${firstTgt?.fc.card.name||'?'}`,()=>{
+            if(afc.curses?.some(c=>c.type==='stone'||c.type==='freeze')){log(`${afc.card.name} ถูก Stone/Freeze Curse — โจมตีถูกยกเลิก!`,'');done();return;}
+            log(`AI: ${afc.card.name} uses ${winSp.name}${hitCount>1?` (×${hitCount})`:''}`);
+            doHit();
+          });
+        }
       } else if(normalWins){
         ai.mp-=maCost;
         showActionQueue(`🤖 ${afc.card.name} ⚔ ${bestTarget.fc.card.name}`,()=>{
           if(afc.curses?.some(c=>c.type==='stone'||c.type==='freeze')){log(`${afc.card.name} ถูก Stone/Freeze Curse — โจมตีถูกยกเลิก!`,'');done();return;}
           combatAnim(afc,bestTarget.fc,myAt,bestTarget.line,false,()=>{
             dealDamage(afc,bestTarget.fc,myAt,'normal attack',1,0,bestTarget.line);
-            done();
+            afterDD(done);
           });
         });
       } else {
