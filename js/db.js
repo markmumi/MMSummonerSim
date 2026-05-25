@@ -30,8 +30,8 @@ function convertCard(j) {
     mc: j.mp_deploy, ma: j.mp_attack,
     el: j.element[0], tribe: j.tribe[0],
     fuse: (j.fusions||[]).map(f=>({reqs: f.reqs||[], atk: cleanAtk(f)})),
-    skill_text: j.skill_text||null,
-    ability_text: j.ability_text||null
+    skill_text: j.skill_text ? (Array.isArray(j.skill_text)?j.skill_text:[j.skill_text]) : null,
+    ability_text: j.ability_text ? (Array.isArray(j.ability_text)?j.ability_text:[j.ability_text]) : null
   };
 }
 
