@@ -2039,6 +2039,7 @@ function checkPendingFusionValid(){
 }
 
 function confirmFusion(){
+  if(pendingCb!==null)return;
   if(!checkPendingFusionValid()){logErr('combination ยังไม่สมบูรณ์ — เลือกการ์ดเพิ่ม');return;}
   const mainFC=fusionMainFC;
   const materials=[...pendingFusionMaterials];
