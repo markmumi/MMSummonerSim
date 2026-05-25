@@ -22,7 +22,7 @@ var Online = (() => {
       s.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
       s.onload = cb;
       s.onerror = () => {
-        E._setStatus('error', 'ไม่สามารถโหลด PeerJS ได้ — ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
+        E._setStatus('error', 'ไม่สามารถเชื่อมต่อได้ — ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
         console.error('[Online] Failed to load PeerJS from CDN');
       };
       document.head.appendChild(s);

@@ -268,7 +268,7 @@ function lobbyTab(which){
 function doCreateRoom(){
   document.getElementById('btn-create-room').disabled=true;
   document.getElementById('btn-create-room').textContent='กำลังสร้าง…';
-  document.getElementById('create-status').textContent='กำลังเชื่อมต่อกับ PeerJS…';
+  document.getElementById('create-status').textContent='กำลังเชื่อมต่อ…';
   Online.onStatusChange=(status,msg)=>{
     if(status==='waiting'){
       document.getElementById('create-status').textContent='รอ Guest เชื่อมต่อ…';
