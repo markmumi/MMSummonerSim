@@ -89,7 +89,7 @@ const CARDS_METADATA = {
         "light"
       ],
       "tribe": [
-        "Musician"
+        "Machine"
       ],
       "fusions": [
         {
@@ -123,7 +123,7 @@ const CARDS_METADATA = {
         "darkness"
       ],
       "tribe": [
-        "evil"
+        "Evil"
       ],
       "fusions": [
         {
@@ -164,7 +164,7 @@ const CARDS_METADATA = {
         "light"
       ],
       "tribe": [
-        "Beast"
+        "Monster"
       ],
       "fusions": [
         {
@@ -246,7 +246,7 @@ const CARDS_METADATA = {
         "fire"
       ],
       "tribe": [
-        "Beast"
+        "Monster"
       ],
       "fusions": [
         {
@@ -287,7 +287,7 @@ const CARDS_METADATA = {
         "fire"
       ],
       "tribe": [
-        "Titan"
+        "Monster"
       ],
       "fusions": [
         {
@@ -367,7 +367,7 @@ const CARDS_METADATA = {
         "earth"
       ],
       "tribe": [
-        "Beast"
+        "Insect"
       ],
       "fusions": [
         {
@@ -409,7 +409,7 @@ const CARDS_METADATA = {
         "earth"
       ],
       "tribe": [
-        "Beast"
+        "Monster"
       ],
       "fusions": [
         {
@@ -491,7 +491,7 @@ const CARDS_METADATA = {
         "water"
       ],
       "tribe": [
-        "Fish"
+        "Monster"
       ],
       "fusions": [
         {
@@ -532,7 +532,7 @@ const CARDS_METADATA = {
         "water"
       ],
       "tribe": [
-        "Beast"
+        "Monster"
       ],
       "fusions": [
         {
@@ -573,7 +573,7 @@ const CARDS_METADATA = {
         "water"
       ],
       "tribe": [
-        "Beast"
+        "Monster"
       ],
       "fusions": [
         {
@@ -697,7 +697,7 @@ const CARDS_METADATA = {
         "wind"
       ],
       "tribe": [
-        "Scientist"
+        "Machine"
       ],
       "fusions": [
         {
@@ -738,7 +738,7 @@ const CARDS_METADATA = {
         "wind"
       ],
       "tribe": [
-        "Machine"
+        "Monster"
       ],
       "fusions": [
         {
@@ -860,7 +860,7 @@ const CARDS_METADATA = {
         "water"
       ],
       "tribe": [
-        "Beast"
+        "Monster"
       ],
       "fusions": [
         {
@@ -886,7 +886,7 @@ const CARDS_METADATA = {
       "name": "Stone Lizard",
       "path": "OGcarddbseal/card_43.jpg",
       "lv": 2,
-      "at": 3,
+      "at": 5,
       "df": 7,
       "spd": 2,
       "mp_deploy": 2,
@@ -895,7 +895,7 @@ const CARDS_METADATA = {
         "earth"
       ],
       "tribe": [
-        "Beast"
+        "Monster"
       ],
       "fusions": [
         {
@@ -1129,7 +1129,7 @@ const CARDS_METADATA = {
         "darkness"
       ],
       "tribe": [
-        "Beast"
+        "Monster"
       ],
       "fusions": [
         {
@@ -1215,7 +1215,7 @@ const CARDS_METADATA = {
         "light"
       ],
       "tribe": [
-        "Divine"
+        "Knight"
       ],
       "fusions": [
         {
@@ -1256,7 +1256,7 @@ const CARDS_METADATA = {
         "earth"
       ],
       "tribe": [
-        "Beast"
+        "Knight"
       ],
       "fusions": [
         {
@@ -1298,7 +1298,7 @@ const CARDS_METADATA = {
         "wind"
       ],
       "tribe": [
-        "Beast"
+        "Monster"
       ],
       "fusions": [
         {
@@ -1318,10 +1318,10 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text": "",
+      "skill_text": ["[Skill]- เมื่อผู้เล่นฝ่ายตรงข้ามสั่ง Seal รวมร่าง นำ Gale Garuda เข้ามาที่ At Line จากมือ จากนั้นสั่ง Gale Garuda โจมตี Seal ที่กำลังรวมร่าง Interfere (Mp 4)"],
       "collector_number": "53/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": "[Skill]- เมื่อผู้เล่นฝ่ายตรงข้ามสั่ง Seal รวมร่าง นำ Gale Garuda เข้ามาที่ At Line จากมือ จากนั้นสั่ง Gale Garuda โจมตี Seal ที่กำลังรวมร่าง Interfere (Mp 4)"
+      "ability_text": ""
     },
     {
       "id": 54,
@@ -1337,7 +1337,7 @@ const CARDS_METADATA = {
         "light"
       ],
       "tribe": [
-        "Mage"
+        "Divine"
       ],
       "fusions": [
         {
@@ -1581,7 +1581,7 @@ const CARDS_METADATA = {
         "wind"
       ],
       "tribe": [
-        "Dragon"
+        "Knight"
       ],
       "fusions": [
         {
@@ -1622,7 +1622,7 @@ const CARDS_METADATA = {
         "fire"
       ],
       "tribe": [
-        "Evil"
+        "Knight"
       ],
       "fusions": [
         {
@@ -1743,7 +1743,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "reqs": ["earth", "earth"],
+          "reqs": ["light"],
           "atk_name": "Riddle",
           "atk_at": 8,
           "atk_df": null,
@@ -1813,7 +1813,7 @@ const CARDS_METADATA = {
         "darkness"
       ],
       "tribe": [
-        "Dragon"
+        "Beast"
       ],
       "fusions": [
         {
@@ -1847,7 +1847,7 @@ const CARDS_METADATA = {
         "earth"
       ],
       "tribe": [
-        "Beast"
+        "Dragon"
       ],
       "fusions": [
         {
@@ -2012,7 +2012,7 @@ const CARDS_METADATA = {
         "earth"
       ],
       "tribe": [
-        "Plant"
+        "Divine"
       ],
       "fusions": [
         {
@@ -2164,7 +2164,7 @@ const CARDS_METADATA = {
         "water"
       ],
       "tribe": [
-        "Mage"
+        "Divine"
       ],
       "fusions": [
         {
