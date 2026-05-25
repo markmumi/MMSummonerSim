@@ -82,21 +82,27 @@ let guestPendingAtkIdx = null;   // fusion attack index chosen by guest
 let _hostLogBuffer = []; // accumulated log messages to send with next broadcastState
 let _aqPassBits = 0;    // chain-mode pass tracking: 0b01=host passed, 0b10=guest passed
 let _aqChainMode = false; // true after any interfere card played — both must pass to resolve
+let _pendingSoundBuffer = []; // sounds queued by HOST to broadcast to GUEST
 
-const _SFX={};
-['Deploy','Draw','Flip','Skill','Confirm','Damage','Fusion Complete',
- 'Card destroyed by effect','Error','Spell','Poison','Freeze','Stone','Charm'
-].forEach(n=>{const a=new Audio(`SoundEffect/${n}.wav`);a.preload='auto';_SFX[n]=a;});
-{const a=new Audio('SoundEffect/swordslice.mp3');a.preload='auto';_SFX['swordslice']=a;}
+const _SFX={}; // loaded Audio cache — populated on first use
 
 function playSound(name){
   if(localStorage.getItem('bgm_muted')==='1')return;
   const vol=parseFloat(localStorage.getItem('bgm_volume')||'0.5');
-  if(!_SFX[name]){_SFX[name]=new Audio(`SoundEffect/${name}.wav`);_SFX[name].preload='auto';}
-  const a=_SFX[name];
-  a.volume=vol;
-  a.currentTime=0;
-  a.play().catch(()=>{});
+  if(_SFX[name]){
+    const a=_SFX[name];
+    a.volume=vol;a.currentTime=0;a.play().catch(()=>{});
+    return;
+  }
+  const ext=name==='swordslice'?'mp3':'wav';
+  const a=new Audio(`SoundEffect/${name}.${ext}`);
+  a.preload='auto';a.volume=vol;
+  a.addEventListener('canplaythrough',()=>{_SFX[name]=a;a.play().catch(()=>{});},{once:true});
+  a.load();
+}
+function broadcastSound(name){
+  playSound(name);
+  if(window.Online?.isOnline&&Online.isHost) _pendingSoundBuffer.push(name);
 }
 
 // Run fn immediately, or defer it until after Dark Destiny shrine discard resolves
@@ -146,6 +152,7 @@ function makeFieldCard(card, fromHand=false){
     fusionAtks: [],
     fused: false,
     fusedSinceTurn: null,
+    fusedAtTurn: null,
     activeMultiAtk: null,
     hitsLeft: 0,
     willMind: false
@@ -294,6 +301,7 @@ function getEffectiveCombinedMax(pi){
   const p=G.players[pi];
   let max=HAND_COMBINED_MAX;
   if((p.areaMystics||[]).some(am=>am.mystic.id===35))max+=1;
+  if((p.areaMystics||[]).some(am=>am.mystic.id===70))max-=1;
   return max;
 }
 function getEffectiveMpMax(pi){
@@ -319,7 +327,7 @@ function drawCard(pi,silent=false,force=false){
     }else{
       log(`${p.name} drew ${c.name}`);
     }
-    playSound('Draw');
+    broadcastSound('Draw');
   }
 }
 
@@ -329,13 +337,15 @@ function drawCard(pi,silent=false,force=false){
 function onNextPhaseBtn(){
   if(_battleAnimPlaying)return;
   if(window.Online?.isOnline&&!Online.isHost){
-    if(phase==='main'&&turnNum!==1&&G.currentPlayer===1){
+    if(G.currentPlayer!==1)return;
+    if(phase==='main'&&turnNum!==1){
       _guestBattleAnimFired=true;
       showBattlePhaseAnim(()=>{});
     }
     Online.sendGuestAction({action:'nextPhase'});
     return;
   }
+  if(G.currentPlayer!==0)return;
   if(phase==='battle'){endBattle();}
   else skipToNextPhase();
 }
@@ -386,7 +396,7 @@ function doForcedDiscardSeal(idx){
   if(p.hand.length+(p.mysticHand||[]).length<=getEffectiveCombinedMax(0)&&p.hand.length<=getEffectiveHandMax(0))return;
   const card=p.hand.splice(idx,1)[0];
   p.shrine.push(card);
-  playSound('Flip');
+  broadcastSound('Flip');
   log(`ทิ้ง ${card.name} → Shrine (Discard Step)`,'bad');
   checkLose();
   afterForcedDiscard();
@@ -398,7 +408,7 @@ function doForcedDiscardMystic(idx){
   if(p.hand.length+(p.mysticHand||[]).length<=getEffectiveCombinedMax(0)&&p.hand.length<=getEffectiveHandMax(0))return;
   const card=p.mysticHand.splice(idx,1)[0];
   (p.mysticGrave=p.mysticGrave||[]).push(card);
-  playSound('Flip');
+  broadcastSound('Flip');
   log(`ทิ้ง ${card.name} (Mystic) — Discard Step`,'bad');
   afterForcedDiscard();
 }
@@ -423,7 +433,7 @@ function tickCurses(){
         // Poison / LastDance → destroy
         if(expired.some(c=>c.type==='poison'||c.type==='lastDance')){
           arr.splice(i,1);
-          playSound('Card destroyed by effect');
+          broadcastSound('Card destroyed by effect');
           if(fc.fusionStack?.length)fc.fusionStack.forEach(m=>G.players[pi].shrine.push(m.card));
           G.players[pi].shrine.push(fc.card);
           const cname=expired.find(c=>c.type==='lastDance')?'Last Dance Curse':'Poison Curse';
@@ -584,7 +594,7 @@ function guestDeploy(card,idx,line){
   showActionQueue(`⬇ Guest ลงการ์ด <b>${card.name}</b> → ${line==='at'?'At':'Df'} Line`,()=>{
     p.hand.splice(idx,1);p.mp-=mc;
     target.push(makeFieldCard(card,true));
-    playSound('Deploy');
+    broadcastSound('Deploy');
     log(`Guest deployed ${card.name} to ${line==='at'?'At':'Df'} Line`,'good');
     if(card.id===90) triggerAndreAbility(1);
     if(card.id===72&&(p.mysticGrave||[]).length>0){G._pendingGuestDD=true;}
@@ -609,7 +619,7 @@ function guestLineSwitch(fc,fromLine,toLine){
     if(i>=0)src.splice(i,1);
     fc.lineSwitchedTurn=turnNum;
     dst.push(fc);
-    playSound('Deploy');
+    broadcastSound('Deploy');
     log(`Guest moved ${fc.card.name} to ${toLine==='at'?'At':'Df'} Line`,'good');
     render();
     Online.broadcastState();
@@ -666,8 +676,9 @@ function guestResolveAttack(attFC,defFC,defLine){
     const atkIdx=(guestPendingAtkIdx!=null&&fusionAtks[guestPendingAtkIdx])?guestPendingAtkIdx:0;
     usedAtk=fusionAtks[atkIdx];
     guestPendingAtkIdx=null;
-    if(p.mp<usedAtk.mp){logErr(`Mp ไม่พอ (ต้องการ ${usedAtk.mp})`);Online.broadcastState();return;}
-    p.mp-=usedAtk.mp;
+    const usedAtkNetMp=Math.max(0,usedAtk.mp-getMysticMaReduction(attFC));
+    if(p.mp<usedAtkNetMp){logErr(`Mp ไม่พอ (ต้องการ ${usedAtkNetMp})`);Online.broadcastState();return;}
+    p.mp-=usedAtkNetMp;
     attAt=usedAtk.at??attAt;
     if(usedAtk.all){
       showActionQueue(`${att.name} → <b>${usedAtk.name}</b> (ALL)`,()=>{
@@ -823,7 +834,7 @@ function showFieldActionGuest(fc,line){
     Online.sendGuestAction({action:'lineSwitch',uid:fc.uid,fromLine:line,toLine:otherLine});
   });
   if(!canSwitch)sw.disabled=true;
-  if(!fc.charmed&&!fc.exhausted&&!fc.hasUsedSkill&&fc.card.fuse&&fc.card.fuse.length>0){
+  if(!fc.charmed&&!fc.exhausted&&!fc.hasUsedSkill&&fc.fusedAtTurn!==turnNum&&fc.card.fuse&&fc.card.fuse.length>0){
     const mats=findGuestFusionMaterials(fc);
     const fuseBtn=addFAOpt('⚡ Fuse',()=>{
       closeFAModal();
@@ -935,7 +946,7 @@ function guestForceDiscardSeal(cardIdx){
   if(cardIdx<0||cardIdx>=p.hand.length)return;
   const card=p.hand.splice(cardIdx,1)[0];
   p.shrine.push(card);
-  playSound('Flip');
+  broadcastSound('Flip');
   log(`Guest ทิ้ง ${card.name} ไปยัง Shrine`,'bad');
   _afterGuestForcedDiscard();
 }
@@ -987,7 +998,8 @@ function guestDoFusion(mainFC,materialFC){
     mainFC.fusionAtks=getUnlockedAtks(mainFC);
     mainFC.fused=true;
     if(!mainFC.fusedSinceTurn)mainFC.fusedSinceTurn=turnNum;
-    playSound('Fusion Complete');
+    mainFC.fusedAtTurn=turnNum;
+    broadcastSound('Fusion Complete');
     const atkNames=mainFC.fusionAtks.map(a=>a.name).join(', ')||'(กำลังสะสม...)';
     log(`+${materialFC.card.name} → ${mainFC.card.name}: ${atkNames}`,'good');
     if(!findGuestFusionMaterials(mainFC).length){guestFusionMainFC=null;}
@@ -1019,7 +1031,7 @@ function guestExecuteHandDiscard(cardIdx){
   const card=p.hand[cardIdx];
   p.mp-=skill.mp;fc.hasUsedSkill=true;
   p.hand.splice(cardIdx,1);p.shrine.push(card);
-  playSound('Flip');
+  broadcastSound('Flip');
   fc.atBoosts=(fc.atBoosts||[]);
   fc.atBoosts.push({amount:card.lv,expiresBeforeSubTurn:subTurnNum+2});
   log(`${fc.card.name} [Interfere]: ทิ้ง ${card.name} (Lv${card.lv}) → At +${card.lv}!`,'good');
@@ -1031,7 +1043,7 @@ function guestExecuteSelfSkill(skillFC,skillIdx){
   const p=G.players[1],opp=G.players[0];
   const skill=getCardSkills(skillFC)[skillIdx];
   if(!skill||p.mp<skill.mp){logErr('Mp ไม่พอ');return;}
-  playSound('Skill');
+  broadcastSound('Skill');
   if(skill.effect==='drawCard'){
     showActionQueue(`${skillFC.card.name} [Skill] จั่วการ์ด 1 ใบ`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
@@ -1056,7 +1068,7 @@ function guestExecuteSelfSkill(skillFC,skillIdx){
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       const enemies=[...opp.atLine,...opp.dfLine];
       enemies.forEach(t=>{t.curses=(t.curses||[]);if(!t.curses.some(c=>c.type==='freeze'))t.curses.push({type:'freeze',expiresAtSubTurn:subTurnNum+2});});
-      playSound('Freeze');
+      broadcastSound('Freeze');
       [...opp.atLine].forEach(t=>{const i=opp.atLine.findIndex(x=>x.uid===t.uid);if(i>=0){opp.atLine.splice(i,1);opp.dfLine.push(t);}});
       log(`${skillFC.card.name} [Skill]: ศัตรู ${enemies.length} ตัวติด Freeze!`,'good');
       checkLose();render();Online.broadcastState();
@@ -1168,7 +1180,7 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     showActionQueue(`${skillFC.card.name} [Skill] → ${targetFC.card.name} ☠Poison ${turns}T`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);targetFC.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+(turns*2)});
-      playSound('Poison');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ☠Poison!`,'good');_done();
+      broadcastSound('Poison');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ☠Poison!`,'good');_done();
     });return;
   }
   if(skill.effect==='stoneCurse'){
@@ -1176,7 +1188,7 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     showActionQueue(`${skillFC.card.name} [Skill] → ${targetFC.card.name} 🪨Stone ${tl}T`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);targetFC.curses.push({type:'stone',expiresAtSubTurn:turns===Infinity?Infinity:subTurnNum+(turns*2)});
-      playSound('Stone');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} 🪨Stone!`,'good');_done();
+      broadcastSound('Stone');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} 🪨Stone!`,'good');_done();
     });return;
   }
   if(skill.effect==='freezeCurse'){
@@ -1184,7 +1196,7 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     showActionQueue(`${skillFC.card.name} [Skill] → ${targetFC.card.name} ❄Freeze ${turns}T`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);targetFC.curses.push({type:'freeze',expiresAtSubTurn:subTurnNum+(turns*2)});
-      playSound('Freeze');
+      broadcastSound('Freeze');
       const owner=G.players[targetPi];
       if(targetLine==='at'){const i=owner.atLine.findIndex(x=>x.uid===targetFC.uid);if(i>=0){owner.atLine.splice(i,1);owner.dfLine.push(targetFC);}}
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ❄Freeze!`,'good');_done();
@@ -1197,7 +1209,7 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       targetFC.charmed={originalPi:targetPi,originalLine:targetLine+'Line'};
       targetFC.curses=(targetFC.curses||[]);targetFC.curses.push({type:'charm',expiresAtSubTurn:subTurnNum+(turns*2)});
       targetFC.exhausted=false;targetFC.hasUsedSkill=false;
-      playSound('Charm');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} 💗Charm!`,'good');_done();
+      broadcastSound('Charm');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} 💗Charm!`,'good');_done();
     });return;
   }
   if(skill.effect==='lastDanceCurse'){
@@ -1205,7 +1217,7 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     showActionQueue(`${skillFC.card.name} [Skill] → ${targetFC.card.name} Last Dance`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);targetFC.curses.push({type:'lastDance',atBonus,expiresAtSubTurn:subTurnNum+(turns*2)});
-      playSound('Skill');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} Last Dance!`,'good');_done();
+      broadcastSound('Skill');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} Last Dance!`,'good');_done();
     });return;
   }
   if(skill.effect==='atBoost1SubTurn'){
@@ -1236,8 +1248,8 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       const owner=G.players[targetPi];
       const fromArr=targetLine==='at'?owner.atLine:owner.dfLine;
       const i=fromArr.findIndex(x=>x.uid===targetFC.uid);
-      if(i>=0){fromArr.splice(i,1);if(targetFC.fusionStack?.length)targetFC.fusionStack.forEach(m=>owner.shrine.push(m.card));owner.hand.push(targetFC.card);}
-      log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ขึ้นมือ!`,'good');_done();
+      if(i>=0){fromArr.splice(i,1);const ok=bounceSealToHand(targetFC,targetPi);log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ${ok?'ขึ้นมือ':'ลง Shrine (มือเต็ม)'}!`,ok?'good':'bad');}
+      _done();
     });return;
   }
   if(skill.effect==='destroyOneMystic'){
@@ -1291,7 +1303,7 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
   if(targetFC.card.id===82){log(`Heaven Knight: ยกเลิก Mystic ฝ่ายตรงข้าม!`,'bad');render();Online.broadcastState();return;}
   if(hasMysticProtect(targetFC)){log(`${targetFC.card.name} ถูกป้องกัน — ติด Mystic ไม่ได้!`,'bad');render();Online.broadcastState();return;}
   const id=mysticCard.id,fc=targetFC;
-  function spend(){p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
+  function spend(){p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);broadcastSound('Spell');}
   function addMysticEntry(atBonus=0,dfBonus=0,spBonus=0,flags={}){
     const expires=mysticCard.turns===999?Infinity:subTurnNum+(mysticCard.turns*2);
     if(mysticCard.turns!==0){
@@ -1392,7 +1404,7 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
 function guestPlayNonPMystic(mysticCard,mysticIdx){
   const p=G.players[1];
   const id=mysticCard.id;
-  let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
+  let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);broadcastSound('Spell');}
   const allField=()=>[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
   if(id===17){
     showMysticPicker('Holy Prayer — เลือก',[
@@ -1469,7 +1481,7 @@ function guestPlayNonPMystic(mysticCard,mysticIdx){
 function guestPlayPAMystic(mysticCard,mysticIdx){
   const p=G.players[1],opp=G.players[0];
   const id=mysticCard.id;
-  function spend(){p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
+  function spend(){p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);broadcastSound('Spell');}
   function addAreaMystic(){
     const expires=mysticCard.turns===999?Infinity:subTurnNum+(mysticCard.turns*2);
     if(!p.areaMystics)p.areaMystics=[];
@@ -1505,7 +1517,7 @@ function guestPlayPAMystic(mysticCard,mysticIdx){
             spend();
             const owner=findFCOwner(targetFC);
             if(owner){destroyByEffect(targetFC,owner.pi);}
-            [c1,c2].forEach(c=>{const i=p.hand.indexOf(c);if(i>=0){p.hand.splice(i,1);p.shrine.push(c);playSound('Flip');}});
+            [c1,c2].forEach(c=>{const i=p.hand.indexOf(c);if(i>=0){p.hand.splice(i,1);p.shrine.push(c);broadcastSound('Flip');}});
             log(`Sacrifice: ทำลาย ${targetFC.card.name}! ทิ้ง ${c1.name}, ${c2.name}!`,'bad');
             checkLose();render();Online.broadcastState();
           });
@@ -1610,7 +1622,7 @@ function guestShowMysticAction(mysticCard,mysticIdx){
 
 function guestPlayNonPMysticResolved(mysticCard,mysticIdx,resolution){
   const p=G.players[1];
-  let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
+  let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);broadcastSound('Spell');}
   const allF=[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
   if(resolution.id===17){ // Holy Prayer
     if(resolution.type==='cure'){
@@ -1783,7 +1795,7 @@ function doDeploy(line){
   function _applyDeploy(){
     p.hand.splice(idx,1);p.mp-=mc;
     target.push(makeFieldCard(card,true));
-    playSound('Deploy');
+    broadcastSound('Deploy');
     log(`Host deployed ${card.name} to ${line==='at'?'At':'Df'} Line`,'good');
     if(card.id===67&&line==='at') triggerGregoryCancel(0);
     if(card.id===90) triggerAndreAbility(0);
@@ -1826,7 +1838,7 @@ function doDeployAtSlot(card,cardIdx,lineKey,insertAt){
     p.hand.splice(cardIdx,1);p.mp-=mc;
     const fc=makeFieldCard(card,true);
     if(insertAt===0)target.splice(0,0,fc);else target.push(fc);
-    playSound('Deploy');
+    broadcastSound('Deploy');
     log(`Host deployed ${card.name} to ${targetLine==='at'?'At':'Df'} Line`,'good');
     if(card.id===67&&targetLine==='at') triggerGregoryCancel(0);
     if(card.id===90) triggerAndreAbility(0);
@@ -1912,8 +1924,8 @@ function showFieldAction(fc,line){
 
   const isCharmedCard=!!fc.charmed;
 
-  // Fuse: has fuse data and still has materials to absorb (skip for charmed/exhausted/used-skill)
-  if(!isCharmedCard&&!fc.exhausted&&!fc.hasUsedSkill&&fc.card.fuse&&fc.card.fuse.length>0){
+  // Fuse: has fuse data and still has materials to absorb (skip for charmed/exhausted/used-skill/already fused this turn)
+  if(!isCharmedCard&&!fc.exhausted&&!fc.hasUsedSkill&&fc.fusedAtTurn!==turnNum&&fc.card.fuse&&fc.card.fuse.length>0){
     const materials=findFusionMaterials(fc);
     const fuseBtn=addFAOpt('⚡ Fuse',()=>{closeFAModal();startFusionMode(fc);});
     if(!materials.length)fuseBtn.disabled=true;
@@ -1977,7 +1989,7 @@ function doLineSwitch(fc,fromLine,toLine){
     if(i>=0)fromArr.splice(i,1);
     toArr.push(fc);
     fc.lineSwitchedTurn=turnNum;
-    playSound('Deploy');
+    broadcastSound('Deploy');
     log(`${fc.card.name} moved to ${toLine==='at'?'At':'Df'} Line`,'good');
     if(fc.card.id===67&&toLine==='at') triggerGregoryCancel(owner?owner.pi:0);
     render();
@@ -2064,7 +2076,8 @@ function confirmFusion(){
     mainFC.fusionAtks=getUnlockedAtks(mainFC);
     mainFC.fused=true;
     if(!mainFC.fusedSinceTurn)mainFC.fusedSinceTurn=turnNum;
-    playSound('Fusion Complete');
+    mainFC.fusedAtTurn=turnNum;
+    broadcastSound('Fusion Complete');
     log(`+${matNames} → ${mainFC.card.name}: ${atkNames}`,'good');
     fusionMode=false;fusionMainFC=null;
     render();
@@ -2196,7 +2209,7 @@ function clickFieldSeal(fc,pi,line){
           p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);
           const owner=findFCOwner(targetFC);
           if(owner){destroyByEffect(targetFC,owner.pi);}
-          [c1,c2].forEach(c=>{const i=p.hand.indexOf(c);if(i>=0){p.hand.splice(i,1);p.shrine.push(c);playSound('Flip');}});
+          [c1,c2].forEach(c=>{const i=p.hand.indexOf(c);if(i>=0){p.hand.splice(i,1);p.shrine.push(c);broadcastSound('Flip');}});
           log(`Sacrifice: ทำลาย ${targetFC.card.name}! ทิ้ง ${c1.name}, ${c2.name}!`,'bad');
           checkLose();render();
         });
@@ -2361,9 +2374,10 @@ function getActiveAtks(fc){
 
 function executeAllAttack(attFC,atk){
   const p=G.players[0];
-  if(p.mp<atk.mp){log(`Mp ไม่พอสำหรับ ${atk.name} (ต้องการ ${atk.mp})`,'bad');return;}
+  const atkNetMp=Math.max(0,atk.mp-getMysticMaReduction(attFC));
+  if(p.mp<atkNetMp){log(`Mp ไม่พอสำหรับ ${atk.name} (ต้องการ ${atkNetMp})`,'bad');return;}
   showActionQueue(`${attFC.card.name} → <b>${atk.name}</b> (ALL)`,()=>{
-    p.mp-=atk.mp;
+    p.mp-=atkNetMp;
     const attAt=atk.at??getEffectiveAt(attFC);
     log(`${attFC.card.name} ใช้ ${atk.name}! (ALL)`,'hi');
     const allTargets=[...G.players[1].atLine.map(fc=>({fc,line:'at'})),...G.players[1].dfLine.map(fc=>({fc,line:'df'}))];
@@ -2421,13 +2435,15 @@ function declareAttack(){
 function openFusionPicker(fusionAtks){
   const div=document.getElementById('atk-opts');
   div.innerHTML='<div style="font-size:9px;color:#fde68a;margin-bottom:4px">⚡ เลือกท่าโจมตี</div>';
+  const pickerFC=attackerSeal?.fc;
   fusionAtks.forEach((atk,i)=>{
     const btn=document.createElement('button');
     btn.className='atk-opt';
-    const canAfford=G.players[0].mp>=atk.mp;
+    const netMp=Math.max(0,atk.mp-(pickerFC?getMysticMaReduction(pickerFC):0));
+    const canAfford=G.players[0].mp>=netMp;
     btn.disabled=!canAfford;
     const val=[atk.at?`At${atk.at}`:'',atk.df?`Df${atk.df}`:''].filter(Boolean).join('/');
-    btn.innerHTML=`${atk.name} <span>${val} Mp${atk.mp}${atk.all?' ALL':''}</span>`;
+    btn.innerHTML=`${atk.name} <span>${val} Mp${netMp}${atk.all?' ALL':''}</span>`;
     btn.onclick=()=>{
       closeAtkPanel();
       if(atk.all){executeAllAttack(attackerSeal.fc,atk);return;}
@@ -2504,12 +2520,14 @@ function openSpecialPanel(){
     label.textContent='⚡ FUSION ATTACKS';
     div.appendChild(label);
   }
+  const spFC=attackerSeal?.fc;
   atks.forEach((atk,i)=>{
     const btn=document.createElement('button');
     btn.className='atk-opt';
-    const canAfford=G.players[0].mp>=atk.mp;
+    const netMp=Math.max(0,atk.mp-(spFC?getMysticMaReduction(spFC):0));
+    const canAfford=G.players[0].mp>=netMp;
     btn.disabled=!canAfford;
-    btn.innerHTML=`${atk.name} <span>At${atk.at} | Mp${atk.mp}${atk.all?' ALL':''}</span>`;
+    btn.innerHTML=`${atk.name} <span>At${atk.at} | Mp${netMp}${atk.all?' ALL':''}</span>`;
     btn.onclick=()=>{
       pendingAttackIdx=i;
       closeAtkPanel();
@@ -2536,8 +2554,9 @@ function resolveAttack(attFC,defFC,specialAtkIdx,defLine='at'){
     const pool=getActiveAtks(attFC);
     const sa=pool[specialAtkIdx];
     if(!sa)return;
-    if(p.mp<sa.mp){log(`Mp ไม่พอสำหรับ ${sa.name} (ต้องการ ${sa.mp})`,'bad');return;}
-    p.mp-=sa.mp;
+    const saNetMp=Math.max(0,sa.mp-getMysticMaReduction(attFC));
+    if(p.mp<saNetMp){log(`Mp ไม่พอสำหรับ ${sa.name} (ต้องการ ${saNetMp})`,'bad');return;}
+    p.mp-=saNetMp;
     attAt=sa.at??getEffectiveAt(attFC);
     atkLabel=sa.name;
     usedAtk=sa;
@@ -2861,7 +2880,7 @@ function dealDamage(attFC,defFC,attAt,label,attPi=0,defPi=1,defLine='at',isAll=f
 }
 
 function destroyByEffect(fc,ownerPi){
-  playSound('Card destroyed by effect');
+  broadcastSound('Card destroyed by effect');
   sendToShrine(fc,ownerPi);
 }
 
@@ -3010,7 +3029,7 @@ function aiTurn(){
         mainFC.fusionStack.push(mat);
         mainFC.fusionAtks=getUnlockedAtks(mainFC);
         mainFC.fused=true;
-        playSound('Fusion Complete');
+        broadcastSound('Fusion Complete');
         if(!mainFC.fusedSinceTurn)mainFC.fusedSinceTurn=turnNum;
         const atkNames=mainFC.fusionAtks.map(a=>a.name).join(', ')||'(accumulating)';
         log(`AI: ${mainFC.card.name} + ${mat.card.name} → ${atkNames}`);
@@ -3031,7 +3050,7 @@ function aiTurn(){
       const t=allPlayer.find(t=>[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance'));
       if(t)return{mp:2,label:'Last Dance Curse',execute:()=>{
         t.curses=(t.curses||[]);t.curses.push({type:'lastDance',atBonus:2,expiresAtSubTurn:subTurnNum+4});
-        log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance Curse At+2 / 2 Turn!`,'bad');
+        broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance Curse At+2 / 2 Turn!`,'bad');
       }};
     }
     // Desert Chimera (id=7): Poison on player card, fused + at line
@@ -3039,7 +3058,7 @@ function aiTurn(){
       const t=allPlayer.find(t=>!t.curses?.some(c=>c.type==='poison'));
       if(t)return{mp:2,label:'Poison Curse',execute:()=>{
         t.curses=(t.curses||[]);t.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+6});
-        log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 3 Turn!`,'bad');
+        broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 3 Turn!`,'bad');
       }};
     }
     // Cockatrice (id=11): Stone on player card sp 1-4, fused
@@ -3047,7 +3066,7 @@ function aiTurn(){
       const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone'));
       if(t)return{mp:2,label:'Stone Curse',execute:()=>{
         t.curses=(t.curses||[]);t.curses.push({type:'stone',expiresAtSubTurn:subTurnNum+2});
-        log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Stone Curse 1 Turn!`,'bad');
+        broadcastSound('Stone');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Stone Curse 1 Turn!`,'bad');
       }};
     }
     // Jiu Wei Hu Le (id=12): Charm on player card sp 1-3, fused with dark
@@ -3059,7 +3078,7 @@ function aiTurn(){
           t.charmed={originalPi:0,originalLine:fromLine};
           t.curses=(t.curses||[]);t.curses.push({type:'charm',expiresAtSubTurn:subTurnNum+6});
           t.exhausted=false;t.hasUsedSkill=false;
-          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 3 Turn!`,'bad');
+          broadcastSound('Charm');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 3 Turn!`,'bad');
         }};
       }
     }
@@ -3072,7 +3091,7 @@ function aiTurn(){
           t.curses=(t.curses||[]);t.curses.push({type:'freeze',expiresAtSubTurn:subTurnNum+2});
           if(fromLine==='atLine'){const i=player.atLine.findIndex(x=>x.uid===t.uid);
             if(i>=0){player.atLine.splice(i,1);player.dfLine.push(t);}}
-          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Freeze Curse 1 Turn!`,'bad');
+          broadcastSound('Freeze');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Freeze Curse 1 Turn!`,'bad');
         }};
       }
     }
@@ -3108,7 +3127,7 @@ function aiTurn(){
       const t=allAI.find(t=>t.curses?.length>0);
       if(t)return{mp:1,label:'Heal Curse',execute:()=>{
         t.curses=[];
-        log(`AI: ${fc.card.name} [Skill] → ${t.card.name} หาย Curse ทุกชนิด!`,'');
+        broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} หาย Curse ทุกชนิด!`,'');
       }};
     }
     // Banshee (id=28): Death Curse Sp 1-3, fused+dark+at line, Mp 3
@@ -3124,7 +3143,7 @@ function aiTurn(){
       const t=allPlayer.find(t=>[2,3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison'));
       if(t)return{mp:3,label:'Poison Curse 1 Turn',execute:()=>{
         t.curses=(t.curses||[]);t.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+2});
-        log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 1 Turn!`,'bad');
+        broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 1 Turn!`,'bad');
       }};
     }
     // Hydra of Warok (id=50): Poison 2 Turn Sp 3-5, fused+at line, Mp 2
@@ -3132,7 +3151,7 @@ function aiTurn(){
       const t=allPlayer.find(t=>[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison'));
       if(t)return{mp:2,label:'Poison Curse 2 Turn',execute:()=>{
         t.curses=(t.curses||[]);t.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+4});
-        log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 2 Turn!`,'bad');
+        broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 2 Turn!`,'bad');
       }};
     }
     // Black Wiser (41): drain player Mp, prefer 2-drain if fused with Hellish Bird
@@ -3140,11 +3159,11 @@ function aiTurn(){
       const hasDrainPlus=fc.fused&&fc.fusionStack.some(m=>m.card.id===44)&&ai.mp>=3;
       if(hasDrainPlus)return{mp:3,label:'Player Mp -2',execute:()=>{
         player.mp=Math.max(0,player.mp-2);
-        log(`AI: ${fc.card.name} [Skill] → ผู้เล่น Mp -2!`,'bad');
+        broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ผู้เล่น Mp -2!`,'bad');
       }};
       if(ai.mp>=2)return{mp:2,label:'Player Mp -1',execute:()=>{
         player.mp=Math.max(0,player.mp-1);
-        log(`AI: ${fc.card.name} [Skill] → ผู้เล่น Mp -1!`,'bad');
+        broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ผู้เล่น Mp -1!`,'bad');
       }};
     }
     // Hellish Bird (44): Last Dance Curse on player seal
@@ -3156,14 +3175,14 @@ function aiTurn(){
         const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance'));
         if(t)return{mp:3,label:'Last Dance At+3/2T',execute:()=>{
           t.curses=(t.curses||[]);t.curses.push({type:'lastDance',atBonus:3,expiresAtSubTurn:subTurnNum+4});
-          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance At+3 / 2T!`,'bad');
+          broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance At+3 / 2T!`,'bad');
         }};
       }
       if(fusedDark&&atLine&&ai.mp>=2){
         const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance'));
         if(t)return{mp:2,label:'Last Dance At+2/3T',execute:()=>{
           t.curses=(t.curses||[]);t.curses.push({type:'lastDance',atBonus:2,expiresAtSubTurn:subTurnNum+6});
-          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance At+2 / 3T!`,'bad');
+          broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance At+2 / 3T!`,'bad');
         }};
       }
     }
@@ -3175,7 +3194,7 @@ function aiTurn(){
           t.charmed={originalPi:0,originalLine:fromLine};
           t.curses=(t.curses||[]);t.curses.push({type:'charm',expiresAtSubTurn:subTurnNum+2});
           t.exhausted=false;t.hasUsedSkill=false;
-          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 1T!`,'bad');
+          broadcastSound('Charm');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 1T!`,'bad');
         }};
       }
     }
@@ -3185,14 +3204,14 @@ function aiTurn(){
         const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone'));
         if(t)return{mp:3,label:'Stone Curse ∞',execute:()=>{
           t.curses=(t.curses||[]);t.curses.push({type:'stone',expiresAtSubTurn:Infinity});
-          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Stone Curse ∞!`,'bad');
+          broadcastSound('Stone');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Stone Curse ∞!`,'bad');
         }};
       }
       if(fc.fused&&fc.fusionStack.some(m=>m.card.el==='water')&&ai.mp>=2){
         const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison'));
         if(t)return{mp:2,label:'Poison Curse 3T',execute:()=>{
           t.curses=(t.curses||[]);t.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+6});
-          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 3T!`,'bad');
+          broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 3T!`,'bad');
         }};
       }
     }
@@ -3204,7 +3223,7 @@ function aiTurn(){
           t.charmed={originalPi:0,originalLine:fromLine};
           t.curses=(t.curses||[]);t.curses.push({type:'charm',expiresAtSubTurn:subTurnNum+4});
           t.exhausted=false;t.hasUsedSkill=false;
-          log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 2T!`,'bad');
+          broadcastSound('Charm');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 2T!`,'bad');
         }};
       }
     }
@@ -3267,7 +3286,7 @@ function aiTurn(){
       if(hi>=0)ai.hand.splice(hi,1);
       ai.mp-=card.mc;
       (line==='at'?ai.atLine:ai.dfLine).push(makeFieldCard(card,true));
-      playSound('Deploy');
+      broadcastSound('Deploy');
       log(`AI deployed ${card.name}`);
       if(card.id===90) triggerAndreAbility(1);
       render();
@@ -3327,9 +3346,10 @@ function aiTurn(){
         return;
       }
 
-      const maCost=afc.card.ma||1;
-      const allSp=(afc.fused?afc.fusionAtks:[]).filter(a=>a.all&&a.at&&ai.mp>=a.mp).sort((a,b)=>b.at-a.at)[0];
-      const winSp=(afc.fused?afc.fusionAtks:[]).filter(a=>!a.all&&a.at&&ai.mp>=a.mp).filter(a=>{
+      const maMod=getMysticMaReduction(afc);
+      const maCost=Math.max(0,(afc.card.ma||1)-maMod);
+      const allSp=(afc.fused?afc.fusionAtks:[]).filter(a=>a.all&&a.at&&ai.mp>=Math.max(0,a.mp-maMod)).sort((a,b)=>b.at-a.at)[0];
+      const winSp=(afc.fused?afc.fusionAtks:[]).filter(a=>!a.all&&a.at&&ai.mp>=Math.max(0,a.mp-maMod)).filter(a=>{
         const bestT=targets.reduce((best,{fc:d,line:dl})=>{
           const ds=dl==='at'?getEffectiveAt(d):getEffectiveDf(d);
           return (!best||a.at>ds)?{fc:d,dl,ds}:best;
@@ -3350,7 +3370,7 @@ function aiTurn(){
       }
 
       if(allSp){
-        ai.mp-=allSp.mp;
+        ai.mp-=Math.max(0,allSp.mp-maMod);
         const allTargets=[...G.players[0].atLine.map(fc=>({fc,line:'at'})),...G.players[0].dfLine.map(fc=>({fc,line:'df'}))];
         showActionQueue(`🤖 ${afc.card.name} → <b>${allSp.name}</b> (ALL)`,()=>{
           if(afc.curses?.some(c=>c.type==='stone'||c.type==='freeze')){log(`${afc.card.name} ถูก Stone/Freeze Curse — โจมตีถูกยกเลิก!`,'');done();return;}
@@ -3358,7 +3378,7 @@ function aiTurn(){
           animateAllTargets(afc,allTargets,allSp.at,allSp.name,1,0,done);
         });
       } else if(winSp){
-        ai.mp-=winSp.mp;
+        ai.mp-=Math.max(0,winSp.mp-maMod);
         const hitCount=winSp.hits||1;
         let hitsDone=0;
         function doHit(){
@@ -3391,7 +3411,7 @@ function aiTurn(){
           });
         });
       } else {
-        const hasAffordableFusion=(afc.fused?afc.fusionAtks:[]).some(a=>a.at&&ai.mp>=a.mp);
+        const hasAffordableFusion=(afc.fused?afc.fusionAtks:[]).some(a=>a.at&&ai.mp>=Math.max(0,a.mp-maMod));
         if(!hasAffordableFusion&&ai.mp<maCost){
           doAttackStep(idx+1);
         } else {
@@ -3735,7 +3755,7 @@ function aiDrawCards(pi,onDone){
         ${drawn.map(t=>`<img src="cardback/${t}.jpg" style="width:44px;height:63px;object-fit:cover;border-radius:4px;border:2px solid ${t==='seal'?'#4b5563':'#7c3aed'}">`).join('')}
       </div>
     </div>`;
-    playSound('Draw');
+    broadcastSound('Draw');
     setTimeout(()=>onDone(),900);
   } else {
     onDone();
@@ -3795,7 +3815,7 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
   function doAttach(atBonus=0,dfBonus=0,spBonus=0,flags={}){
     p.mp-=mysticCard.mc;
     p.mysticHand.splice(mysticIdx,1);
-    playSound('Spell');
+    broadcastSound('Spell');
     const expires=mysticCard.turns===999?Infinity:subTurnNum+(mysticCard.turns*2);
     if(mysticCard.turns!==0){
       fc.mystics=(fc.mystics||[]);
@@ -3959,7 +3979,7 @@ function playNonPMystic(mysticCard,mysticIdx){
   updateAIPreview(mysticCard,'🃏 Mystic');
   const p=G.players[0];
   const id=mysticCard.id;
-  let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
+  let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);broadcastSound('Spell');}
   const allField=()=>[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
 
   if(id===17){ // Holy Prayer
@@ -4098,7 +4118,7 @@ function playPAMystic(mysticCard,mysticIdx){
   updateAIPreview(mysticCard,'🃏 Mystic');
   const p=G.players[0];
   const id=mysticCard.id;
-  function spend(){p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);playSound('Spell');}
+  function spend(){p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);broadcastSound('Spell');}
   function addAreaMystic(){
     const expires=mysticCard.turns===999?Infinity:subTurnNum+(mysticCard.turns*2);
     if(!p.areaMystics)p.areaMystics=[];
@@ -4145,6 +4165,41 @@ function clearPSCurseFromEntry(fc,mEntry){
     fc.curses=(fc.curses||[]).filter(c=>!(c.type===mEntry.curseType&&c.fromPS===mEntry.mystic.id));
     if(mEntry.curseType==='charm')fc.charmed=null;
   }
+}
+
+// Bounce a FieldCard (Active Seal) back to hand, following the fusion-bounce rule:
+// Sub Seals in fusionStack also return to hand; PS Mystics on any of them go to owner's mysticGrave.
+// Returns true if main seal went to hand, false if hand was full (sent to shrine instead).
+function bounceSealToHand(fc, ownerPi){
+  const owner=G.players[ownerPi];
+  function drainPS(fieldCard){
+    const remaining=[];
+    for(const m of (fieldCard.mystics||[])){
+      if(m.mystic&&m.mystic.pasted==='PS'){
+        clearPSCurseFromEntry(fieldCard,m);
+        (owner.mysticGrave=owner.mysticGrave||[]).push(m.mystic);
+        log(`${m.mystic.name} [PS Mystic] ตก Shrine เนื่องจากสูญเสียเป้าหมาย`,'bad');
+      } else {
+        remaining.push(m);
+      }
+    }
+    fieldCard.mystics=remaining;
+  }
+  function toHand(rawCard){
+    if(owner.hand.length<getEffectiveHandMax(ownerPi)){
+      owner.hand.push(rawCard);
+      return true;
+    }
+    owner.shrine.push(rawCard);
+    return false;
+  }
+  drainPS(fc);
+  for(const sub of (fc.fusionStack||[])){
+    drainPS(sub);
+    const ok=toHand(sub.card);
+    log(`${sub.card.name} (Sub Seal) ${ok?'กลับขึ้นมือ':'ลง Shrine (มือเต็ม)'}`,ok?'good':'bad');
+  }
+  return toHand(fc.card);
 }
 
 function tickMystics(){

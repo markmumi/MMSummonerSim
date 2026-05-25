@@ -150,6 +150,7 @@ var Online = (() => {
           aqPassBits: (typeof _aqPassBits !== 'undefined') ? _aqPassBits : 0,
           interfereStack: (typeof _interfereStack !== 'undefined') ? _interfereStack.map(i=>i.desc) : [],
           lighthouseReveal: E._pendingLighthouseReveal || null,
+          pendingSounds: (typeof _pendingSoundBuffer !== 'undefined') ? _pendingSoundBuffer.splice(0) : [],
         };
         conn.send(payload);
       } catch (e) {
@@ -210,6 +211,11 @@ var Online = (() => {
       // Replay log messages from host
       if (data.hostLogs && data.hostLogs.length && typeof log === 'function') {
         data.hostLogs.forEach(({msg, type}) => log(msg, type));
+      }
+
+      // Play sounds queued by host
+      if (data.pendingSounds?.length && typeof playSound === 'function') {
+        data.pendingSounds.forEach(n => playSound(n));
       }
 
       const _prevPhase = phase;
@@ -628,7 +634,7 @@ var Online = (() => {
           const p1 = G.players[1];
           p1.mp -= m.mc;
           p1.mysticHand.splice(data.mysticIdx, 1);
-          playSound('Spell');
+          broadcastSound('Spell');
           let revealCards, revealTitle;
           if(data.choice === 'hand'){
             const hp = G.players[0];

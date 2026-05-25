@@ -201,6 +201,7 @@ body{background:#0f172a;color:#f1f5f9;font-family:'Segoe UI',Tahoma,sans-serif;f
     <span class="ctr bad" id="ctr-mystic">Mystic 0</span>
   </div>
   <button id="btn-save" onclick="saveDeck()" disabled>💾 บันทึกเป็น Play Deck</button>
+  <button id="btn-random" onclick="randomDeck()" style="background:#064e3b;color:#6ee7b7;border:1px solid #059669;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer" title="สุ่ม Deck แบบสมบูรณ์">🎲 สุ่ม</button>
   <button id="btn-preset" onclick="openPresetPanel()" style="background:#1e3a5f;color:#93c5fd;border:1px solid #2563eb;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer">📋 Presets</button>
 </div>
 
@@ -544,6 +545,30 @@ function modCount(type,id,delta){
   playSound(delta>0?'Draw':'Flip');
   renderDeck();
   renderPool();
+}
+
+/* ── Random Deck ── */
+function randomDeck(){
+  sealCounts={};
+  mysticCounts={};
+  while(sealTotal()<SEAL_MIN){
+    const avail=SEAL_DB.filter(c=>(sealCounts[c.id]||0)<sealCopyMax(c.lv));
+    if(!avail.length)break;
+    const c=avail[Math.floor(Math.random()*avail.length)];
+    sealCounts[c.id]=(sealCounts[c.id]||0)+1;
+  }
+  while(mysticTotal()<MYSTIC_MIN){
+    const avail=MYSTIC_DB_LOCAL.filter(c=>(mysticCounts[c.id]||0)<MYSTIC_COPY);
+    if(!avail.length)break;
+    const c=avail[Math.floor(Math.random()*avail.length)];
+    mysticCounts[c.id]=(mysticCounts[c.id]||0)+1;
+  }
+  playSound('Draw');
+  renderDeck();
+  renderPool();
+  const btn=document.getElementById('btn-random');
+  btn.textContent='✓ สุ่มแล้ว!';
+  setTimeout(()=>{btn.textContent='🎲 สุ่ม';},1200);
 }
 
 /* ── Save / Load ── */

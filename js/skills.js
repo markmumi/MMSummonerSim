@@ -4,6 +4,12 @@ function isOnAtLine(fc){
   return G.players[0].atLine.some(x=>x.uid===fc.uid)||G.players[1].atLine.some(x=>x.uid===fc.uid);
 }
 function getCardSkills(fc){
+  return _getCardSkillsRaw(fc).map(s=>{
+    const red=getMysticMaReduction(fc);
+    return red>0?{...s,mp:Math.max(0,s.mp-red)}:s;
+  });
+}
+function _getCardSkillsRaw(fc){
   // helper: detect which player owns this fc (0=host, 1=guest/AI)
   const ownerPi=findFCOwner(fc)?.pi??0;
   const p=G.players[ownerPi];
@@ -359,7 +365,7 @@ function isSkillTarget(fc){
 
 function startSkillMode(fc,skillIdx){
   skillMode={fc,skillIdx};
-  playSound('Skill');
+  broadcastSound('Skill');
   log(`${fc.card.name} — เลือกเป้าหมายสกิล (คลิก ${getCardSkills(fc)[skillIdx]?.label||'Skill'})`,'hi');
   render();
 }
@@ -406,7 +412,7 @@ function openInterferePicker(){
 
 function startInterfereSkill(fc,skillIdx){
   handDiscardMode={fc,skillIdx};
-  playSound('Skill');
+  broadcastSound('Skill');
   log(`${fc.card.name} [Interfere] — เลือก Seal ในมือเพื่อทิ้ง`,'hi');
   render();
 }
@@ -422,7 +428,7 @@ function executeInterfere(card){
   const hi=p.hand.indexOf(card);
   if(hi>=0)p.hand.splice(hi,1);
   p.shrine.push(card);
-  playSound('Flip');
+  broadcastSound('Flip');
   fc.atBoosts=(fc.atBoosts||[]);
   fc.atBoosts.push({amount:card.lv, expiresBeforeSubTurn: subTurnNum+2});
   log(`${fc.card.name} [Interfere]: ทิ้ง ${card.name} (Lv${card.lv}) → At +${card.lv} turn นี้!`,'good');
@@ -440,7 +446,7 @@ function executeInterfereSelfSkill(skillFC,skillIdx){
   if(skill.effect==='opponentMpDrain'){
     const amt=skill.drainAmt||1;
     p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-    playSound('Skill');
+    broadcastSound('Skill');
     G.players[1].mp=Math.max(0,G.players[1].mp-amt);
     log(`${skillFC.card.name} [Interfere]: ฝ่ายตรงข้าม Mp -${amt}!`,'good');
     checkLose();render();
@@ -455,7 +461,7 @@ function executeSelfSkill(skillFC,skillIdx){
   const skill=getCardSkills(skillFC)[skillIdx];
   if(!skill||p.mp<skill.mp){logErr('Mp ไม่พอ');return;}
   updateAIPreview(skillFC.card,'✦ Skill');
-  playSound('Skill');
+  broadcastSound('Skill');
   if(skill.effect==='drawCard'){
     showActionQueue(`${skillFC.card.name} [Skill] จั่วการ์ด 1 ใบ`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
@@ -492,7 +498,7 @@ function executeSelfSkill(skillFC,skillIdx){
         t.curses=(t.curses||[]);
         if(!t.curses.some(c=>c.type==='freeze'))t.curses.push({type:'freeze',expiresAtSubTurn:subTurnNum+2});
       });
-      playSound('Freeze');
+      broadcastSound('Freeze');
       // Move frozen At Line seals to Df Line
       [...ai.atLine].forEach(t=>{
         const i=ai.atLine.findIndex(x=>x.uid===t.uid);
@@ -685,7 +691,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);
       targetFC.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+(turns*2)});
-      playSound('Poison');
+      broadcastSound('Poison');
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ติด Poison Curse ${turns} Turn!`,'good');
       checkLose();render();
     });
@@ -700,7 +706,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);
       targetFC.curses.push({type:'stone',expiresAtSubTurn:turns===Infinity?Infinity:subTurnNum+(turns*2)});
-      playSound('Stone');
+      broadcastSound('Stone');
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ติด Stone Curse ${turnsLabel} Turn — สั่งการไม่ได้!`,'good');
       checkLose();render();
     });
@@ -714,7 +720,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);
       targetFC.curses.push({type:'freeze',expiresAtSubTurn:subTurnNum+(turns*2)});
-      playSound('Freeze');
+      broadcastSound('Freeze');
       // Force to Df Line
       const owner=G.players[targetPi];
       if(targetLine==='at'){
@@ -735,7 +741,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);
       targetFC.curses.push({type:'lastDance',atBonus,expiresAtSubTurn:subTurnNum+(turns*2)});
-      playSound('Skill');
+      broadcastSound('Skill');
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} Last Dance Curse — At+${atBonus} แล้วถูกทำลายใน ${turns} Turn!`,'good');
       checkLose();render();
     });
@@ -751,7 +757,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       targetFC.curses=(targetFC.curses||[]);
       targetFC.curses.push({type:'charm',expiresAtSubTurn:subTurnNum+(turns*2)});
       targetFC.exhausted=false;targetFC.hasUsedSkill=false;
-      playSound('Charm');
+      broadcastSound('Charm');
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ติด Charm Curse — อยู่ภายใต้การควบคุมของเรา ${turns} Turn!`,'good');
       checkLose();render();
     });
@@ -800,17 +806,8 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       const i=fromArr.findIndex(x=>x.uid===targetFC.uid);
       if(i>=0){
         fromArr.splice(i,1);
-        if(targetFC.fusionStack?.length)targetFC.fusionStack.forEach(m=>owner.shrine.push(m.card));
-        // Only Main Seal returns to hand
-        if(targetPi===0){
-          if(p.hand.length<getEffectiveHandMax(0)){p.hand.push(targetFC.card);log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} กลับสู่มือ!`,'good');}
-          else{p.shrine.push(targetFC.card);log(`มือเต็ม — ${targetFC.card.name} ลง Shrine`,'bad');}
-        } else {
-          // Enemy frozen seal returns to their hand
-          const ai=G.players[1];
-          ai.hand.push(targetFC.card);
-          log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} (ศัตรู) ขึ้นมือ!`,'good');
-        }
+        const ok=bounceSealToHand(targetFC,targetPi);
+        log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ${ok?'กลับสู่มือ':'ลง Shrine (มือเต็ม)'}!`,ok?'good':'bad');
       }
       checkLose();render();
     });
