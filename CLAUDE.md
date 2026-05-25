@@ -34,6 +34,7 @@ let turnNum = 1;
 let subTurnNum = 0;      // increments each sub-turn; used for boost/curse expiry
 let fusionMode = false;
 let fusionMainFC = null;
+let pendingFusionMaterials = []; // staged support seals for batch fusion
 let fieldActionTarget = null; // {fc, line}
 let handTargetMode = false;
 let handAttackedThisTurn = false;
@@ -42,6 +43,8 @@ let pendingCb = null;    // set while action-queue overlay is visible
 let handDiscardMode = null; // {fc, skillIdx, onDiscard} — Tiamat interfere
 let handPickMode = null;   // {fc, skillIdx} — Blue Wings Pegasus beast deploy
 let pendingFusionMain = null; // mainFC in AI fusion AQ window (Gale Garuda hook)
+let _battleAnimPlaying = false; // true while battle phase animation is running
+let _guestBattleAnimFired = false; // GUEST optimistic animation dedup flag
 ```
 
 ## G (Game State) Shape
@@ -49,8 +52,9 @@ let pendingFusionMain = null; // mainFC in AI fusion AQ window (Gale Garuda hook
 G.players[0]  // Player (HOST in online)
 G.players[1]  // AI (GUEST in online)
 // Each player:
-{ deck, hand, atLine, dfLine, shrine, mp, name, mysticDeck, mysticHand }
+{ deck, hand, atLine, dfLine, shrine, mp, name, mysticDeck, mysticHand, mysticGrave }
 // atLine/dfLine: FieldCard arrays (no max length)
+// mysticGrave: mystic cards discarded from mysticHand (used by Dark Destiny pick)
 ```
 
 ## FieldCard (makeFieldCard) Shape
@@ -101,6 +105,8 @@ DB normalization in `db.js`: `el: j.element[0]`, `sp: j.spd`, `mc: j.mp_deploy`,
 | `showActionQueue(desc,cb,fusionMainFC)` | ~3224 |
 | `proceedAction()` | ~3313 |
 | `doDrawChoice(type)` | ~3361 |
+| `showBattlePhaseAnim(cb)` | ~99 |
+| `getEffectiveCombinedMax(pi)` | ~after getEffectiveHandMax |
 | `attachPSMystic()` | ~3478 |
 | `playNonPMystic()` | ~3665 |
 | `playPAMystic()` | ~3787 |
@@ -163,11 +169,33 @@ Skill types in `getCardSkills(fc)`:
 - **Yggdrasil (id=77)**: other Df Line seals → Sp=0
 - **Blue Wind Griffin (id=59)**: own Beasts +Sp 1
 
-### Fusion
+### Fusion (Batch Mode)
 - Main Seal absorbs Support Seals via `fusionStack`
 - `fusionAtks` array unlocked; `getEffectiveAt` picks highest
 - `fromHand` + `deployedTurn >= turnNum` → blocks same-turn support-seal use
 - `willMind` flag (Will of True Mind mystic) → bypasses fusion condition check for skills
+- **Batch fusion**: clicking a support seal stages it into `pendingFusionMaterials[]`; `#btn-confirm-fusion` commits all at once via `confirmFusion()`
+- `cancelFusion()` / `cancelAction()` restore staged materials back to their original lines before clearing state
+
+### Battle Phase Animation
+- `showBattlePhaseAnim(cb)` — plays `#battle-anim-overlay` for 1200ms, uses `_SFX['swordslice']`
+- `_battleAnimPlaying` flag — while true, `onNextPhaseBtn()` and `guestNextPhase()` return early
+- Turn 1 (`turnNum===1`) skips battle phase entirely — no animation, no button guard
+- **Online timing**: HOST sets `phase='battle'`, calls `broadcastState()` THEN calls `showBattlePhaseAnim()` — both sides receive state and animate simultaneously
+- GUEST optimistic: `onNextPhaseBtn` fires `showBattlePhaseAnim` immediately, sets `_guestBattleAnimFired=true`; `_applyHostState` skips re-animation if flag is set, then clears it
+
+### Mystic Graveyard
+- `mysticGrave[]` on each player — collects discarded mystic cards (discardRandomMystic, forced discard, Nebuchadnezzar discard step)
+- Dark Destiny (id=72): on deploy shows fa-modal picker from `mysticGrave`; on shrine forces discard 1 from `mysticHand`
+
+### Hand Limit
+- `getEffectiveHandMax(pi)` — seal hand limit (HAND_MAX=7, modified by some cards)
+- `getEffectiveCombinedMax(pi)` — combined seal+mystic limit; adds +1 if Nebuchadnezzar (id=35) is in `areaMystics`
+- Discard step uses `getEffectiveCombinedMax(pi)`, not the static constant
+
+### Curse Restrictions
+- Freeze / Stone cursed seals **cannot line switch** — checked in `canSwitch()`, `doLineSwitch()`, `guestLineSwitch()`
+- Exhausted seals **cannot use interfere skills** — `getInterfereSkills()` checks `fc.exhausted`
 
 ### Loss Condition
 `checkLose()` — called after shrine changes. `MAX_SHRINE=12` → lose.
@@ -258,7 +286,7 @@ PeerJS P2P — HOST (pi=0) runs all engine logic; GUEST (pi=1) sends action comm
 | 63 | Dread Knight | always At Line; can attack Df Line directly |
 | 64 | Thunderia | non-fused own Beasts get Thunderia's fusion attacks |
 | 67 | Gregory the Bishop | blocks attachPSMystic + negates mystic bonuses while on AtLine |
-| 72 | Dark Destiny | deploy→optional drawMystic; shrine→force discard mystic |
+| 72 | Dark Destiny | deploy→pick from mysticGrave to hand; shrine→force discard 1 from mysticHand |
 | 73 | Python | always defends with Df; At-3 vs wind |
 | 75 | Albino Gryption | own Beasts in hand cost mc-1 |
 | 76 | Thor Thunder God | auto-moves to At Line when enemy has At Line seals |
@@ -285,3 +313,6 @@ PeerJS P2P — HOST (pi=0) runs all engine logic; GUEST (pi=1) sends action comm
 - **Guest draw logging**: use `drawCard(pi, silent=true)` to suppress card name in log; outer log handles description
 - **findFCOwner(fc)**: always use this to find which player owns a FieldCard — never hardcode pi=0 for skills
 - **Siren skill**: requires AtLine — if card is in DfLine, no skill appears (by design)
+- **Sound caching**: `_SFX` dict is preloaded at startup for all `.wav` files + `swordslice.mp3` (`_SFX['swordslice']`). `playSound(name)` reuses cached entry: `a.currentTime=0; a.play()` — **never** use `.cloneNode()` as it causes repeated network loads. `showBattlePhaseAnim` calls `playSound('swordslice')`.
+- **Battle before broadcast rule**: HOST sets phase, calls `broadcastState()`, then plays animation — ensures GUEST gets state update before local animation starts
+- **Interphase timer**: 20 seconds (3 places in engine.js where setTimeout for interphase is set)

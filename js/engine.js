@@ -10,6 +10,9 @@ let turnNum = 1;
 let subTurnNum = 0;
 let fusionMode = false;
 let fusionMainFC = null;
+let pendingFusionMaterials = []; // staged (chosen) materials before fusion is confirmed
+let _battleAnimPlaying = false;
+let _guestBattleAnimFired = false;
 let fieldActionTarget = null; // {fc, line}
 let handTargetMode = false;
 let handAttackedThisTurn = false;
@@ -83,14 +86,32 @@ const _SFX={};
 ['Deploy','Draw','Flip','Skill','Confirm','Damage','Fusion Complete',
  'Card destroyed by effect','Error','Spell','Poison','Freeze','Stone','Charm'
 ].forEach(n=>{const a=new Audio(`SoundEffect/${n}.wav`);a.preload='auto';_SFX[n]=a;});
+{const a=new Audio('SoundEffect/swordslice.mp3');a.preload='auto';_SFX['swordslice']=a;}
 
 function playSound(name){
   if(localStorage.getItem('bgm_muted')==='1')return;
   const vol=parseFloat(localStorage.getItem('bgm_volume')||'0.5');
   if(!_SFX[name]){_SFX[name]=new Audio(`SoundEffect/${name}.wav`);_SFX[name].preload='auto';}
-  const a=_SFX[name].cloneNode();
+  const a=_SFX[name];
   a.volume=vol;
+  a.currentTime=0;
   a.play().catch(()=>{});
+}
+
+function showBattlePhaseAnim(cb){
+  _battleAnimPlaying=true;
+  const overlay=document.getElementById('battle-anim-overlay');
+  const btnNext=document.getElementById('btn-next');
+  if(btnNext)btnNext.disabled=true;
+  if(!overlay){_battleAnimPlaying=false;if(btnNext)btnNext.disabled=false;if(cb)cb();return;}
+  playSound('swordslice');
+  // Reset animation by removing/re-adding class
+  overlay.classList.remove('active');
+  overlay.querySelectorAll('#battle-phase-text,#battle-flash').forEach(el=>{
+    el.style.animation='none';void el.offsetWidth;el.style.animation='';
+  });
+  overlay.classList.add('active');
+  setTimeout(()=>{_battleAnimPlaying=false;overlay.classList.remove('active');if(btnNext)btnNext.disabled=false;if(cb)cb();},1200);
 }
 
 function shuffle(arr){
@@ -239,8 +260,8 @@ function initGame(){
   const aiName=aiTpl?aiTpl.name:'AI';
   G={
     players:[
-      {deck:d0,hand:[],atLine:[],dfLine:[],shrine:[],mp:5,name:"Player",mysticDeck:md0,mysticHand:[],areaMystics:[]},
-      {deck:d1,hand:[],atLine:[],dfLine:[],shrine:[],mp:MAX_MP,name:aiName,mysticDeck:md1,mysticHand:[],areaMystics:[]}
+      {deck:d0,hand:[],atLine:[],dfLine:[],shrine:[],mp:5,name:"Player",mysticDeck:md0,mysticHand:[],mysticGrave:[],areaMystics:[]},
+      {deck:d1,hand:[],atLine:[],dfLine:[],shrine:[],mp:MAX_MP,name:aiName,mysticDeck:md1,mysticHand:[],mysticGrave:[],areaMystics:[]}
     ],
     currentPlayer:0
   };
@@ -261,6 +282,12 @@ function getEffectiveHandMax(pi){
   if((p.areaMystics||[]).some(am=>am.mystic.id===35))max+=1;
   if((p.areaMystics||[]).some(am=>am.mystic.id===70))max-=1;
   return Math.max(1,max);
+}
+function getEffectiveCombinedMax(pi){
+  const p=G.players[pi];
+  let max=HAND_COMBINED_MAX;
+  if((p.areaMystics||[]).some(am=>am.mystic.id===35))max+=1;
+  return max;
 }
 function getEffectiveMpMax(pi){
   const p=G.players[pi];
@@ -293,7 +320,15 @@ function drawCard(pi,silent=false,force=false){
 // PHASE MANAGEMENT
 // ══════════════════════════════════════════════
 function onNextPhaseBtn(){
-  if(window.Online?.isOnline&&!Online.isHost){Online.sendGuestAction({action:'nextPhase'});return;}
+  if(_battleAnimPlaying)return;
+  if(window.Online?.isOnline&&!Online.isHost){
+    if(phase==='main'&&turnNum!==1&&G.currentPlayer===1){
+      _guestBattleAnimFired=true;
+      showBattlePhaseAnim(()=>{});
+    }
+    Online.sendGuestAction({action:'nextPhase'});
+    return;
+  }
   if(phase==='battle'){endBattle();}
   else skipToNextPhase();
 }
@@ -301,7 +336,15 @@ function onNextPhaseBtn(){
 function skipToNextPhase(){
   cancelAction();
   if(phase==='draw'){phase='main';log('MAIN PHASE','hi');}
-  else if(phase==='main'){phase='battle';log('BATTLE PHASE — select a Seal then click enemy','hi');}
+  else if(phase==='main'){
+    if(turnNum===1){phase='main2';log('MAIN PHASE 2 (ไม่มี Battle Phase เทิน 1)','hi');render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();return;}
+    phase='battle';
+    log('BATTLE PHASE — select a Seal then click enemy','hi');
+    render();
+    if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
+    showBattlePhaseAnim(()=>{});
+    return;
+  }
   else if(phase==='main2'){endTurnFromMain2();return;}
   render();
   if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
@@ -323,7 +366,7 @@ function endTurnFromMain2(){
 function afterForcedDiscard(){
   const p=G.players[0];
   const combined=p.hand.length+(p.mysticHand||[]).length;
-  if(combined<=HAND_COMBINED_MAX&&p.hand.length<=getEffectiveHandMax(0)){
+  if(combined<=getEffectiveCombinedMax(0)&&p.hand.length<=getEffectiveHandMax(0)){
     onPlayerDrawDone();
   } else {
     render();
@@ -333,7 +376,7 @@ function afterForcedDiscard(){
 function doForcedDiscardSeal(idx){
   if(phase!=='discard')return;
   const p=G.players[0];
-  if(p.hand.length+(p.mysticHand||[]).length<=HAND_COMBINED_MAX&&p.hand.length<=getEffectiveHandMax(0))return;
+  if(p.hand.length+(p.mysticHand||[]).length<=getEffectiveCombinedMax(0)&&p.hand.length<=getEffectiveHandMax(0))return;
   const card=p.hand.splice(idx,1)[0];
   p.shrine.push(card);
   playSound('Flip');
@@ -345,8 +388,9 @@ function doForcedDiscardSeal(idx){
 function doForcedDiscardMystic(idx){
   if(phase!=='discard')return;
   const p=G.players[0];
-  if(p.hand.length+(p.mysticHand||[]).length<=HAND_COMBINED_MAX&&p.hand.length<=getEffectiveHandMax(0))return;
+  if(p.hand.length+(p.mysticHand||[]).length<=getEffectiveCombinedMax(0)&&p.hand.length<=getEffectiveHandMax(0))return;
   const card=p.mysticHand.splice(idx,1)[0];
+  (p.mysticGrave=p.mysticGrave||[]).push(card);
   playSound('Flip');
   log(`ทิ้ง ${card.name} (Mystic) — Discard Step`,'bad');
   afterForcedDiscard();
@@ -461,8 +505,8 @@ function initGameOnline(guestDeckJSON){
   }catch(e){d1=buildDeck();md1=buildMysticDeck();}
   G={
     players:[
-      {deck:d0,hand:[],atLine:[],dfLine:[],shrine:[],mp:5,name:'Host',mysticDeck:md0,mysticHand:[],areaMystics:[]},
-      {deck:d1,hand:[],atLine:[],dfLine:[],shrine:[],mp:MAX_MP,name:'Guest',mysticDeck:md1,mysticHand:[],areaMystics:[]}
+      {deck:d0,hand:[],atLine:[],dfLine:[],shrine:[],mp:5,name:'Host',mysticDeck:md0,mysticHand:[],mysticGrave:[],areaMystics:[]},
+      {deck:d1,hand:[],atLine:[],dfLine:[],shrine:[],mp:MAX_MP,name:'Guest',mysticDeck:md1,mysticHand:[],mysticGrave:[],areaMystics:[]}
     ],
     currentPlayer:0
   };
@@ -481,12 +525,12 @@ function startGuestTurn(){
   drawsRemaining=turnNum>1?2:0;
   if(drawsRemaining===0){
     phase='main';
-    log('Guest: MAIN PHASE','hi');
+    log(`Turn ${turnNum} — Guest's turn | MAIN PHASE`,'hi');
     render();
     Online.broadcastState();
   } else {
     phase='draw';
-    log(`Guest's turn — Draw Phase`,'hi');
+    log(`Turn ${turnNum} — Guest's turn | DRAW PHASE`,'hi');
     render();
     Online.broadcastState();
   }
@@ -536,6 +580,7 @@ function guestDeploy(card,idx,line){
     playSound('Deploy');
     log(`Guest deployed ${card.name} to ${line==='at'?'At':'Df'} Line`,'good');
     if(card.id===90) triggerAndreAbility(1);
+    if(card.id===72&&(p.mysticGrave||[]).length>0){G._pendingGuestDD=true;}
     checkLose();render();Online.broadcastState();
   },null,card,'⬇ Guest Deploying...');
 }
@@ -547,6 +592,7 @@ function guestLineSwitch(fc,fromLine,toLine){
   if(fc.exhausted){logErr(`${fc.card.name} inactive`);Online.broadcastState();return;}
   if(fc.deployedTurn>=turnNum){logErr(`${fc.card.name} ลงในเทิร์นนี้ ยังเปลี่ยน line ไม่ได้`);Online.broadcastState();return;}
   if(fc.lineSwitchedTurn>=turnNum){logErr(`${fc.card.name} เปลี่ยน line ไปแล้วในเทิร์นนี้`);Online.broadcastState();return;}
+  if(fc.curses?.some(c=>c.type==='freeze'||c.type==='stone')){logErr(`${fc.card.name} ติด Freeze/Stone Curse — เปลี่ยน line ไม่ได้`);Online.broadcastState();return;}
   const p=G.players[1];
   const src=fromLine==='at'?p.atLine:p.dfLine;
   const dst=toLine==='at'?p.atLine:p.dfLine;
@@ -565,9 +611,16 @@ function guestLineSwitch(fc,fromLine,toLine){
 
 function guestNextPhase(){
   if(G.currentPlayer!==1)return;
+  if(_battleAnimPlaying)return;
+  if(phase==='draw'&&drawsRemaining>0)return; // block Next Phase while draws are pending
   cancelAction();
-  if(phase==='draw'){phase='main';log('Guest: MAIN PHASE','hi');}
-  else if(phase==='main'){phase='battle';attackerSeal=null;handAttackedThisTurn=false;log('Guest: BATTLE PHASE','hi');}
+  if(phase==='draw'){phase='main';log(`Turn ${turnNum} — Guest's turn | MAIN PHASE`,'hi');}
+  else if(phase==='main'){
+    phase='battle';attackerSeal=null;handAttackedThisTurn=false;log('Guest: BATTLE PHASE','hi');
+    render();Online.broadcastState();
+    showBattlePhaseAnim(()=>{});
+    return;
+  }
   else if(phase==='battle'){phase='main2';attackerSeal=null;log('Guest: MAIN PHASE 2','hi');}
   else if(phase==='main2'){phase='end';endGuestTurn();return;}
   render();
@@ -755,7 +808,8 @@ function showFieldActionGuest(fc,line){
     document.getElementById('fa-modal').classList.add('show');return;
   }
   const p=G.players[1];
-  const canSwitch=!fc.exhausted&&!fc.hasUsedSkill&&fc.deployedTurn<turnNum&&(fc.lineSwitchedTurn||0)<turnNum;
+  const isFrozenOrStoned=fc.curses?.some(c=>c.type==='freeze'||c.type==='stone');
+  const canSwitch=!fc.exhausted&&!fc.hasUsedSkill&&!isFrozenOrStoned&&fc.deployedTurn<turnNum&&(fc.lineSwitchedTurn||0)<turnNum;
   const otherLine=line==='at'?'df':'at';
   const sw=addFAOpt(`⟷ Move to ${otherLine==='at'?'At':'Df'} Line`,()=>{
     closeFAModal();
@@ -842,10 +896,11 @@ function guestEnterDiscardOrMain(){
   const p=G.players[1];
   const combined=p.hand.length+(p.mysticHand||[]).length;
   const sealMax=getEffectiveHandMax(1);
-  const excess=Math.max(Math.max(0,combined-HAND_COMBINED_MAX),Math.max(0,p.hand.length-sealMax));
+  const combinedMax=getEffectiveCombinedMax(1);
+  const excess=Math.max(Math.max(0,combined-combinedMax),Math.max(0,p.hand.length-sealMax));
   if(excess>0){
     phase='discard';
-    log(`Guest DISCARD STEP — ทิ้งการ์ดให้เหลือ ${HAND_COMBINED_MAX} (เกิน ${excess} ใบ)`,'bad');
+    log(`Guest DISCARD STEP — ทิ้งการ์ดให้เหลือ ${combinedMax} (เกิน ${excess} ใบ)`,'bad');
     render();
     Online.broadcastState();
   } else {
@@ -862,7 +917,7 @@ function guestOnDrawDone(){
     log(`Vioria [Ability]: Guest เหลือ ${_guestMpLeft} Mp → Host +${_guestMpLeft} Mp!`,'');
   }}
   phase='main';
-  log('Guest: MAIN PHASE','hi');
+  log(`Turn ${turnNum} — Guest's turn | MAIN PHASE`,'hi');
   render();
   Online.broadcastState();
 }
@@ -883,6 +938,7 @@ function guestForceDiscardMystic(mysticIdx){
   const mhand=G.players[1].mysticHand||[];
   if(mysticIdx<0||mysticIdx>=mhand.length)return;
   const card=mhand.splice(mysticIdx,1)[0];
+  (G.players[1].mysticGrave=G.players[1].mysticGrave||[]).push(card);
   log(`Guest ทิ้ง Mystic ${card.name}`,'bad');
   _afterGuestForcedDiscard();
 }
@@ -891,7 +947,8 @@ function _afterGuestForcedDiscard(){
   const p=G.players[1];
   const combined=p.hand.length+(p.mysticHand||[]).length;
   const sealMax=getEffectiveHandMax(1);
-  const excess=Math.max(Math.max(0,combined-HAND_COMBINED_MAX),Math.max(0,p.hand.length-sealMax));
+  const combinedMax=getEffectiveCombinedMax(1);
+  const excess=Math.max(Math.max(0,combined-combinedMax),Math.max(0,p.hand.length-sealMax));
   render();
   if(excess<=0){guestOnDrawDone();}
   else{Online.broadcastState();}
@@ -1032,6 +1089,7 @@ function guestExecuteSelfSkill(skillFC,skillIdx){
       if((opp.mysticHand||[]).length>0){
         const i=Math.floor(Math.random()*opp.mysticHand.length);
         const c=opp.mysticHand.splice(i,1)[0];
+        (opp.mysticGrave=opp.mysticGrave||[]).push(c);
         log(`${skillFC.card.name} [Skill]: Host ทิ้ง Mystic ${c.name}!`,'good');
       } else {log(`${skillFC.card.name} [Skill]: Host ไม่มี Mystic`,'bad');}
       checkLose();render();Online.broadcastState();
@@ -1722,10 +1780,18 @@ function doDeploy(line){
     log(`Host deployed ${card.name} to ${line==='at'?'At':'Df'} Line`,'good');
     if(card.id===67&&line==='at') triggerGregoryCancel(0);
     if(card.id===90) triggerAndreAbility(0);
-    if(card.id===72&&(p.mysticDeck||[]).length>0){
-      document.getElementById('fa-title').textContent='Dark Destiny [Ability]: หยิบ Mystic จากกองการ์ด?';
+    if(card.id===72&&(p.mysticGrave||[]).length>0){
+      document.getElementById('fa-title').textContent='Dark Destiny [Ability]: นำ Mystic จาก Shrine ขึ้นมือ?';
       const opts=document.getElementById('fa-opts');opts.innerHTML='';
-      addFAOpt('✅ หยิบ Mystic 1 ใบ',()=>{closeFAModal();drawMysticCard(0,false,true);log('Dark Destiny [Ability]: จั่ว Mystic 1 ใบ!','good');render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();});
+      p.mysticGrave.forEach((mc,i)=>{
+        addFAOpt(`✅ ${mc.name}`,()=>{
+          closeFAModal();
+          p.mysticGrave.splice(i,1);
+          (p.mysticHand=p.mysticHand||[]).push(mc);
+          log(`Dark Destiny [Ability]: นำ ${mc.name} จาก Shrine ขึ้นมือ!`,'good');
+          checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
+        });
+      });
       addFAOpt('✗ ไม่ต้องการ',()=>{closeFAModal();checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();});
       document.getElementById('fa-modal').classList.add('show');
       return;
@@ -1757,10 +1823,18 @@ function doDeployAtSlot(card,cardIdx,lineKey,insertAt){
     log(`Host deployed ${card.name} to ${targetLine==='at'?'At':'Df'} Line`,'good');
     if(card.id===67&&targetLine==='at') triggerGregoryCancel(0);
     if(card.id===90) triggerAndreAbility(0);
-    if(card.id===72&&(p.mysticDeck||[]).length>0){
-      document.getElementById('fa-title').textContent='Dark Destiny [Ability]: หยิบ Mystic จากกองการ์ด?';
+    if(card.id===72&&(p.mysticGrave||[]).length>0){
+      document.getElementById('fa-title').textContent='Dark Destiny [Ability]: นำ Mystic จาก Shrine ขึ้นมือ?';
       const opts=document.getElementById('fa-opts');opts.innerHTML='';
-      addFAOpt('✅ หยิบ Mystic 1 ใบ',()=>{closeFAModal();drawMysticCard(0,false,true);log('Dark Destiny [Ability]: จั่ว Mystic 1 ใบ!','good');render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();});
+      p.mysticGrave.forEach((mc,i)=>{
+        addFAOpt(`✅ ${mc.name}`,()=>{
+          closeFAModal();
+          p.mysticGrave.splice(i,1);
+          (p.mysticHand=p.mysticHand||[]).push(mc);
+          log(`Dark Destiny [Ability]: นำ ${mc.name} จาก Shrine ขึ้นมือ!`,'good');
+          checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
+        });
+      });
       addFAOpt('✗ ไม่ต้องการ',()=>{closeFAModal();checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();});
       document.getElementById('fa-modal').classList.add('show');
       return;
@@ -1822,7 +1896,8 @@ function showFieldAction(fc,line){
 
   // Line switch: not exhausted/used skill AND deployed before this turn
   const p=G.players[0];
-  const canSwitch=!fc.exhausted && !fc.hasUsedSkill && fc.deployedTurn<turnNum && fc.lineSwitchedTurn<turnNum;
+  const isFrozenOrStoned=fc.curses?.some(c=>c.type==='freeze'||c.type==='stone');
+  const canSwitch=!fc.exhausted && !fc.hasUsedSkill && !isFrozenOrStoned && fc.deployedTurn<turnNum && fc.lineSwitchedTurn<turnNum;
   const otherLine=line==='at'?'df':'at';
   const otherArr=otherLine==='at'?p.atLine:p.dfLine;
   const switchBtn=addFAOpt(`⟷ Move to ${otherLine==='at'?'At':'Df'} Line`,()=>{doLineSwitch(fc,line,otherLine);});
@@ -1882,6 +1957,7 @@ function doLineSwitch(fc,fromLine,toLine){
   if(fc.exhausted){logErr(`${fc.card.name} inactive ไม่สามารถเปลี่ยน line ได้`);closeFAModal();return;}
   if(fc.deployedTurn>=turnNum){logErr(`${fc.card.name} ลงในเทิร์นนี้ ยังเปลี่ยน line ไม่ได้`);closeFAModal();return;}
   if(fc.lineSwitchedTurn>=turnNum){logErr(`${fc.card.name} เปลี่ยน line ไปแล้วในเทิร์นนี้`);closeFAModal();return;}
+  if(fc.curses?.some(c=>c.type==='freeze'||c.type==='stone')){logErr(`${fc.card.name} ติด Freeze/Stone Curse — เปลี่ยน line ไม่ได้`);closeFAModal();return;}
   if(fc.card.id===63&&toLine==='df'){logErr('Dread Knight ต้องอยู่ใน At Line เสมอ!');closeFAModal();return;}
   const owner=findFCOwner(fc);
   const p=owner?owner.p:G.players[0];
@@ -1930,13 +2006,61 @@ function getUnlockedAtks(mainFC){
   return _unlockedAtksForStack(mainFC.card.fuse||[], mainFC.fusionStack.map(m=>m.card));
 }
 
+// Used by GUEST (step-by-step) and AI — considers only mainFC.fusionStack
 function fuseMaterialHelps(mainFC,card){
-  // A material is only valid if adding it immediately unlocks at least one NEW fusion attack
   const fuse=mainFC.card.fuse||[];
   const stack=mainFC.fusionStack.map(m=>m.card);
-  const before=_unlockedAtksForStack(fuse,stack).length;
-  const after=_unlockedAtksForStack(fuse,[...stack,card]).length;
-  return after>before;
+  const countSat=(cards,reqs)=>{let n=0;const rem=[...cards];for(const req of reqs){const i=rem.findIndex(c=>matchesReq(req,c));if(i>=0){rem.splice(i,1);n++;}}return n;};
+  for(const f of fuse){
+    if(_unlockedAtksForStack([f],stack).length>0)continue;
+    if(countSat([...stack,card],f.reqs)>countSat(stack,f.reqs))return true;
+  }
+  return false;
+}
+
+// Used by HOST batch system — also considers already-staged pendingFusionMaterials
+function fuseMaterialHelpsForStaging(mainFC,card){
+  const fuse=mainFC.card.fuse||[];
+  const stack=[...mainFC.fusionStack.map(m=>m.card),...pendingFusionMaterials.map(m=>m.card)];
+  const countSat=(cards,reqs)=>{let n=0;const rem=[...cards];for(const req of reqs){const i=rem.findIndex(c=>matchesReq(req,c));if(i>=0){rem.splice(i,1);n++;}}return n;};
+  for(const f of fuse){
+    if(_unlockedAtksForStack([f],stack).length>0)continue;
+    if(countSat([...stack,card],f.reqs)>countSat(stack,f.reqs))return true;
+  }
+  return false;
+}
+
+function checkPendingFusionValid(){
+  if(!fusionMainFC||!pendingFusionMaterials.length)return false;
+  const fuse=fusionMainFC.card.fuse||[];
+  const cur=fusionMainFC.fusionStack.map(m=>m.card);
+  const withP=[...cur,...pendingFusionMaterials.map(m=>m.card)];
+  return _unlockedAtksForStack(fuse,withP).length>_unlockedAtksForStack(fuse,cur).length;
+}
+
+function confirmFusion(){
+  if(!checkPendingFusionValid()){logErr('combination ยังไม่สมบูรณ์ — เลือกการ์ดเพิ่ม');return;}
+  const mainFC=fusionMainFC;
+  const materials=[...pendingFusionMaterials];
+  const fuse=mainFC.card.fuse||[];
+  const cur=mainFC.fusionStack.map(m=>m.card);
+  const withP=[...cur,...materials.map(m=>m.card)];
+  const prevAtks=_unlockedAtksForStack(fuse,cur);
+  const newAtks=_unlockedAtksForStack(fuse,withP).filter(a=>!prevAtks.some(b=>b.name===a.name));
+  const matNames=materials.map(m=>m.card.name).join(' + ');
+  const atkNames=newAtks.map(a=>a.name).join(', ')||'(สะสม)';
+  showActionQueue(`⚡ ${mainFC.card.name} + ${matNames} → ${atkNames}`,()=>{
+    materials.forEach(m=>{mainFC.fusionStack.push(m);delete m._stagedLine;});
+    pendingFusionMaterials=[];
+    mainFC.fusionAtks=getUnlockedAtks(mainFC);
+    mainFC.fused=true;
+    if(!mainFC.fusedSinceTurn)mainFC.fusedSinceTurn=turnNum;
+    playSound('Fusion Complete');
+    log(`+${matNames} → ${mainFC.card.name}: ${atkNames}`,'good');
+    fusionMode=false;fusionMainFC=null;
+    render();
+    if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
+  },null,mainFC.card,'⚡ Fusing...');
 }
 
 // Rule 613.8.3: card deployed from hand this turn cannot be Support Seal
@@ -1946,10 +2070,12 @@ function hasPSMystic(fc){return getActiveMystics(fc).some(m=>m.mystic?.pasted===
 
 function findFusionMaterials(mainFC){
   const p=G.players[0];
+  const stagedUids=new Set(pendingFusionMaterials.map(m=>m.uid));
   const all=[...p.atLine,...p.dfLine];
   return all.filter(m=>{
     if(m.uid===mainFC.uid||m.fused||newFromHand(m)||hasPSMystic(m))return false;
-    return fuseMaterialHelps(mainFC,m.card);
+    if(stagedUids.has(m.uid))return false;
+    return fuseMaterialHelpsForStaging(mainFC,m.card);
   });
 }
 
@@ -1958,34 +2084,29 @@ function canBeFusionMaterial(fc){
   if(fc.uid===fusionMainFC.uid||fc.fused||newFromHand(fc)||hasPSMystic(fc))return false;
   if(fc.curses?.length>0)return false;
   if(fc.wasMainFusedTurn===turnNum)return false;
-  return fuseMaterialHelps(fusionMainFC,fc.card);
+  if(pendingFusionMaterials.some(m=>m.uid===fc.uid))return false;
+  return fuseMaterialHelpsForStaging(fusionMainFC,fc.card);
 }
 
 function startFusionMode(fc){
   fusionMode=true;
   fusionMainFC=fc;
-  log(`Select material card to fuse with ${fc.card.name}...`,'hi');
+  pendingFusionMaterials=[];
+  log(`เลือก Seal วัสดุสำหรับ ${fc.card.name} — กด ⚡ Confirm เมื่อเลือกครบ (หรือ Cancel เพื่อยกเลิก)`,'hi');
   render();
 }
 
+// Stage a material card (no AQ per step — confirm triggers one AQ for the full fusion)
 function doFuse(mainFC,materialFC){
-  if(!fuseMaterialHelps(mainFC,materialFC.card)){logErr('การ์ดนี้ไม่ตรง requirement');return;}
-  showActionQueue(`${mainFC.card.name} + ${materialFC.card.name} รวมร่าง`,()=>{
-    const p=G.players[0];
-    const removeFrom=arr=>{const i=arr.findIndex(x=>x.uid===materialFC.uid);if(i>=0)arr.splice(i,1);};
-    removeFrom(p.atLine);removeFrom(p.dfLine);
-    mainFC.fusionStack.push(materialFC);
-    mainFC.fusionAtks=getUnlockedAtks(mainFC);
-    mainFC.fused=true;
-    playSound('Fusion Complete');
-    if(!mainFC.fusedSinceTurn)mainFC.fusedSinceTurn=turnNum;
-    const atkNames=mainFC.fusionAtks.map(a=>a.name).join(', ')||'(กำลังสะสม...)';
-    log(`+${materialFC.card.name} → ${mainFC.card.name}: ${atkNames}`,'good');
-    const moreMats=findFusionMaterials(mainFC);
-    if(moreMats.length>0){log('เลือกการ์ดต่อ หรือกด Cancel เพื่อหยุด','hi');render();}
-    else{cancelFusion();}
-    if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
-  },null,mainFC.card,'⚡ Fusing...');
+  if(!fuseMaterialHelpsForStaging(mainFC,materialFC.card)){logErr('การ์ดนี้ไม่ตรง requirement');return;}
+  const p=G.players[0];
+  let sl='atLine';
+  ['atLine','dfLine'].forEach(lk=>{const i=p[lk].findIndex(x=>x.uid===materialFC.uid);if(i>=0){sl=lk;p[lk].splice(i,1);}});
+  materialFC._stagedLine=sl;
+  pendingFusionMaterials.push(materialFC);
+  log(`+${pendingFusionMaterials.map(m=>m.card.name).join(' + ')} — กด ⚡ Confirm เมื่อพร้อม`,'hi');
+  render();
+  if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
 }
 
 function doUnfuse(fc){
@@ -2000,6 +2121,11 @@ function doUnfuse(fc){
 }
 
 function cancelFusion(){
+  if(pendingFusionMaterials.length){
+    const p=G.players[0];
+    pendingFusionMaterials.forEach(m=>{p[m._stagedLine||'atLine'].push(m);delete m._stagedLine;});
+    pendingFusionMaterials=[];
+  }
   fusionMode=false;
   fusionMainFC=null;
   render();
@@ -2756,6 +2882,7 @@ function sendToShrine(fc,ownerPi){
             addFAOpt(`ทิ้ง ${mc.name}`,()=>{
               closeFAModal();
               owner.mysticHand.splice(i,1);
+              (owner.mysticGrave=owner.mysticGrave||[]).push(mc);
               log(`Dark Destiny [Ability]: ทิ้ง Mystic ${mc.name}!`,'bad');
               render();
             });
@@ -2764,6 +2891,7 @@ function sendToShrine(fc,ownerPi){
         },300);
       } else {
         const mc=owner.mysticHand.splice(Math.floor(Math.random()*owner.mysticHand.length),1)[0];
+        (owner.mysticGrave=owner.mysticGrave||[]).push(mc);
         log(`Dark Destiny [Ability]: AI ทิ้ง Mystic ${mc.name}!`,'bad');
       }
     }
@@ -3132,6 +3260,8 @@ function aiTurn(){
     // Also include Centaur Scout (52) in Df Line as attacker
     const attackers=[...ai.atLine,...ai.dfLine.filter(s=>s.card.id===52)].filter(s=>!s.exhausted&&!s.curses?.some(c=>c.type==='stone'||c.type==='freeze'||c.type==='charm'));
     if(!attackers.length){endAITurn();return;}
+    log('AI: BATTLE PHASE','hi');
+    render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
 
     function doAttackStep(idx){
       if(idx>=attackers.length){updateAIPreview(null);setTimeout(()=>endAITurn(),400);return;}
@@ -3247,7 +3377,7 @@ function aiTurn(){
         }
       }
     }
-    doAttackStep(0);
+    showBattlePhaseAnim(()=>{doAttackStep(0);});
   }
 
   function endAITurn(){
@@ -3306,7 +3436,7 @@ function _enterChainMode(cardName){
   document.getElementById('btn-aq-woolwyvern').style.display=(p.hand.some(c=>c.id===80)&&p.mp>=4)?'inline-block':'none';
   document.getElementById('btn-aq-phoenix').style.display=(p.shrine.some(c=>c.id===78)&&p.mp>=2)?'inline-block':'none';
   render();
-  if(window.Online?.isOnline&&Online.isHost){Online.broadcastState();_startAQTimer(10000);}
+  if(window.Online?.isOnline&&Online.isHost){Online.broadcastState();_startAQTimer(20000);}
 }
 
 function showActionQueue(desc, onProceed, fusionMainFC=null, previewCard=null, previewAction=''){
@@ -3350,7 +3480,7 @@ function showActionQueue(desc, onProceed, fusionMainFC=null, previewCard=null, p
   render(); // re-render so interfere mystics get canPlay=true
   if(window.Online?.isOnline&&Online.isHost){
     Online.broadcastState();
-    _startAQTimer(10000); // 10-second interfere window for both sides
+    _startAQTimer(20000); // 10-second interfere window for both sides
   }
 }
 
@@ -3481,7 +3611,7 @@ function showDrawModal(){
   document.getElementById('draw-seal-count').textContent=`Seal ${p.hand.length} ใบ | กอง ${p.deck.length}`;
   document.getElementById('draw-mystic-count').textContent=`Mystic ${mhand} ใบ | กอง ${(p.mysticDeck||[]).length}`;
   const combinedEl=document.getElementById('draw-combined-count');
-  combinedEl.textContent=`มือรวม ${combined}/${HAND_COMBINED_MAX} ใบ`;
+  combinedEl.textContent=`มือรวม ${combined}/${getEffectiveCombinedMax(0)} ใบ`;
   combinedEl.style.color=combined>=HAND_COMBINED_MAX?'#fbbf24':'#9ca3af';
   document.getElementById('draw-modal').style.display='block';
   if(!canSeal&&!canMystic){
@@ -3530,12 +3660,13 @@ function enterDiscardStep(){
   const p=G.players[0];
   const combined=p.hand.length+(p.mysticHand||[]).length;
   const sealMax=getEffectiveHandMax(0);
-  const overCombined=Math.max(0,combined-HAND_COMBINED_MAX);
+  const combinedMax=getEffectiveCombinedMax(0);
+  const overCombined=Math.max(0,combined-combinedMax);
   const overSeal=Math.max(0,p.hand.length-sealMax);
   const excess=Math.max(overCombined,overSeal);
   if(excess>0){
     phase='discard';
-    log(`DISCARD STEP — ทิ้งการ์ดให้เหลือ Seal ≤${sealMax} รวม ≤${HAND_COMBINED_MAX} (เกินมา ${excess} ใบ)`,'bad');
+    log(`DISCARD STEP — ทิ้งการ์ดให้เหลือ Seal ≤${sealMax} รวม ≤${combinedMax} (เกินมา ${excess} ใบ)`,'bad');
     render();
     if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
   } else {
@@ -3569,7 +3700,7 @@ function aiDrawCards(pi,onDone){
   const excess=p.hand.length+(p.mysticHand||[]).length-HAND_COMBINED_MAX;
   if(excess>0){
     for(let i=0;i<excess;i++){
-      if((p.mysticHand||[]).length>0){p.mysticHand.pop();}
+      if((p.mysticHand||[]).length>0){const c=p.mysticHand.pop();(p.mysticGrave=p.mysticGrave||[]).push(c);}
       else if(p.hand.length>0){const c=p.hand.pop();p.shrine.push(c);}
     }
   }

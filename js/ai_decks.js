@@ -15,12 +15,14 @@ const AI_DECK_TEMPLATES = {
       {id:1,  count:4},
       {id:6,  count:4},
       {id:8,  count:4},
-      {id:7,  count:4},
+
       {id:57, count:4},
       {id:62, count:3},
       {id:78, count:3},
       {id:87, count:2},
-      {id:83, count:2}
+      {id:83, count:2},
+         {id:91, count:3},
+            {id:92, count:3},
     ],
     mystics: [
       {id:17, count:2},{id:18, count:2},{id:19, count:2},{id:21, count:2},
@@ -40,7 +42,8 @@ const AI_DECK_TEMPLATES = {
       {id:14, count:4},
       {id:16, count:4},
       {id:42, count:4},
-      {id:58, count:3},
+      {id:90, count:3},
+            {id:93, count:3},
       {id:15, count:4},
       {id:50, count:3},
       {id:56, count:2},
@@ -64,7 +67,8 @@ const AI_DECK_TEMPLATES = {
       {id:23, count:4},
       {id:28, count:4},
       {id:53, count:4},
-      {id:59, count:4},
+      {id:89, count:3},
+            {id:94, count:3},
       {id:60, count:4},
       {id:64, count:3},
       {id:80, count:3}
@@ -85,7 +89,9 @@ const AI_DECK_TEMPLATES = {
     seals: [
       {id:10, count:4},
       {id:11, count:4},
-      {id:12, count:4},
+      {id:88, count:3},
+        {id:48, count:3},
+              {id:95, count:3},
       {id:9,  count:4},
       {id:43, count:4},
       {id:52, count:4},

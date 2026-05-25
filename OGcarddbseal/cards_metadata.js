@@ -205,7 +205,7 @@ const CARDS_METADATA = {
         "fire"
       ],
       "tribe": [
-        "Monster"
+        "Evil"
       ],
       "fusions": [
         {
@@ -1337,7 +1337,7 @@ const CARDS_METADATA = {
         "light"
       ],
       "tribe": [
-        "Aria"
+        "Mage"
       ],
       "fusions": [
         {
@@ -2164,7 +2164,7 @@ const CARDS_METADATA = {
         "water"
       ],
       "tribe": [
-        "Aria"
+        "Mage"
       ],
       "fusions": [
         {
@@ -2614,7 +2614,7 @@ const CARDS_METADATA = {
         "fire"
       ],
       "tribe": [
-        "Aria"
+        "Mage"
       ],
       "fusions": [
         {
@@ -2655,7 +2655,7 @@ const CARDS_METADATA = {
         "water"
       ],
       "tribe": [
-        "Aria"
+        "Mage"
       ],
       "fusions": [
         {
@@ -2696,7 +2696,7 @@ const CARDS_METADATA = {
         "wind"
       ],
       "tribe": [
-        "Aria"
+        "Mage"
       ],
       "fusions": [
         {
@@ -2737,7 +2737,7 @@ const CARDS_METADATA = {
         "earth"
       ],
       "tribe": [
-        "Aria"
+        "Mage"
       ],
       "fusions": [
         {

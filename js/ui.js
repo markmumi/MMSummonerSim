@@ -17,6 +17,11 @@ function getEffectiveMa(fc){
 // ══════════════════════════════════════════════
 function cancelAction(){
   attackerSeal=null;pendingAttackIdx=null;pendingDeploy=null;pendingSacrifice=null;
+  if(typeof pendingFusionMaterials!=='undefined'&&pendingFusionMaterials.length){
+    const p=G.players[0];
+    pendingFusionMaterials.forEach(m=>{p[m._stagedLine||'atLine'].push(m);delete m._stagedLine;});
+    pendingFusionMaterials=[];
+  }
   fusionMode=false;fusionMainFC=null;handTargetMode=false;skillMode=null;handDiscardMode=null;handPickMode=null;mysticPlayMode=null;sacrificeTargetMode=null;
   // Clear guest-side state vars (if online guest)
   if(window.Online?.isOnline&&!Online.isHost){
@@ -215,8 +220,8 @@ function handCardEl(card,idx,pi=0){
     </div>
   `;
   const isGuest=window.Online?.isOnline&&!Online.isHost&&pi===1;
-  const guestDiscardStep=isGuest&&phase==='discard'&&p.hand.length+(p.mysticHand||[]).length>HAND_COMBINED_MAX;
-  if(phase==='discard'&&pi===0&&p.hand.length+(p.mysticHand||[]).length>HAND_COMBINED_MAX){
+  const guestDiscardStep=isGuest&&phase==='discard'&&p.hand.length+(p.mysticHand||[]).length>getEffectiveCombinedMax(pi);
+  if(phase==='discard'&&pi===0&&p.hand.length+(p.mysticHand||[]).length>getEffectiveCombinedMax(pi)){
     div.classList.add('discard-sel');
     div.onclick=()=>doForcedDiscardSeal(idx);
   } else if(guestDiscardStep){
@@ -430,14 +435,21 @@ function render(){
   }
   document.getElementById('phase-label').textContent=
     isOpponentTurn?opponentLabel:{draw:'DRAW',main:'MAIN',discard:'DISCARD',battle:'BATTLE',main2:'MAIN2',end:'END'}[phase]||phase;
-  if(activeFusion)document.getElementById('phase-label').textContent='⚡ FUSION';
+  if(activeFusion){
+    const staged=typeof pendingFusionMaterials!=='undefined'&&pendingFusionMaterials.length;
+    document.getElementById('phase-label').textContent=staged?`⚡ FUSION (${staged})` :'⚡ FUSION';
+  }
   if(activeSkill)document.getElementById('phase-label').textContent='✦ SKILL';
   if(activeMystic)document.getElementById('phase-label').textContent='✦ MYSTIC';
 
   // Controls phase label
   const cp=document.getElementById('controls-phase');
   if(isOpponentTurn){cp.textContent=opponentLabel;cp.style.color='#ef4444';}
-  else if(activeFusion){cp.textContent='⚡ FUSION';cp.style.color='#a78bfa';}
+  else if(activeFusion){
+    const staged=typeof pendingFusionMaterials!=='undefined'&&pendingFusionMaterials.length;
+    cp.textContent=staged?`⚡ FUSION — เลือกแล้ว ${staged} ใบ`:'⚡ FUSION — เลือก Material';
+    cp.style.color='#a78bfa';
+  }
   else if(activeSkill){cp.textContent='✦ SKILL';cp.style.color='#34d399';}
   else if(activeMystic){cp.textContent='✦ MYSTIC — เลือก Seal';cp.style.color='#a78bfa';}
   else if(activeHandDiscard){cp.textContent='✦ INTERFERE — เลือกทิ้ง';cp.style.color='#f97316';}
@@ -445,7 +457,8 @@ function render(){
   else if(phase==='main'){cp.textContent='MAIN PHASE';cp.style.color='#34d399';}
   else if(phase==='discard'){
     const combined=pL.hand.length+(pL.mysticHand||[]).length;
-    cp.textContent=`DISCARD STEP — ทิ้ง ${combined-HAND_COMBINED_MAX} ใบ (รวม ${combined}/${HAND_COMBINED_MAX})`;
+    const effCombMax=getEffectiveCombinedMax(lpi);
+    cp.textContent=`DISCARD STEP — ทิ้ง ${combined-effCombMax} ใบ (รวม ${combined}/${effCombMax})`;
     cp.style.color='#f97316';
   }
   else if(phase==='main2'){cp.textContent='MAIN PHASE 2';cp.style.color='#6ee7b7';}
@@ -477,6 +490,12 @@ function render(){
   else if(phase==='main2'){btnNext.textContent='⏹ End Turn';btnNext.className='btn btn-red';}
   else{btnNext.textContent='▶ Next Phase';btnNext.className='btn btn-gray';}
   document.getElementById('btn-cancel').style.display=(attackerSeal||pendingDeploy||fusionMode||handTargetMode||skillMode||handDiscardMode||mysticPlayMode||sacrificeTargetMode||guestFusionMainFC||guestSkillMode||guestMysticPlayMode||guestHandDiscardMode)?'inline-block':'none';
+  const btnCF=document.getElementById('btn-confirm-fusion');
+  if(btnCF){
+    const hasPending=typeof pendingFusionMaterials!=='undefined'&&pendingFusionMaterials.length>0;
+    btnCF.style.display=(fusionMode&&hasPending)?'inline-block':'none';
+    btnCF.disabled=fusionMode&&hasPending&&typeof checkPendingFusionValid==='function'&&!checkPendingFusionValid();
+  }
   // Action queue controls
   const btnProceed=document.getElementById('btn-proceed');
   if(btnProceed)btnProceed.disabled=!!(handDiscardMode||guestHandDiscardMode);
@@ -739,7 +758,7 @@ function mysticCardEl(mysticCard,idx,pi=0){
       <div style="color:#6d28d9">Mc:${mysticCard.mc} ${mysticCard.turns===999?'∞':mysticCard.turns+'T'}</div>
     </div>
   `;
-  const mysticOverLimit=phase==='discard'&&p.hand.length+(p.mysticHand||[]).length>HAND_COMBINED_MAX;
+  const mysticOverLimit=phase==='discard'&&p.hand.length+(p.mysticHand||[]).length>getEffectiveCombinedMax(pi);
   if(mysticOverLimit)div.classList.add('discard-sel');
   div.onclick=()=>{
     if(mysticOverLimit){

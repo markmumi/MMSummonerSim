@@ -212,6 +212,7 @@ var Online = (() => {
         data.hostLogs.forEach(({msg, type}) => log(msg, type));
       }
 
+      const _prevPhase = phase;
       G = data.G;
       phase = data.phase;
       turnNum = data.turnNum;
@@ -308,7 +309,7 @@ var Online = (() => {
           if(phoenixBtn){phoenixBtn.style.display=canPhoenix?'inline-block':'none';if(canPhoenix)phoenixBtn.onclick=()=>{Online.sendGuestAction({action:'guestPhoenix'});phoenixBtn.style.display='none';};};
           // Start/restart guest-side 10s timer on fresh open or chain reset
           if ((!wasAlreadyOpen || (inChain && !guestPassedInChain)) && typeof _startAQTimer === 'function') {
-            _startAQTimer(10000);
+            _startAQTimer(20000);
           }
         }
       } else {
@@ -322,6 +323,42 @@ var Online = (() => {
       }
 
       render();
+
+      // Battle Phase animation for GUEST
+      if (_prevPhase === 'main' && phase === 'battle' && typeof showBattlePhaseAnim === 'function') {
+        if (!_guestBattleAnimFired) showBattlePhaseAnim();
+        _guestBattleAnimFired = false;
+      }
+
+      // Dark Destiny GUEST pick — show after state update
+      if (!E.isHost && G._pendingGuestDD && (G.players[1].mysticGrave||[]).length > 0) {
+        const grave = G.players[1].mysticGrave;
+        const faTitle = document.getElementById('fa-title');
+        const faOpts = document.getElementById('fa-opts');
+        const faModal = document.getElementById('fa-modal');
+        if (faModal && !faModal.classList.contains('show')) {
+          if (faTitle) faTitle.textContent = 'Dark Destiny [Ability]: นำ Mystic จาก Shrine ขึ้นมือ?';
+          if (faOpts) {
+            faOpts.innerHTML = '';
+            grave.forEach((mc, i) => {
+              const btn = document.createElement('button');
+              btn.className = 'btn btn-green';
+              btn.textContent = `✅ ${mc.name}`;
+              btn.onclick = () => {
+                faModal.classList.remove('show');
+                Online.sendGuestAction({ action: 'guestDarkDestinyPick', graveIdx: i });
+              };
+              faOpts.appendChild(btn);
+            });
+            const skipBtn = document.createElement('button');
+            skipBtn.className = 'btn btn-gray';
+            skipBtn.textContent = '✗ ไม่ต้องการ';
+            skipBtn.onclick = () => { faModal.classList.remove('show'); Online.sendGuestAction({ action: 'guestDarkDestinySkip' }); };
+            faOpts.appendChild(skipBtn);
+          }
+          faModal.classList.add('show');
+        }
+      }
 
       // Lighthouse reveal: HOST sends actual card data; GUEST shows modal
       if(data.lighthouseReveal && typeof showRevealModal === 'function'){
@@ -588,6 +625,23 @@ var Online = (() => {
         case 'guestNonPResolved': {
           const m = (G.players[1].mysticHand || [])[data.mysticIdx];
           if (m) guestPlayNonPMysticResolved(m, data.mysticIdx, data.resolution);
+          break;
+        }
+        case 'guestDarkDestinyPick': {
+          G._pendingGuestDD = false;
+          const p = G.players[1];
+          const grave = p.mysticGrave || [];
+          if (data.graveIdx >= 0 && data.graveIdx < grave.length) {
+            const mc = grave.splice(data.graveIdx, 1)[0];
+            (p.mysticHand = p.mysticHand || []).push(mc);
+            log(`Guest Dark Destiny [Ability]: นำ ${mc.name} จาก Shrine ขึ้นมือ!`, 'good');
+          }
+          render(); Online.broadcastState();
+          break;
+        }
+        case 'guestDarkDestinySkip': {
+          G._pendingGuestDD = false;
+          render(); Online.broadcastState();
           break;
         }
         default:

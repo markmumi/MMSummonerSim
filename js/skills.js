@@ -368,7 +368,7 @@ function getInterfereSkills(){
   const p=G.players[0];
   const charmedEnemy=[...G.players[1].atLine,...G.players[1].dfLine].filter(fc=>fc.charmed);
   return [...p.atLine,...p.dfLine,...charmedEnemy].flatMap(fc=>{
-    if(fc.hasUsedSkill)return[];
+    if(fc.hasUsedSkill||fc.exhausted)return[];
     return getCardSkills(fc)
       .map((skill,idx)=>({fc,skillIdx:idx,skill}))
       .filter(({skill})=>skill.interfere&&p.mp>=skill.mp&&(skill.type!=='handDiscard'||p.hand.length>0));
@@ -543,6 +543,7 @@ function executeSelfSkill(skillFC,skillIdx){
       if((ai.mysticHand||[]).length>0){
         const idx=Math.floor(Math.random()*ai.mysticHand.length);
         const card=ai.mysticHand.splice(idx,1)[0];
+        (ai.mysticGrave=ai.mysticGrave||[]).push(card);
         log(`${skillFC.card.name} [Skill]: AI ทิ้ง Mystic ${card.name} แบบสุ่ม!`,'good');
       } else {
         log(`${skillFC.card.name} [Skill]: AI ไม่มี Mystic ในมือ`,'bad');

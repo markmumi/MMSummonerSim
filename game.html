@@ -54,6 +54,7 @@
       <button class="btn btn-red" id="btn-atk" onclick="declareAttack()" disabled>⚔ Attack</button>
       <button class="btn btn-purple" id="btn-special" onclick="openSpecialPanel()" disabled style="display:none">✦ Special</button>
       <button class="btn btn-gray" onclick="cancelAction()" id="btn-cancel" style="display:none">✕ Cancel</button>
+      <button class="btn btn-yellow" id="btn-confirm-fusion" onclick="confirmFusion()" style="display:none">⚡ Confirm Fusion</button>
       <button class="btn btn-gray" onclick="onNextPhaseBtn()" id="btn-next">▶ Next Phase</button>
       <div id="action-queue">
         <div id="aq-timer-wrap"><div id="aq-timer-bar"></div></div>
@@ -233,6 +234,11 @@
 </div>
 
 <!-- Win screen -->
+<div id="battle-anim-overlay">
+  <div id="battle-flash"></div>
+  <div id="battle-phase-text">⚔ BATTLE PHASE ⚔</div>
+</div>
+
 <div id="win-screen">
   <h1 id="win-title">WIN!</h1>
   <p id="win-sub"></p>

@@ -200,7 +200,7 @@ body{background:#0f172a;color:#f1f5f9;font-family:'Segoe UI',Tahoma,sans-serif;f
     <span class="ctr bad" id="ctr-seal">Seal 0</span>
     <span class="ctr bad" id="ctr-mystic">Mystic 0</span>
   </div>
-  <button id="btn-save" onclick="saveDeck()" disabled>💾 Save Deck</button>
+  <button id="btn-save" onclick="saveDeck()" disabled>💾 บันทึกเป็น Play Deck</button>
   <button id="btn-preset" onclick="openPresetPanel()" style="background:#1e3a5f;color:#93c5fd;border:1px solid #2563eb;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer">📋 Presets</button>
 </div>
 
@@ -560,7 +560,7 @@ function saveDeck(){
   playSound('Confirm');
   const btn=document.getElementById('btn-save');
   btn.textContent='✓ Saved!';btn.style.background='#16a34a';
-  setTimeout(()=>{btn.textContent='💾 Save Deck';btn.style.background='';},2000);
+  setTimeout(()=>{btn.textContent='💾 บันทึกเป็น Play Deck';btn.style.background='';},2000);
 }
 
 function loadSaved(){
