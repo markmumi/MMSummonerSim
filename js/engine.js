@@ -1586,14 +1586,19 @@ function guestShowMysticAction(mysticCard,mysticIdx){
     const paTargets=[];
     [0,1].forEach(pi=>{(G.players[pi].areaMystics||[]).forEach((am,i)=>{paTargets.push({pi,amIdx:i,am});});});
     const stackItems=_interfereStack.map((item,i)=>({label:`[Queued] ${item.desc}`,data:{type:'stack',stackIdx:i}}));
-    if(!psTargets.length&&!paTargets.length&&!stackItems.length){log('ไม่มี Mystic ในสนาม','bad');return;}
+    const aqDesc=document.getElementById('aq-desc')?.textContent||'';
+    const pendingItem=pendingCb&&aqDesc?[{label:`[ยกเลิก] ${aqDesc}`,data:{type:'pending',desc:aqDesc}}]:[];
+    if(!psTargets.length&&!paTargets.length&&!stackItems.length&&!pendingItem.length){log('ไม่มี Mystic ในสนาม','bad');return;}
     const opts=[
       ...psTargets.map(fc=>({label:`[PS] ${fc.card.name}: ${getActiveMystics(fc).map(m=>m.mystic.name).join(',')}`,data:{type:'ps',fc}})),
       ...paTargets.map(({pi,amIdx,am})=>({label:`[PA] ${am.mystic.name} (${pi===0?'Host':'Guest'})`,data:{type:'pa',pi,amIdx}})),
-      ...stackItems
+      ...stackItems,
+      ...pendingItem
     ];
     showMysticPicker('Inquisition — เลือก Mystic',opts,choice=>{
-      if(choice.type==='stack'){
+      if(choice.type==='pending'){
+        Online.sendGuestAction({action:'guestNonPResolved',mysticIdx,resolution:{id:26,type:'pending'}});
+      } else if(choice.type==='stack'){
         Online.sendGuestAction({action:'guestNonPResolved',mysticIdx,resolution:{id:26,type:'stack',stackIdx:choice.stackIdx}});
       } else if(choice.type==='pa'){
         Online.sendGuestAction({action:'guestNonPResolved',mysticIdx,resolution:{id:26,type:'pa',pi:choice.pi,amIdx:choice.amIdx}});
@@ -1636,7 +1641,9 @@ function guestPlayNonPMysticResolved(mysticCard,mysticIdx,resolution){
     return;
   }
   if(resolution.id===26){ // Inquisition
-    if(resolution.type==='stack'){
+    if(resolution.type==='pending'){
+      _aqPendingSpend=spend;showActionQueue(`Inquisition → ยกเลิก Effect`,()=>{spend();pendingCb=()=>{};log(`Inquisition: ยกเลิก Effect!`,'good');checkLose();render();Online.broadcastState();});
+    } else if(resolution.type==='stack'){
       const idx=resolution.stackIdx;const targetItem=_interfereStack[idx];if(!targetItem)return;
       _aqPendingSpend=spend;showActionQueue(`Inquisition → ยกเลิก: ${targetItem.desc}`,()=>{spend();_interfereStack.splice(idx,1);log(`Inquisition: ยกเลิก Effect!`,'good');checkLose();render();Online.broadcastState();});
     } else if(resolution.type==='pa'){
@@ -4016,19 +4023,29 @@ function playNonPMystic(mysticCard,mysticIdx){
     return;
   }
 
-  if(id===26){ // Inquisition — destroy any mystic (PS on seal OR PA area) or cancel a queued interfere effect
+  if(id===26){ // Inquisition — destroy any mystic (PS on seal OR PA area) or cancel a queued/pending interfere effect
     const psTargets=allField().filter(fc=>getActiveMystics(fc).length);
     const paTargets=[];
     [0,1].forEach(pi=>{(G.players[pi].areaMystics||[]).forEach((am,i)=>{paTargets.push({pi,amIdx:i,am});});});
     const stackItems=_interfereStack.map((item,i)=>({label:`[Queued] ${item.desc}`,data:{type:'stack',stackIdx:i}}));
-    if(!psTargets.length&&!paTargets.length&&!stackItems.length){log('ไม่มี Mystic ในสนาม','bad');return;}
+    const aqDesc=document.getElementById('aq-desc')?.textContent||'';
+    const pendingItem=pendingCb&&aqDesc?[{label:`[ยกเลิก] ${aqDesc}`,data:{type:'pending',desc:aqDesc}}]:[];
+    if(!psTargets.length&&!paTargets.length&&!stackItems.length&&!pendingItem.length){log('ไม่มี Mystic ในสนาม','bad');return;}
     const opts=[
       ...psTargets.map(fc=>({label:`[PS] ${fc.card.name}: ${getActiveMystics(fc).map(m=>m.mystic.name).join(',')}`,data:{type:'ps',fc}})),
       ...paTargets.map(({pi,amIdx,am})=>({label:`[PA] ${am.mystic.name} (${pi===0?'Player':'AI'})`,data:{type:'pa',pi,amIdx}})),
-      ...stackItems
+      ...stackItems,
+      ...pendingItem
     ];
     showMysticPicker('Inquisition — เลือก Mystic',opts,choice=>{
-      if(choice.type==='stack'){
+      if(choice.type==='pending'){
+        _aqPendingSpend=spend;
+        showActionQueue(`Inquisition → ยกเลิก: ${choice.desc}`,()=>{
+          spend();pendingCb=()=>{};
+          log(`Inquisition: ยกเลิก Effect!`,'good');checkLose();render();
+          if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
+        });
+      } else if(choice.type==='stack'){
         const idx=choice.stackIdx;const targetItem=_interfereStack[idx];if(!targetItem)return;
         _aqPendingSpend=spend;
         showActionQueue(`Inquisition → ยกเลิก: ${targetItem.desc}`,()=>{
