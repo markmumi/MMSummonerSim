@@ -1,5 +1,9 @@
 // SKILL SYSTEM
 // ══════════════════════════════════════════════
+// Re-validates that a skill is still available after potential state changes (e.g. Thunder Bolt unfuse during AQ)
+function _skillStillValid(fc, skill){
+  return getCardSkills(fc).some(s=>s.effect===skill.effect);
+}
 function isOnAtLine(fc){
   return G.players[0].atLine.some(x=>x.uid===fc.uid)||G.players[1].atLine.some(x=>x.uid===fc.uid);
 }
@@ -325,8 +329,9 @@ function _getCardSkillsRaw(fc){
     const skills=[];
     const fusedWithEarth=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='earth'))||fc.willMind;
     const fusedWithWater=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='water'))||fc.willMind;
-    if(fusedWithEarth)skills.push({label:'✦ [Skill] Stone Curse ∞ — Seal ศัตรู Sp 1-4 (Mp 3)',mp:3,type:'fieldTarget',effect:'stoneCurse',turns:Infinity,filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone')});
-    if(fusedWithWater)skills.push({label:'✦ [Skill] Poison Curse 3 Turn — Seal ศัตรู Sp 1-3 (Mp 2)',mp:2,type:'fieldTarget',effect:'poisonCurse',turns:3,filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison')});
+    const allField=[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
+    if(fusedWithEarth)skills.push({label:'✦ [Skill] Stone Curse ∞ — Seal Sp 1-4 (Mp 3)',mp:3,type:'fieldTarget',effect:'stoneCurse',turns:Infinity,filter:t=>allField.some(x=>x.uid===t.uid)&&t.uid!==fc.uid&&[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone')});
+    if(fusedWithWater)skills.push({label:'✦ [Skill] Poison Curse 3 Turn — Seal Sp 1-3 (Mp 2)',mp:2,type:'fieldTarget',effect:'poisonCurse',turns:3,filter:t=>allField.some(x=>x.uid===t.uid)&&t.uid!==fc.uid&&[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison')});
     return skills;
   }
   // ── Siren (id=58): Charm Curse 2 Turn — fused+Dark+At Line, Sp 3-5 ──
@@ -464,6 +469,7 @@ function executeSelfSkill(skillFC,skillIdx){
   broadcastSound('Skill');
   if(skill.effect==='drawCard'){
     showActionQueue(`${skillFC.card.name} [Skill] จั่วการ์ด 1 ใบ`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       if(p.deck.length){p.hand.push(p.deck.pop());log(`${skillFC.card.name} [Skill]: จั่วการ์ด 1 ใบ!`,'good');}
       else log(`${skillFC.card.name} [Skill]: ไม่มีการ์ดในกอง`,'bad');
@@ -473,10 +479,12 @@ function executeSelfSkill(skillFC,skillIdx){
   }
   if(skill.effect==='returnSelfToDeck'){
     showActionQueue(`${skillFC.card.name} [Skill] คืนตัวเองสู่กอง + สลับ`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
-      // Return support seals to field
-      skillFC.fusionStack.forEach(mfc=>{p.atLine.push(mfc);});
+      // Return support seals to same line as Ghost Ship
+      const ghostLine=p.atLine.some(x=>x.uid===skillFC.uid)?'atLine':'dfLine';
+      skillFC.fusionStack.forEach(mfc=>{p[ghostLine].push(mfc);});
       // Remove Ghost Ship from field
       const rmA=p.atLine.findIndex(x=>x.uid===skillFC.uid);
       if(rmA>=0)p.atLine.splice(rmA,1);
@@ -491,6 +499,7 @@ function executeSelfSkill(skillFC,skillIdx){
   }
   if(skill.effect==='freezeAll'){
     showActionQueue(`${skillFC.card.name} [Skill] Freeze Curse ศัตรูทุกตัว 1 Turn`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       const ai=G.players[1];
       const allEnemy=[...ai.atLine,...ai.dfLine];
@@ -519,6 +528,7 @@ function executeSelfSkill(skillFC,skillIdx){
       addFAOpt(`${card.name} (Lv${card.lv} At${card.at})`,()=>{
         closeFAModal();
         showActionQueue(`${skillFC.card.name} [Skill] → <b>${card.name}</b> จาก Shrine ขึ้นมือ`,()=>{
+          if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
           p.mp-=skill.mp;skillFC.hasUsedSkill=true;
           if(p.hand.length>=getEffectiveHandMax(0)){logErr('มือเต็ม!');return;}
           const si=p.shrine.indexOf(card);if(si>=0)p.shrine.splice(si,1);
@@ -533,6 +543,7 @@ function executeSelfSkill(skillFC,skillIdx){
   }
   if(skill.effect==='allToAtLine'){
     showActionQueue(`${skillFC.card.name} [Skill] Seal ทุกใบย้ายไป At Line`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       const toMove=[...p.dfLine];
       p.dfLine.length=0;
@@ -544,6 +555,7 @@ function executeSelfSkill(skillFC,skillIdx){
   }
   if(skill.effect==='discardRandomMystic'){
     showActionQueue(`${skillFC.card.name} [Skill] ฝ่ายตรงข้ามทิ้ง Mystic แบบสุ่ม`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       const ai=G.players[1];
       if((ai.mysticHand||[]).length>0){
@@ -560,6 +572,7 @@ function executeSelfSkill(skillFC,skillIdx){
   }
   if(skill.effect==='massReset'){
     showActionQueue(`${skillFC.card.name} [Skill] Reset สนาม — Seal ทุกใบกลับกองและทุกคนวางจากมือ`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       // Step 1: All field seals (+ their mystics/fusions) return to owners' decks
       for(let pi=0;pi<2;pi++){
@@ -589,6 +602,7 @@ function executeSelfSkill(skillFC,skillIdx){
   if(skill.effect==='opponentMpDrain'){
     const amt=skill.drainAmt||1;
     showActionQueue(`${skillFC.card.name} [Skill] ฝ่ายตรงข้าม Mp -${amt}`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       G.players[1].mp=Math.max(0,G.players[1].mp-amt);
       log(`${skillFC.card.name} [Skill]: ฝ่ายตรงข้าม Mp -${amt}!`,'good');
@@ -620,6 +634,7 @@ function executeSelfSkill(skillFC,skillIdx){
       document.getElementById('fa-modal').classList.add('show');
     }
     showActionQueue(`${skillFC.card.name} [Skill] → Dragon Strike ×2 (At=8)`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       zadinDoHit(1,()=>{
         zadinDoHit(2,()=>{
@@ -653,6 +668,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
 
   if(skill.effect==='healCurse'){
     showActionQueue(`${skillFC.card.name} [Skill] → รักษา Curse <b>${targetFC.card.name}</b>`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
       targetFC.curses=[];
@@ -664,6 +680,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
 
   if(skill.effect==='destroyTarget'){
     showActionQueue(`${skillFC.card.name} [Skill] → ทำลาย <b>${targetFC.card.name}</b>`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
       destroyByEffect(targetFC,targetPi);
@@ -675,6 +692,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
 
   if(skill.effect==='deathCurse'){
     showActionQueue(`${skillFC.card.name} [Skill] → ☠ Death Curse <b>${targetFC.card.name}</b>`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
       destroyByEffect(targetFC,targetPi);
@@ -687,6 +705,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
   if(skill.effect==='poisonCurse'){
     const turns=skill.turns||3;
     showActionQueue(`${skillFC.card.name} [Skill] → <b>${targetFC.card.name}</b> ติด ☠Poison Curse ${turns} Turn`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);
@@ -702,6 +721,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     const turns=skill.turns||1;
     const turnsLabel=turns===Infinity?'∞':`${turns}`;
     showActionQueue(`${skillFC.card.name} [Skill] → <b>${targetFC.card.name}</b> ติด 🪨Stone Curse ${turnsLabel} Turn`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);
@@ -716,6 +736,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
   if(skill.effect==='freezeCurse'){
     const turns=skill.turns||1;
     showActionQueue(`${skillFC.card.name} [Skill] → <b>${targetFC.card.name}</b> ติด ❄Freeze Curse ${turns} Turn`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);
@@ -737,6 +758,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     const turns=skill.turns||2;
     const atBonus=skill.atBonus||0;
     showActionQueue(`${skillFC.card.name} [Skill] → <b>${targetFC.card.name}</b> Last Dance Curse At+${atBonus} / ${turns} Turn`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
       targetFC.curses=(targetFC.curses||[]);
@@ -751,6 +773,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
   if(skill.effect==='charmCurse'){
     const turns=skill.turns||3;
     showActionQueue(`${skillFC.card.name} [Skill] → <b>${targetFC.card.name}</b> ติด 💗Charm Curse ${turns} Turn`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
       targetFC.charmed={originalPi:targetPi,originalLine:targetLine+'Line'};
@@ -766,6 +789,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
 
   if(skill.effect==='atBoost1SubTurn'){
     showActionQueue(`${skillFC.card.name} [Skill] → <b>${targetFC.card.name}</b> +At 1 จนจบ Subturn`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       targetFC.atBoosts=(targetFC.atBoosts||[]);
       targetFC.atBoosts.push({amount:1,expiresBeforeSubTurn:subTurnNum+1});
@@ -777,6 +801,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
 
   if(skill.effect==='spBoost1SubTurn'){
     showActionQueue(`${skillFC.card.name} [Skill] → <b>${targetFC.card.name}</b> +Sp 1 จนจบ Subturn`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       targetFC.spBoosts=(targetFC.spBoosts||[]);
       targetFC.spBoosts.push({amount:1,expiresBeforeSubTurn:subTurnNum+1});
@@ -789,6 +814,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
   if(skill.effect==='dfBoostMc'){
     const boostAmt=targetFC.card.mc;
     showActionQueue(`${skillFC.card.name} [Skill] → <b>${targetFC.card.name}</b> +Df${boostAmt} จนจบ Subturn`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       targetFC.dfBoosts=(targetFC.dfBoosts||[]);
       targetFC.dfBoosts.push({amount:boostAmt,expiresBeforeSubTurn:subTurnNum+1});
@@ -800,6 +826,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
 
   if(skill.effect==='frozenToHand'){
     showActionQueue(`${skillFC.card.name} [Skill] → <b>${targetFC.card.name}</b> (Freeze) ขึ้นมือ`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       const owner=G.players[targetPi];
       const fromArr=targetLine==='at'?owner.atLine:owner.dfLine;
@@ -818,6 +845,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     const actMys=getActiveMystics(targetFC);
     const doDestroy=mEntry=>{
       showActionQueue(`${skillFC.card.name} [Skill] → ทำลาย Mystic <b>${mEntry.mystic.name}</b> บน ${targetFC.card.name}`,()=>{
+        if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
         p.mp-=skill.mp;skillFC.hasUsedSkill=true;
         const mIdx=(targetFC.mystics||[]).indexOf(mEntry);
         if(mIdx>=0){targetFC.mystics.splice(mIdx,1);clearPSCurseFromEntry(targetFC,mEntry);}
@@ -836,6 +864,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
   if(skill.effect==='sacrificeStep1'){
     const mc=targetFC.card.mc;
     showActionQueue(`${skillFC.card.name} [Skill] → Sacrifice <b>${targetFC.card.name}</b> (Mc=${mc})`,()=>{
+      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       destroyByEffect(targetFC,0);
       pendingSacrifice={skillFC,mc};
@@ -848,6 +877,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
 
   // Default: return to deck (Fairy Music Box id=3)
   showActionQueue(`${skillFC.card.name} [Skill] → <b>${targetFC.card.name}</b> คืนกอง`,()=>{
+    if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
     p.mp-=skill.mp;
     skillFC.hasUsedSkill=true;
     const owner=G.players[targetPi];

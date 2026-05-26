@@ -157,10 +157,7 @@ body{
   <div class="ais-box">
     <button class="ais-close" onclick="closeAiSelect()">✕</button>
     <h3>🤖 เลือก AI Deck</h3>
-    <button class="ais-opt" onclick="startVsAI('random')">
-      <span class="ais-el">🎲</span>
-      <span class="ais-info">Random Deck<span class="ais-sub">AI สุ่ม Seal 30 + Mystic 20</span></span>
-    </button>
+  
     <button class="ais-opt" onclick="startVsAI('zadin')">
       <span class="ais-el"><img src="OGcarddbseal/card_91.jpg" alt="Zadin"></span>
       <span class="ais-info">vs Zadin<span class="ais-sub">Fire Deck — Zadin, Knight of Wands</span></span>
@@ -176,6 +173,10 @@ body{
     <button class="ais-opt" onclick="startVsAI('harison')">
       <span class="ais-el"><img src="OGcarddbseal/card_88.jpg" alt="Harison"></span>
       <span class="ais-info">vs Harison<span class="ais-sub">Earth Deck — Harison, Knight of Pentacles</span></span>
+    </button>
+      <button class="ais-opt" onclick="startVsAI('random')">
+      <span class="ais-el">🎲</span>
+      <span class="ais-info">AI Random Deck<span class="ais-sub">AI สุ่ม Seal 30 + Mystic 20</span></span>
     </button>
   </div>
 </div>
@@ -223,7 +224,8 @@ function checkDeck(){
     const sc=(d.seals||[]).reduce((a,x)=>a+(x.count||0),0);
     const mc=(d.mystics||[]).reduce((a,x)=>a+(x.count||0),0);
     const ok=sc>=25&&mc>=20;
-    el.innerHTML=`Seal ${sc} · Mystic ${mc} <span class="badge ${ok?'badge-ok':'badge-bad'}">${ok?'พร้อมเล่น':'ไม่ครบ'}</span>`;
+    const nameHtml=d.deckName?`<span style="color:#93c5fd;font-size:11px;display:block;margin-bottom:2px">▷ ${d.deckName}</span>`:'';
+    el.innerHTML=`${nameHtml}Seal ${sc} · Mystic ${mc} <span class="badge ${ok?'badge-ok':'badge-bad'}">${ok?'พร้อมเล่น':'ไม่ครบ'}</span>`;
   }catch(e){el.innerHTML='<span class="badge badge-bad">Deck ผิดรูปแบบ</span>';}
 }
 function goVsAI(){

@@ -13,6 +13,10 @@ var Online = (() => {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        { urls: 'stun:stun.cloudflare.com:3478' },
         {
           urls: 'turn:openrelay.metered.ca:80',
           username: 'openrelayproject',
@@ -119,7 +123,7 @@ var Online = (() => {
               E._setStatus('error', 'หมดเวลา — NAT/Firewall ขัดขวาง ให้เพื่อนลองสร้างห้องแทน แล้วลองใหม่');
               if (conn) { try { conn.close(); } catch(e){} conn = null; }
             }
-          }, 15000);
+          }, 30000);
 
           conn.on('open', () => {
             if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }

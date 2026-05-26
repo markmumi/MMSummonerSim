@@ -1067,7 +1067,8 @@ function guestDoFusion(mainFC,materialFC){
 function guestDoUnfuse(fc){
   showActionQueue(`${fc.card.name} แยกรวมร่าง`,()=>{
     const p=G.players[1];
-    fc.fusionStack.forEach(mfc=>{p.atLine.push(mfc);});
+    const mainLine=p.atLine.some(x=>x.uid===fc.uid)?'atLine':'dfLine';
+    fc.fusionStack.forEach(mfc=>{p[mainLine].push(mfc);});
     fc.fusionStack=[];fc.fusionAtks=[];fc.fused=false;fc.fusedSinceTurn=null;fc.wasMainFusedTurn=turnNum;
     guestFusionMainFC=null;
     log(`${fc.card.name} unfused`,'');
@@ -2236,7 +2237,8 @@ function doFuse(mainFC,materialFC){
 function doUnfuse(fc){
   showActionQueue(`${fc.card.name} แยกรวมร่าง`,()=>{
     const p=G.players[0];
-    fc.fusionStack.forEach(mfc=>{p.atLine.push(mfc);});
+    const mainLine=p.atLine.some(x=>x.uid===fc.uid)?'atLine':'dfLine';
+    fc.fusionStack.forEach(mfc=>{p[mainLine].push(mfc);});
     fc.fusionStack=[];fc.fusionAtks=[];fc.fused=false;fc.fusedSinceTurn=null;fc.wasMainFusedTurn=turnNum;
     log(`${fc.card.name} unfused`,'');
     render();
@@ -2818,6 +2820,8 @@ function animateAllTargets(attFC,targets,attAt,atkName,attPi,defPi,onDone){
 function getEffectiveEl(fc){return fc.magicalEl||fc.card.el;}
 
 function _fusionAtkAt(atkAt,fc){
+  // If seal was unfused during AQ (Thunder Bolt interfere), ignore the pre-captured fusion AT
+  if(atkAt!=null&&!fc.fused&&!fc.willMind&&!_isThunderiaFused(fc))return getEffectiveAt(fc);
   if(atkAt==null)return getEffectiveAt(fc);
   const boost=(fc.atBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn).reduce((s,b)=>s+b.amount,0);
   const ld=(fc.curses||[]).filter(c=>c.type==='lastDance').reduce((s,c)=>s+(c.atBonus||0),0);
@@ -3991,7 +3995,8 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
     spend();showActionQueue(`${mysticCard.name} → แยกการรวมร่าง ${fc.card.name}`,()=>{
       const owner=findFCOwner(fc);
       if(owner){
-        fc.fusionStack.forEach(m=>{owner.p.atLine.push(m);});
+        const mainLine=owner.p.atLine.some(x=>x.uid===fc.uid)?'atLine':'dfLine';
+        fc.fusionStack.forEach(m=>{owner.p[mainLine].push(m);});
       }
       fc.fusionStack=[];fc.fusionAtks=[];fc.fused=false;fc.fusedSinceTurn=null;fc.wasMainFusedTurn=turnNum;
       log(`${mysticCard.name}: ${fc.card.name} แยกการรวมร่าง!`,'good');

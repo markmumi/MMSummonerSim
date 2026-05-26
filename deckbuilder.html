@@ -200,6 +200,7 @@ body{background:#0f172a;color:#f1f5f9;font-family:'Segoe UI',Tahoma,sans-serif;f
     <span class="ctr bad" id="ctr-seal">Seal 0</span>
     <span class="ctr bad" id="ctr-mystic">Mystic 0</span>
   </div>
+  <span id="active-preset-label" style="color:#93c5fd;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;display:none"></span>
   <button id="btn-save" onclick="saveDeck()" disabled>💾 บันทึกเป็น Play Deck</button>
   <button id="btn-random" onclick="randomDeck()" style="background:#064e3b;color:#6ee7b7;border:1px solid #059669;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer" title="สุ่ม Deck แบบสมบูรณ์">🎲 สุ่ม</button>
   <button id="btn-preset" onclick="openPresetPanel()" style="background:#1e3a5f;color:#93c5fd;border:1px solid #2563eb;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer">📋 Presets</button>
@@ -291,6 +292,7 @@ body{background:#0f172a;color:#f1f5f9;font-family:'Segoe UI',Tahoma,sans-serif;f
       <div class="deck-hdr">
         🃏 Seal Deck <small style="font-weight:400;color:#64748b;font-size:10px">(ขั้นต่ำ 25)</small>
         <span class="count bad" id="seal-count">0</span>
+        <button onclick="clearSealDeck()" title="ล้าง Seal Deck ทั้งหมด" style="background:#450a0a;border:1px solid #7f1d1d;border-radius:4px;color:#f87171;font-size:9px;padding:1px 5px;cursor:pointer;flex-shrink:0;line-height:1.4">✕</button>
       </div>
       <div id="deck-seals"><div class="deck-empty">ยังไม่มีการ์ด</div></div>
     </div>
@@ -298,6 +300,7 @@ body{background:#0f172a;color:#f1f5f9;font-family:'Segoe UI',Tahoma,sans-serif;f
       <div class="deck-hdr">
         ✦ Mystic Deck <small style="font-weight:400;color:#64748b;font-size:10px">(ขั้นต่ำ 20)</small>
         <span class="count bad" id="mystic-count">0</span>
+        <button onclick="clearMysticDeck()" title="ล้าง Mystic Deck ทั้งหมด" style="background:#450a0a;border:1px solid #7f1d1d;border-radius:4px;color:#f87171;font-size:9px;padding:1px 5px;cursor:pointer;flex-shrink:0;line-height:1.4">✕</button>
       </div>
       <div id="deck-mystics"><div class="deck-empty">ยังไม่มีการ์ด</div></div>
     </div>
@@ -327,6 +330,22 @@ function sealCopyMax(lv){return lv>=5?2:lv>=3?3:4;}
 let SEAL_DB=[], MYSTIC_DB_LOCAL=[];
 let sealCounts={}, mysticCounts={};
 let currentTab='seal';
+let activePresetName=null; // currently selected/editing preset name
+
+function setActivePreset(name){
+  activePresetName=name||null;
+  if(activePresetName) localStorage.setItem('mm_activePreset',activePresetName);
+  else localStorage.removeItem('mm_activePreset');
+  const lbl=document.getElementById('active-preset-label');
+  if(!lbl)return;
+  if(activePresetName){
+    lbl.textContent=`▷ ${activePresetName}`;
+    lbl.style.display='';
+  } else {
+    lbl.textContent='';
+    lbl.style.display='none';
+  }
+}
 
 /* ── Load DBs ── */
 function loadScript(src){
@@ -547,6 +566,18 @@ function modCount(type,id,delta){
   renderPool();
 }
 
+/* ── Clear Deck ── */
+function clearSealDeck(){
+  if(!confirm('ล้าง Seal Deck ทั้งหมด?'))return;
+  sealCounts={};
+  renderDeck();renderPool();
+}
+function clearMysticDeck(){
+  if(!confirm('ล้าง Mystic Deck ทั้งหมด?'))return;
+  mysticCounts={};
+  renderDeck();renderPool();
+}
+
 /* ── Random Deck ── */
 function randomDeck(){
   sealCounts={};
@@ -577,18 +608,26 @@ function saveDeck(){
     alert(`Deck ยังไม่ครบ!\nSeal: ${sealTotal()}/${SEAL_MIN}, Mystic: ${mysticTotal()}/${MYSTIC_MIN}`);
     return;
   }
-  const data={
-    seals:Object.entries(sealCounts).map(([id,count])=>({id:parseInt(id),count})),
-    mystics:Object.entries(mysticCounts).map(([id,count])=>({id:parseInt(id),count}))
-  };
+  const seals=Object.entries(sealCounts).map(([id,count])=>({id:parseInt(id),count}));
+  const mystics=Object.entries(mysticCounts).map(([id,count])=>({id:parseInt(id),count}));
+  const data={seals,mystics,deckName:activePresetName||null};
   localStorage.setItem('mm_playerDeck',JSON.stringify(data));
+  // Also sync the active preset content so it stays up-to-date
+  if(activePresetName){
+    const presets=getPresets();
+    const idx=presets.findIndex(p=>p.name===activePresetName);
+    if(idx>=0){presets[idx].seals=seals;presets[idx].mystics=mystics;presets[idx].savedAt=Date.now();setPresets(presets);}
+  }
   playSound('Confirm');
   const btn=document.getElementById('btn-save');
+  const origTxt=btn.textContent;
   btn.textContent='✓ Saved!';btn.style.background='#16a34a';
-  setTimeout(()=>{btn.textContent='💾 บันทึกเป็น Play Deck';btn.style.background='';},2000);
+  setTimeout(()=>{btn.textContent=origTxt;btn.style.background='';},2000);
 }
 
 function loadSaved(){
+  const saved=localStorage.getItem('mm_activePreset');
+  if(saved) setActivePreset(saved);
   const s=localStorage.getItem('mm_playerDeck');
   if(!s)return;
   try{
@@ -606,6 +645,7 @@ function getPresets(){try{return JSON.parse(localStorage.getItem(PRESET_KEY)||'[
 function setPresets(arr){localStorage.setItem(PRESET_KEY,JSON.stringify(arr));}
 
 function openPresetPanel(){
+  document.getElementById('preset-name-input').value=activePresetName||'';
   renderPresetList();
   document.getElementById('preset-overlay').style.display='flex';
 }
@@ -615,16 +655,21 @@ function savePreset(){
   const name=document.getElementById('preset-name-input').value.trim();
   if(!name){alert('กรุณาตั้งชื่อ preset');return;}
   const presets=getPresets();
-  if(presets.length>=PRESET_MAX){alert(`บันทึกได้สูงสุด ${PRESET_MAX} preset`);return;}
   const data={
     name,
     savedAt:Date.now(),
     seals:Object.entries(sealCounts).map(([id,count])=>({id:parseInt(id),count})),
     mystics:Object.entries(mysticCounts).map(([id,count])=>({id:parseInt(id),count}))
   };
-  presets.unshift(data);
+  const existingIdx=presets.findIndex(p=>p.name===name);
+  if(existingIdx>=0){
+    presets[existingIdx]=data; // update in-place
+  } else {
+    if(presets.length>=PRESET_MAX){alert(`บันทึกได้สูงสุด ${PRESET_MAX} preset`);return;}
+    presets.unshift(data);
+  }
   setPresets(presets);
-  document.getElementById('preset-name-input').value='';
+  setActivePreset(name);
   playSound('Confirm');
   renderPresetList();
 }
@@ -635,6 +680,7 @@ function usePreset(idx){
   if(!p)return;
   sealCounts={};(p.seals||[]).forEach(e=>{if(e.count>0)sealCounts[e.id]=e.count;});
   mysticCounts={};(p.mystics||[]).forEach(e=>{if(e.count>0)mysticCounts[e.id]=e.count;});
+  setActivePreset(p.name);
   playSound('Confirm');
   renderDeck();renderPool();
   closePresetPanel();
@@ -660,12 +706,13 @@ function renderPresetList(){
     const sc=(p.seals||[]).reduce((s,e)=>s+e.count,0);
     const mc=(p.mystics||[]).reduce((s,e)=>s+e.count,0);
     const date=new Date(p.savedAt).toLocaleDateString('th-TH',{day:'2-digit',month:'short'});
-    return `<div style="display:flex;align-items:center;gap:8px;background:#1e293b;border-radius:8px;padding:8px 10px">
+    const isActive=activePresetName&&p.name===activePresetName;
+    return `<div style="display:flex;align-items:center;gap:8px;background:#1e293b;border-radius:8px;padding:8px 10px;${isActive?'border:1px solid #2563eb;':'border:1px solid transparent;'}">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:600;color:#f1f5f9;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+        <div style="font-weight:600;color:${isActive?'#93c5fd':'#f1f5f9'};font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${isActive?'▷ ':'' }${p.name}</div>
         <div style="color:#64748b;font-size:10px">Seal ${sc} · Mystic ${mc} · ${date}</div>
       </div>
-      <button onclick="usePreset(${i})" style="background:#1d4ed8;color:#bfdbfe;border:none;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer">▶ Use</button>
+      <button onclick="usePreset(${i})" style="background:${isActive?'#1e3a5f':'#1d4ed8'};color:#bfdbfe;border:${isActive?'1px solid #2563eb':'none'};border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer">${isActive?'✓ ใช้งาน':'▶ Use'}</button>
       <button onclick="deletePreset(${i})" style="background:#7f1d1d;color:#fca5a5;border:none;border-radius:5px;padding:4px 8px;font-size:11px;cursor:pointer">✕</button>
     </div>`;
   }).join('');
