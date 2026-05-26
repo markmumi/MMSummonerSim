@@ -32,6 +32,7 @@
 
   <!-- ── BOARD ── -->
   <div id="board">
+    <div id="chain-stack-display"></div>
     <div class="zone">
       <div id="ai-info-bar" style="display:flex;flex-direction:row;align-items:center;background:#1f293799;border-radius:6px;padding:5px 10px;margin-bottom:4px;gap:8px;font-size:11px">
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
@@ -181,6 +182,7 @@
     <div id="ca-def-panel" class="ca-panel">
       <img id="ca-def-img" style="width:120px;border-radius:10px;display:block;border:2px solid #3b82f688">
       <div class="ca-slash"></div>
+      <div class="ca-shield-icon">🛡</div>
       <div id="ca-def-name" style="color:#f9fafb;font-size:12px;margin-top:7px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
     </div>
   </div>
@@ -237,6 +239,11 @@
 <div id="battle-anim-overlay">
   <div id="battle-flash"></div>
   <div id="battle-phase-text">⚔ BATTLE PHASE ⚔</div>
+</div>
+
+<div id="turn-anim-overlay">
+  <div id="turn-anim-flash"></div>
+  <div id="turn-anim-text"></div>
 </div>
 
 <div id="win-screen">

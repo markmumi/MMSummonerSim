@@ -23,7 +23,7 @@ body{background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;height:100vh;
 .prev-ph{color:#374151;font-size:10px;text-align:center;padding-top:16px}
 
 /* ── BOARD ── */
-#board{flex:1;display:grid;grid-template-rows:1.35fr auto 1fr 4px auto;padding:6px;gap:0;overflow:hidden;min-width:0}
+#board{flex:1;display:grid;grid-template-rows:1.35fr auto 1fr 4px auto;padding:6px;gap:0;overflow:hidden;min-width:0;position:relative}
 
 /* Zones */
 .zone{padding:2px 0;min-height:0;display:flex;flex-direction:column;gap:5px;overflow:hidden}
@@ -71,6 +71,17 @@ body{background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;height:100vh;
 #aq-timer-bar{height:100%;width:100%;background:#22c55e;border-radius:2px}
 @keyframes aq-tc{0%{background:#22c55e}60%{background:#eab308}85%{background:#f97316}100%{background:#ef4444}}
 #aq-desc{color:#fde68a;font-size:11px;font-weight:bold;line-height:1.4;max-width:320px}
+#chain-stack-display{position:absolute;left:8px;top:50%;transform:translateY(-50%);z-index:210;display:none;flex-direction:column;align-items:center;gap:5px;padding:8px 14px 10px;background:rgba(8,12,26,0.93);border:1px solid #4b5563;border-radius:10px;box-shadow:0 4px 24px #000a;pointer-events:none;min-width:80px}
+.chain-header{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%}
+.chain-title{font-size:9px;color:#94a3b8;letter-spacing:1px;text-transform:uppercase;font-weight:bold}
+.chain-toggle{pointer-events:auto;background:none;border:1px solid #4b5563;border-radius:3px;color:#94a3b8;font-size:9px;cursor:pointer;padding:1px 5px;line-height:1.4;flex-shrink:0}
+.chain-toggle:hover{color:#e2e8f0;border-color:#6b7280;background:#1e293b}
+.chain-cards-row{display:flex;flex-direction:row;align-items:flex-end;gap:4px}
+.chain-card-thumb{display:flex;flex-direction:column;align-items:center;gap:2px}
+.chain-card-thumb img{width:44px;height:61px;border-radius:4px;border:2px solid #6b7280;object-fit:cover;box-shadow:0 2px 8px #000a}
+.chain-card-noimg{width:44px;height:61px;background:#1e293b;border-radius:4px;border:2px solid #6b7280;display:flex;align-items:center;justify-content:center;font-size:7px;color:#94a3b8;text-align:center;padding:3px}
+.chain-card-thumb .chain-lbl{font-size:8px;color:#cbd5e1;max-width:46px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.chain-arrow{color:#f59e0b;font-size:16px;align-self:center;line-height:61px;padding:0 2px}
 .btn{padding:5px 12px;border-radius:6px;border:none;cursor:pointer;font-size:11px;font-weight:bold;transition:opacity .2s}
 .btn:disabled{opacity:.35;cursor:not-allowed}
 .btn-red{background:#dc2626;color:#fff}
@@ -158,6 +169,9 @@ body{background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;height:100vh;
 .ca-dead img{filter:brightness(.28) saturate(.15);transition:filter .22s}
 @keyframes ca-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px) rotate(-3deg)}60%{transform:translateX(6px) rotate(2deg)}}
 .ca-dead{animation:ca-shake .28s ease}
+.ca-shield-icon{position:absolute;top:50%;left:50%;transform:translate(-50%,-55%) scale(0);font-size:54px;opacity:0;pointer-events:none;z-index:10;filter:drop-shadow(0 0 10px #60a5fa) drop-shadow(0 0 28px #3b82f6cc)}
+.ca-blocked .ca-shield-icon{animation:shieldPop .35s ease-out both}
+@keyframes shieldPop{0%{transform:translate(-50%,-55%) scale(.25);opacity:0}55%{transform:translate(-50%,-55%) scale(1.22);opacity:1}80%{transform:translate(-50%,-55%) scale(.92);opacity:1}100%{transform:translate(-50%,-55%) scale(1);opacity:1}}
 
 /* ── TOOLTIP ── */
 #tip{position:fixed;pointer-events:none;background:#1f2937;border:1px solid #374151;border-radius:6px;padding:6px 8px;font-size:10px;z-index:300;max-width:160px;line-height:1.5;display:none}
@@ -289,3 +303,15 @@ body{background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;height:100vh;
 @keyframes bSwordR{0%{transform:translate(110vw,80px) rotate(-40deg);opacity:1}40%{transform:translate(55px,30px) rotate(-40deg);opacity:1}72%{transform:translate(55px,30px) rotate(-40deg);opacity:1}100%{transform:translate(55px,30px) rotate(-40deg);opacity:0}}
 #battle-phase-text{position:absolute;font-size:2.6rem;font-weight:900;letter-spacing:7px;color:#e0f2fe;text-shadow:0 0 20px #60a5fa,0 0 48px rgba(96,165,250,.6),0 0 80px rgba(148,163,184,.35);white-space:nowrap;animation:bText 1.15s ease-out both}
 @keyframes bText{0%{opacity:0;transform:scale(.55)}38%{opacity:0;transform:scale(.55)}52%{opacity:1;transform:scale(1.1)}70%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1)}}
+
+/* ── TURN ANNOUNCEMENT ANIMATION ── */
+#turn-anim-overlay{display:none;position:fixed;inset:0;z-index:9991;pointer-events:none;overflow:hidden;align-items:center;justify-content:center}
+#turn-anim-overlay.active{display:flex}
+#turn-anim-flash{position:absolute;inset:0;opacity:0}
+#turn-anim-overlay.active.yours #turn-anim-flash{background:rgba(34,197,94,0.22);animation:tFlash .28s ease-out .35s both}
+#turn-anim-overlay.active.end #turn-anim-flash{background:rgba(239,68,68,0.22);animation:tFlash .28s ease-out .35s both}
+@keyframes tFlash{0%{opacity:1}100%{opacity:0}}
+#turn-anim-text{position:absolute;font-size:2.8rem;font-weight:900;letter-spacing:6px;white-space:nowrap;animation:tText 1.0s ease-out both}
+#turn-anim-overlay.active.yours #turn-anim-text{color:#86efac;text-shadow:0 0 20px #22c55e,0 0 48px rgba(34,197,94,.65),0 0 80px rgba(134,239,172,.4)}
+#turn-anim-overlay.active.end #turn-anim-text{color:#fca5a5;text-shadow:0 0 20px #ef4444,0 0 48px rgba(239,68,68,.65),0 0 80px rgba(252,165,165,.4)}
+@keyframes tText{0%{opacity:0;transform:scale(.55)}33%{opacity:0;transform:scale(.55)}50%{opacity:1;transform:scale(1.12)}68%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1)}}

@@ -31,6 +31,7 @@ function cancelAction(){
     guestFusionMainFC=null;guestSkillMode=null;guestMysticPlayMode=null;guestHandDiscardMode=null;
   }
   closeAtkPanel();closeDeployModal();closeFAModal();
+  if(typeof _chainDisplay!=='undefined'){_chainDisplay=[];_chainCollapsed=true;_nextChainCard=null;if(typeof _updateChainDisplay==='function')_updateChainDisplay();}
   render();
 }
 

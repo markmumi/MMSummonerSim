@@ -149,6 +149,9 @@ var Online = (() => {
           aqChainMode: (typeof _aqChainMode !== 'undefined') ? _aqChainMode : false,
           aqPassBits: (typeof _aqPassBits !== 'undefined') ? _aqPassBits : 0,
           interfereStack: (typeof _interfereStack !== 'undefined') ? _interfereStack.map(i=>i.desc) : [],
+          chainDisplay: (typeof _chainDisplay !== 'undefined') ? _chainDisplay : [],
+          chainCollapsed: (typeof _chainCollapsed !== 'undefined') ? _chainCollapsed : false,
+          turnAnimToGuest: (typeof _turnAnimToGuest !== 'undefined') ? _turnAnimToGuest : false,
           lighthouseReveal: E._pendingLighthouseReveal || null,
           pendingSounds: (typeof _pendingSoundBuffer !== 'undefined') ? _pendingSoundBuffer.splice(0) : [],
         };
@@ -176,7 +179,7 @@ var Online = (() => {
       const attPan = document.getElementById('ca-att-panel');
       const defPan = document.getElementById('ca-def-panel');
       if (!attPan || !defPan) return;
-      attPan.classList.remove('ca-dead'); defPan.classList.remove('ca-dead');
+      attPan.classList.remove('ca-dead'); defPan.classList.remove('ca-dead'); defPan.classList.remove('ca-blocked');
       document.getElementById('ca-att-img').src = data.attImg;
       document.getElementById('ca-att-name').textContent = data.attName;
       document.getElementById('ca-def-img').src = data.defImg;
@@ -185,18 +188,23 @@ var Online = (() => {
       const modal = document.getElementById('combat-anim');
       if (modal) modal.style.display = 'flex';
       setTimeout(() => {
-        if (typeof playSound === 'function') playSound('Damage');
-        if (data.isHandReveal) {
+        if (data.isBlocked) {
+          if (typeof playSound === 'function') playSound('blocked');
+          defPan.classList.add('ca-blocked');
+          document.getElementById('ca-result').textContent = data.result;
+        } else if (data.isHandReveal) {
+          if (typeof playSound === 'function') playSound('Damage');
           document.getElementById('ca-def-img').src = data.revealImg;
           document.getElementById('ca-def-name').textContent = data.revealName;
           defPan.classList.add('ca-dead');
           document.getElementById('ca-result').textContent = `${data.revealName} sent to Shrine!`;
         } else {
+          if (typeof playSound === 'function') playSound('Damage');
           if (data.defDies) defPan.classList.add('ca-dead');
           if (data.attDies) attPan.classList.add('ca-dead');
           document.getElementById('ca-result').textContent = data.result;
         }
-        setTimeout(() => { if (modal) modal.style.display = 'none'; }, 600);
+        setTimeout(() => { if (modal) modal.style.display = 'none'; defPan.classList.remove('ca-blocked'); }, 600);
       }, 500);
     },
 
@@ -266,9 +274,18 @@ var Online = (() => {
       // Guest draw modal: show when it's guest's draw phase with draws remaining
       const drawModal = document.getElementById('draw-modal');
       if (G.currentPlayer === 1 && phase === 'draw' && drawsRemaining > 0) {
-        if (drawModal) _showGuestDrawModal();
+        if (drawModal) {
+          if (data.turnAnimToGuest && typeof showTurnAnim === 'function') {
+            showTurnAnim('yours', () => { if (typeof _showGuestDrawModal === 'function') _showGuestDrawModal(); });
+          } else {
+            _showGuestDrawModal();
+          }
+        }
       } else {
         if (drawModal) drawModal.style.display = 'none';
+        if (data.turnAnimToGuest && typeof showTurnAnim === 'function') {
+          showTurnAnim('yours', () => {});
+        }
       }
 
       // Sync chain state from host
@@ -276,6 +293,12 @@ var Online = (() => {
       if(typeof _aqPassBits !== 'undefined') _aqPassBits = data.aqPassBits || 0;
       // Sync interfere stack (display-only on guest — cb is null; HOST holds actual callbacks)
       if(typeof _interfereStack !== 'undefined') _interfereStack = (data.interfereStack||[]).map(desc=>({desc,cb:null}));
+      // Sync chain display
+      if(typeof _chainDisplay !== 'undefined'){
+        _chainDisplay=data.chainDisplay||[];
+        if(typeof _chainCollapsed !== 'undefined')_chainCollapsed=data.chainCollapsed??false;
+        if(typeof _updateChainDisplay==='function')_updateChainDisplay();
+      }
 
       // Action queue — show/hide based on host state
       const aqEl = document.getElementById('action-queue');
@@ -332,6 +355,8 @@ var Online = (() => {
         // Reset for next open
         const btnP2=document.getElementById('btn-proceed');if(btnP2)btnP2.style.display='inline-block';
         const aqW2=document.getElementById('aq-waiting');if(aqW2)aqW2.style.display='none';
+        // Clear stale chain text so it doesn't bleed through if AQ reopens
+        const descEl2=document.getElementById('aq-desc');if(descEl2)descEl2.innerHTML='';
       }
 
       render();
@@ -341,6 +366,7 @@ var Online = (() => {
         if (!_guestBattleAnimFired) showBattlePhaseAnim();
         _guestBattleAnimFired = false;
       }
+
 
       // Dark Destiny GUEST shrine discard — Dark Destiny died, must discard 1 mystic immediately
       if (!E.isHost && G._pendingGuestDDShrine && (G.players[1].mysticHand||[]).length > 0) {
@@ -373,8 +399,11 @@ var Online = (() => {
         const faTitle = document.getElementById('fa-title');
         const faOpts = document.getElementById('fa-opts');
         const faModal = document.getElementById('fa-modal');
+        const faCancelBtn = document.getElementById('fa-cancel-btn');
         if (faModal && !faModal.classList.contains('show')) {
           if (faTitle) faTitle.textContent = 'Dark Destiny [Ability]: นำ Mystic จาก Shrine ขึ้นมือ?';
+          if (faCancelBtn) faCancelBtn.style.display = 'none';
+          const _ddDone = () => { if (faCancelBtn) faCancelBtn.style.display = ''; };
           if (faOpts) {
             faOpts.innerHTML = '';
             grave.forEach((mc, i) => {
@@ -382,7 +411,7 @@ var Online = (() => {
               btn.className = 'btn btn-green';
               btn.textContent = `✅ ${mc.name}`;
               btn.onclick = () => {
-                faModal.classList.remove('show');
+                _ddDone(); faModal.classList.remove('show');
                 Online.sendGuestAction({ action: 'guestDarkDestinyPick', graveIdx: i });
               };
               faOpts.appendChild(btn);
@@ -390,7 +419,7 @@ var Online = (() => {
             const skipBtn = document.createElement('button');
             skipBtn.className = 'btn btn-gray';
             skipBtn.textContent = '✗ ไม่ต้องการ';
-            skipBtn.onclick = () => { faModal.classList.remove('show'); Online.sendGuestAction({ action: 'guestDarkDestinySkip' }); };
+            skipBtn.onclick = () => { _ddDone(); faModal.classList.remove('show'); Online.sendGuestAction({ action: 'guestDarkDestinySkip' }); };
             faOpts.appendChild(skipBtn);
           }
           faModal.classList.add('show');
@@ -449,6 +478,10 @@ var Online = (() => {
             } else {
               proceedAction(); // normal resolve
             }
+          } else {
+            // Chain already resolved on HOST — GUEST sent a stale proceed (timer/race).
+            // Sync GUEST so it closes the AQ.
+            E.broadcastState();
           }
           break;
         case 'deploy': {
