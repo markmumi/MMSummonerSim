@@ -7,6 +7,31 @@ var Online = (() => {
   const PEER_PREFIX = 'MMSM2025-';
   let peer = null, conn = null;
 
+  const PEER_CONFIG = {
+    debug: 0,
+    config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        {
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        }
+      ]
+    }
+  };
+
   const E = {
     isOnline: false,
     isHost: false,
@@ -40,7 +65,7 @@ var Online = (() => {
       E._loadPeerJS(() => {
         const code = Math.random().toString(36).slice(2, 8).toUpperCase();
         E.roomCode = code;
-        peer = new Peer(PEER_PREFIX + code, { debug: 0 });
+        peer = new Peer(PEER_PREFIX + code, PEER_CONFIG);
         peer.on('open', () => {
           E._setStatus('waiting', code);
           if (onWaiting) onWaiting(code);
@@ -83,11 +108,21 @@ var Online = (() => {
       E.localPlayerIdx = 1;
       E.roomCode = code;
       E._loadPeerJS(() => {
-        peer = new Peer(undefined, { debug: 0 });
+        peer = new Peer(undefined, PEER_CONFIG);
         peer.on('open', () => {
           E._setStatus('connecting', null);
           conn = peer.connect(PEER_PREFIX + code.toUpperCase().trim(), { reliable: true });
+
+          let connectTimer = setTimeout(() => {
+            connectTimer = null;
+            if (!E.isOnline) {
+              E._setStatus('error', 'หมดเวลา — NAT/Firewall ขัดขวาง ให้เพื่อนลองสร้างห้องแทน แล้วลองใหม่');
+              if (conn) { try { conn.close(); } catch(e){} conn = null; }
+            }
+          }, 15000);
+
           conn.on('open', () => {
+            if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
             E.isOnline = true;
             E._setStatus('connected', null);
             console.log('[Online] Connected to host! isOnline=true (Guest)');
@@ -102,9 +137,19 @@ var Online = (() => {
             else E._applyHostState(data);
           });
           conn.on('close', () => E._setStatus('disconnected', null));
-          conn.on('error', err => console.error('PeerJS conn error:', err));
+          conn.on('error', err => {
+            if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+            E._setStatus('error', 'เชื่อมต่อไม่ได้ — ตรวจสอบอินเทอร์เน็ตหรือลองใหม่');
+          });
         });
-        peer.on('error', err => E._setStatus('error', err.type || String(err)));
+        peer.on('error', err => {
+          const msg = err.type === 'peer-unavailable'
+            ? 'ไม่พบห้อง — Room Code ผิด หรือเพื่อนยังไม่ได้สร้างห้อง'
+            : err.type === 'network'
+            ? 'ปัญหาเครือข่าย — ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต'
+            : (err.type || String(err));
+          E._setStatus('error', msg);
+        });
       });
     },
 

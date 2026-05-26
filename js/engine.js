@@ -1550,6 +1550,28 @@ function guestPlayNonPMystic(mysticCard,mysticIdx){
     });
     return;
   }
+  if(id===66){ // Sacrifice — destroy target seal + discard 2 hand cards
+    if(p.hand.length<2){log('ต้องมี Seal ในมือ 2 ใบขึ้นไปจึงจะใช้ Sacrifice ได้','bad');return;}
+    const allF=[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
+    const validSeals=allF.filter(fc=>!(mysticCard.exception_tribes||[]).includes(fc.card.tribe));
+    if(!validSeals.length){log('ไม่มี Seal ที่สามารถทำลายได้','bad');return;}
+    spend();
+    showActionQueue(`Sacrifice [Guest]`,()=>{
+      showMysticPicker('Sacrifice — เลือก Seal เป้าหมาย',validSeals.map(fc=>({label:`${fc.card.name} (${fc.card.tribe} Lv${fc.card.lv})`,data:fc})),targetFC=>{
+        showMysticPicker('Sacrifice — เลือก Seal ทิ้ง (1/2)',p.hand.map(c=>({label:`${c.name} (${c.tribe} Lv${c.lv})`,data:c})),c1=>{
+          const rest=p.hand.filter(c=>c!==c1);
+          showMysticPicker('Sacrifice — เลือก Seal ทิ้ง (2/2)',rest.map(c=>({label:`${c.name} (${c.tribe} Lv${c.lv})`,data:c})),c2=>{
+            const owner=findFCOwner(targetFC);
+            if(owner){destroyByEffect(targetFC,owner.pi);}
+            [c1,c2].forEach(c=>{const i=p.hand.indexOf(c);if(i>=0){p.hand.splice(i,1);p.shrine.push(c);broadcastSound('Flip');}});
+            log(`Sacrifice: ทำลาย ${targetFC.card.name}! ทิ้ง ${c1.name}, ${c2.name}!`,'bad');
+            checkLose();render();Online.broadcastState();
+          });
+        });
+      });
+    });
+    return;
+  }
   spend();showActionQueue(`${mysticCard.name}`,()=>{log(`${mysticCard.name} ใช้แล้ว`,'');render();Online.broadcastState();});
 }
 
@@ -1579,28 +1601,6 @@ function guestPlayPAMystic(mysticCard,mysticIdx){
   }
   if(id===70){
     spend();showActionQueue(`Marie Antoinette → Mp+1, มือ-1`,()=>{addAreaMystic();log(`Marie Antoinette: Mp+1!`,'good');checkLose();render();Online.broadcastState();});return;
-  }
-  if(id===66){ // Sacrifice — destroy target seal + discard 2 hand cards
-    if(p.hand.length<2){log('ต้องมี Seal ในมือ 2 ใบขึ้นไปจึงจะใช้ Sacrifice ได้','bad');return;}
-    const allF=[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
-    const validSeals=allF.filter(fc=>!(mysticCard.exception_tribes||[]).includes(fc.card.tribe));
-    if(!validSeals.length){log('ไม่มี Seal ที่สามารถทำลายได้','bad');return;}
-    spend();
-    showActionQueue(`Sacrifice [Guest]`,()=>{
-      showMysticPicker('Sacrifice — เลือก Seal เป้าหมาย',validSeals.map(fc=>({label:`${fc.card.name} (${fc.card.tribe} Lv${fc.card.lv})`,data:fc})),targetFC=>{
-        showMysticPicker('Sacrifice — เลือก Seal ทิ้ง (1/2)',p.hand.map(c=>({label:`${c.name} (${c.tribe} Lv${c.lv})`,data:c})),c1=>{
-          const rest=p.hand.filter(c=>c!==c1);
-          showMysticPicker('Sacrifice — เลือก Seal ทิ้ง (2/2)',rest.map(c=>({label:`${c.name} (${c.tribe} Lv${c.lv})`,data:c})),c2=>{
-            const owner=findFCOwner(targetFC);
-            if(owner){destroyByEffect(targetFC,owner.pi);}
-            [c1,c2].forEach(c=>{const i=p.hand.indexOf(c);if(i>=0){p.hand.splice(i,1);p.shrine.push(c);broadcastSound('Flip');}});
-            log(`Sacrifice: ทำลาย ${targetFC.card.name}! ทิ้ง ${c1.name}, ${c2.name}!`,'bad');
-            checkLose();render();Online.broadcastState();
-          });
-        });
-      });
-    });
-    return;
   }
   spend();showActionQueue(`${mysticCard.name}`,()=>{addAreaMystic();log(`${mysticCard.name} ใช้แล้ว`,'');render();Online.broadcastState();});}
 
@@ -1700,7 +1700,10 @@ function guestShowMysticAction(mysticCard,mysticIdx){
       Online.sendGuestAction({action:'guestNonPResolved',mysticIdx,resolution:{id:40,shrineIdx:idx}});
     });
   } else {
-    Online.sendGuestAction({action:'guestMysticInstant',mysticIdx});
+    showMysticPicker(mysticCard.name,[{label:'▶ เล่น',data:'play'},{label:'👁 ดูการ์ด',data:'view'}],choice=>{
+      if(choice==='view'){openMysticViewer(mysticCard);return;}
+      Online.sendGuestAction({action:'guestMysticInstant',mysticIdx});
+    });
   }
 }
 
@@ -3926,7 +3929,10 @@ function showMysticAction(mysticCard,mysticIdx){
       playPAMystic(mysticCard,mysticIdx);
     });
   } else {
-    playNonPMystic(mysticCard,mysticIdx);
+    showMysticPicker(mysticCard.name,[{label:'▶ เล่น',data:'play'},{label:'👁 ดูการ์ด',data:'view'}],choice=>{
+      if(choice==='view'){openMysticViewer(mysticCard);return;}
+      playNonPMystic(mysticCard,mysticIdx);
+    });
   }
 }
 
