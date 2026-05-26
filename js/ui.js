@@ -406,6 +406,8 @@ function render(){
   sb.title='คลิกดูการ์ดใน Shrine';
   sb.onclick=()=>showShrineModal(lpi);
   document.getElementById('p1-shrine-label').textContent=`${sR}/${MAX_SHRINE}`;
+  {const el=document.getElementById('opp-name-label');if(el)el.textContent=`⚔ ${pR.name}`;}
+  {const el=document.getElementById('ai-action-label');if(el)el.textContent=`🤖 ${pR.name} Action`;}
   document.getElementById('p1-mp-label').textContent=pR.mp;
   {const ap=document.getElementById('p1-mp-pips');ap.innerHTML='';const mpMaxR=getEffectiveMpMax(rpi);for(let i=0;i<mpMaxR;i++){const d=document.createElement('div');d.className='pip'+(i<pR.mp?' on':'');ap.appendChild(d);}}
   document.getElementById('p1-deck-count').textContent=pR.deck.length;
@@ -420,7 +422,9 @@ function render(){
   const activeSkill=skillMode||!!guestSkillMode;
   const activeMystic=mysticPlayMode||!!guestMysticPlayMode;
   const activeHandDiscard=handDiscardMode||!!guestHandDiscardMode;
-  const isOpponentTurn=G.currentPlayer===rpi;
+  let isOpponentTurn=G.currentPlayer===rpi;
+  // Safety: if GUEST's deploy modal is open, it's GUEST's turn — don't show OPPONENT TURN
+  if(isOnlineGuest&&pendingDeploy)isOpponentTurn=false;
   const opponentLabel=window.Online?.isOnline?'OPPONENT TURN':'AI TURN';
   // Mode badge
   const modeEl=document.getElementById('mode-label');
@@ -486,8 +490,8 @@ function render(){
   document.getElementById('btn-special').disabled=!(myTurn&&phase==='battle'&&attackerSeal);
   const btnNext=document.getElementById('btn-next');
   btnNext.disabled=!myTurn||phase==='discard'||fusionMode||!!guestFusionMainFC;
-  if(phase==='battle'){btnNext.textContent='✓ End Battle';btnNext.className='btn btn-blue';}
-  else if(phase==='main2'){btnNext.textContent='⏹ End Turn';btnNext.className='btn btn-red';}
+  if(phase==='battle'){btnNext.textContent='✓ End Battle';btnNext.className=myTurn?'btn btn-blue':'btn btn-gray';}
+  else if(phase==='main2'){btnNext.textContent='⏹ End Turn';btnNext.className=myTurn?'btn btn-red':'btn btn-gray';}
   else{btnNext.textContent='▶ Next Phase';btnNext.className='btn btn-gray';}
   document.getElementById('btn-cancel').style.display=(attackerSeal||pendingDeploy||fusionMode||handTargetMode||skillMode||handDiscardMode||mysticPlayMode||sacrificeTargetMode||guestFusionMainFC||guestSkillMode||guestMysticPlayMode||guestHandDiscardMode)?'inline-block':'none';
   const btnCF=document.getElementById('btn-confirm-fusion');

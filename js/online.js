@@ -121,7 +121,7 @@ var Online = (() => {
         safeG.players[0].deck      = Array(h0.deck.length).fill(null);
         safeG.players[0].mysticHand= Array((h0.mysticHand||[]).length).fill(null);
         safeG.players[0].mysticDeck= Array((h0.mysticDeck||[]).length).fill(null);
-        safeG.players[0].shrine    = Array(h0.shrine.length).fill(null);
+        // shrine is public info (already-destroyed cards) — send real data so GUEST can display shrineTotal
         const payload = {
           type: 'state',
           G: safeG,
@@ -220,6 +220,12 @@ var Online = (() => {
 
       const _prevPhase = phase;
       G = data.G;
+      // If state says it's no longer GUEST's turn, close any open deploy modal
+      if (G.currentPlayer !== 1 && typeof pendingDeploy !== 'undefined' && pendingDeploy) {
+        pendingDeploy = null;
+        const _dm = document.getElementById('deploy-modal');
+        if (_dm) _dm.classList.remove('show');
+      }
       phase = data.phase;
       turnNum = data.turnNum;
       subTurnNum = data.subTurnNum;
@@ -646,11 +652,13 @@ var Online = (() => {
             revealTitle = '🔍 Lighthouse: ใบบนสุดกอง Guest';
             log(`Lighthouse (Guest): เปิดดูใบบนสุด!`, 'good');
           }
-          checkLose(); render();
-          E._pendingLighthouseReveal = {title: revealTitle, cards: revealCards};
-          if(pendingCb) _enterChainMode('Lighthouse');
-          else E.broadcastState();
-          E._pendingLighthouseReveal = null;
+          checkLose();
+          const _lhRevCards=revealCards,_lhRevTitle=revealTitle;
+          showActionQueue(`Lighthouse → ${data.choice==='hand'?'เปิดดูมือ HOST':'เปิดดูใบบนสุด'}`,()=>{
+            E._pendingLighthouseReveal={title:_lhRevTitle,cards:_lhRevCards};
+            render();E.broadcastState();
+            E._pendingLighthouseReveal=null;
+          });
           break;
         }
         case 'guestNonPResolved': {
