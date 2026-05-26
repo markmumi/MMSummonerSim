@@ -733,7 +733,7 @@ function guestResolveAttack(attFC,defFC,defLine){
     const usedAtkNetMp=Math.max(0,usedAtk.mp-getMysticMaReduction(attFC));
     if(p.mp<usedAtkNetMp){logErr(`Mp ไม่พอ (ต้องการ ${usedAtkNetMp})`);Online.broadcastState();return;}
     p.mp-=usedAtkNetMp;
-    attAt=usedAtk.at??attAt;
+    attAt=_fusionAtkAt(usedAtk.at,attFC);
     if(usedAtk.all){
       showActionQueue(`${att.name} → <b>${usedAtk.name}</b> (ALL)`,()=>{
         if(attFC.curses?.some(c=>c.type==='stone'||c.type==='freeze')){log(`${att.name} ถูก Stone/Freeze — โจมตีถูกยกเลิก!`,'bad');attackerSeal=null;render();Online.broadcastState();return;}
@@ -1622,7 +1622,10 @@ function guestShowMysticAction(mysticCard,mysticIdx){
     log(`${mysticCard.name} [Mystic PS] — คลิก Seal ที่จะติด (คลิกอีกครั้งเพื่อยกเลิก)`,'hi');
     render();
   } else if(mysticCard.pasted==='PA'){
-    Online.sendGuestAction({action:'guestMysticPA',mysticIdx});
+    showMysticPicker(mysticCard.name,[{label:'▶ เล่น',data:'play'},{label:'👁 ดูการ์ด',data:'view'}],choice=>{
+      if(choice==='view'){openMysticViewer(mysticCard);return;}
+      Online.sendGuestAction({action:'guestMysticPA',mysticIdx});
+    });
   } else if(mysticCard.id===27){ // Lighthouse — send choice to HOST; HOST builds reveal and broadcasts back
     showMysticPicker('Lighthouse — เลือก',[
       {label:'ดูการ์ดทุกใบในมือฝ่ายตรงข้าม',data:'hand'},
@@ -1663,7 +1666,7 @@ function guestShowMysticAction(mysticCard,mysticIdx){
     [0,1].forEach(pi=>{(G.players[pi].areaMystics||[]).forEach((am,i)=>{paTargets.push({pi,amIdx:i,am});});});
     const stackItems=_interfereStack.map((item,i)=>({label:`[Queued] ${item.desc}`,data:{type:'stack',stackIdx:i}}));
     const aqDesc=document.getElementById('aq-desc')?.textContent||'';
-    const pendingItem=pendingCb&&aqDesc?[{label:`[ยกเลิก] ${aqDesc}`,data:{type:'pending',desc:aqDesc}}]:[];
+    const pendingItem=pendingCb&&aqDesc&&!_aqChainMode?[{label:`[ยกเลิก] ${aqDesc}`,data:{type:'pending',desc:aqDesc}}]:[];
     if(!psTargets.length&&!paTargets.length&&!stackItems.length&&!pendingItem.length){log('ไม่มี Mystic ในสนาม','bad');return;}
     const opts=[
       ...psTargets.map(fc=>({label:`[PS] ${fc.card.name}: ${getActiveMystics(fc).map(m=>m.mystic.name).join(',')}`,data:{type:'ps',fc}})),
@@ -1823,6 +1826,7 @@ function showMysticPicker(title,opts,onPick){
   document.getElementById('fa-title').textContent=title;
   const div=document.getElementById('fa-opts');
   div.innerHTML='';
+  const sc=document.getElementById('fa-cancel-btn');if(sc)sc.style.display='none';
   opts.forEach(({label,data})=>{
     const btn=document.createElement('button');
     btn.className='fopt';
@@ -2061,6 +2065,7 @@ function addFAOpt(label,fn){
 function closeFAModal(){
   if(G._ddDiscardPending)return; // forced discard — cannot cancel
   document.getElementById('fa-modal').classList.remove('show');
+  const sc=document.getElementById('fa-cancel-btn');if(sc)sc.style.display='';
   fieldActionTarget=null;
 }
 
@@ -2471,7 +2476,7 @@ function executeAllAttack(attFC,atk){
   if(p.mp<atkNetMp){log(`Mp ไม่พอสำหรับ ${atk.name} (ต้องการ ${atkNetMp})`,'bad');return;}
   showActionQueue(`${attFC.card.name} → <b>${atk.name}</b> (ALL)`,()=>{
     p.mp-=atkNetMp;
-    const attAt=atk.at??getEffectiveAt(attFC);
+    const attAt=_fusionAtkAt(atk.at,attFC);
     log(`${attFC.card.name} ใช้ ${atk.name}! (ALL)`,'hi');
     const allTargets=[...G.players[1].atLine.map(fc=>({fc,line:'at'})),...G.players[1].dfLine.map(fc=>({fc,line:'df'}))];
     attFC.exhausted=true;attFC.hasAttacked=true;attackerSeal=null;pendingAttackIdx=null;
@@ -2650,7 +2655,7 @@ function resolveAttack(attFC,defFC,specialAtkIdx,defLine='at'){
     const saNetMp=Math.max(0,sa.mp-getMysticMaReduction(attFC));
     if(p.mp<saNetMp){log(`Mp ไม่พอสำหรับ ${sa.name} (ต้องการ ${saNetMp})`,'bad');return;}
     p.mp-=saNetMp;
-    attAt=sa.at??getEffectiveAt(attFC);
+    attAt=_fusionAtkAt(sa.at,attFC);
     atkLabel=sa.name;
     usedAtk=sa;
     if(sa.all){
@@ -2735,11 +2740,13 @@ function combatAnim(attFC,defFC,attAt,defLine,isAll,callback){
   const attSp=getEffectiveSp(attFC), defSp=getEffectiveSp(defFC);
   const attWins=attAt>defStat||(attAt===defStat&&attSp>defSp);
   const isTie=attAt===defStat;
+  const bothDie=!attWins&&!isAll&&defLine!=='df'&&isTie&&attSp===defSp;
   let result='',defDies=false,attDies=false;
   if(attWins){defDies=true;const note=isTie?` (Spd ${attSp}>${defSp})`:'';result=`${defFC.card.name} destroyed!${note}`;}
-  else if(!isAll&&defLine!=='df'){attDies=true;const note=isTie?` (Spd ${defSp}>=${attSp})`:'';result=`${attFC.card.name} destroyed!${note}`;}
+  else if(bothDie){attDies=true;defDies=true;result=`ทั้งคู่ถูกทำลาย! (At${attAt}=Def${defStat}, Spd${attSp}=${defSp})`;}
+  else if(!isAll&&defLine!=='df'){attDies=true;const note=isTie?` (Spd ${defSp}>${attSp})`:'';result=`${attFC.card.name} destroyed!${note}`;}
   else{result='Blocked!';}
-  const isBlocked=!attWins&&(defLine==='df'||isAll);
+  const isBlocked=!attWins&&!bothDie&&(defLine==='df'||isAll);
   if(window.Online?.isOnline&&Online.isHost){
     Online.broadcastAnim({attImg:attFC.card.img,attName:attFC.card.name,defImg:defFC.card.img,defName:defFC.card.name,result,defDies,attDies,isBlocked});
   }
@@ -2760,7 +2767,7 @@ function combatAnim(attFC,defFC,attAt,defLine,isAll,callback){
     } else {
       playSound('Damage');
       if(defDies)defPan.classList.add('ca-dead');
-      else if(attDies)attPan.classList.add('ca-dead');
+      if(attDies)attPan.classList.add('ca-dead');
     }
     document.getElementById('ca-result').textContent=result;
     setTimeout(()=>{modal.style.display='none';defPan.classList.remove('ca-blocked');callback();},600);
@@ -2806,6 +2813,13 @@ function animateAllTargets(attFC,targets,attAt,atkName,attPi,defPi,onDone){
 }
 
 function getEffectiveEl(fc){return fc.magicalEl||fc.card.el;}
+
+function _fusionAtkAt(atkAt,fc){
+  if(atkAt==null)return getEffectiveAt(fc);
+  const boost=(fc.atBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn).reduce((s,b)=>s+b.amount,0);
+  const ld=(fc.curses||[]).filter(c=>c.type==='lastDance').reduce((s,c)=>s+(c.atBonus||0),0);
+  return Math.max(0,atkAt+boost+ld);
+}
 
 function getEffectiveAt(fc){
   let base=fc.card.at;
@@ -2967,8 +2981,17 @@ function dealDamage(attFC,defFC,attAt,label,attPi=0,defPi=1,defLine='at',isAll=f
   } else if(defLine==='df'){
     const spdStr=attAt===defStat?` Spd${defSp}>=${attSp}`:'';
     log(`${att.name}[At${attAt}]${spdStr} ≤ ${def.name}[${defLabel}] (At↔Df) → blocked (Df Line ไม่ตีสวน)`,'');
+  } else if(attAt===defStat&&attSp===defSp){
+    // Exact tie: both At and Sp equal → both die
+    if(hasMysticProtect(attFC)){
+      log(`${att.name}[At${attAt}] = ${def.name}[${defLabel}] Spd${attSp}=${defSp} → blocked (Silent Prohibitor)`,'');
+    } else {
+      log(`${att.name}[At${attAt}] = ${def.name}[${defLabel}] Spd${attSp}=${defSp} → ทั้งคู่ถูกทำลาย!`,'bad');
+      sendToShrine(defFC,defPi);
+      sendToShrine(attFC,attPi);
+    }
   } else {
-    const spdStr=attAt===defStat?` Spd${defSp}>=${attSp}`:'';
+    const spdStr=attAt===defStat?` Spd${defSp}>${attSp}`:'';
     if(hasMysticProtect(attFC)){
       log(`${att.name}[At${attAt}]${spdStr} ≤ ${def.name}[${defLabel}] ${lineNote} → blocked (Silent Prohibitor ป้องกัน counter-attack!)`,'');
     } else {
@@ -3898,7 +3921,10 @@ function showMysticAction(mysticCard,mysticIdx){
     log(`${mysticCard.name} [Mystic PS] — คลิก Seal ที่จะติด (คลิกอีกครั้งเพื่อยกเลิก)`,'hi');
     render();
   } else if(mysticCard.pasted==='PA'){
-    playPAMystic(mysticCard,mysticIdx);
+    showMysticPicker(mysticCard.name,[{label:'▶ เล่น',data:'play'},{label:'👁 ดูการ์ด',data:'view'}],choice=>{
+      if(choice==='view'){openMysticViewer(mysticCard);return;}
+      playPAMystic(mysticCard,mysticIdx);
+    });
   } else {
     playNonPMystic(mysticCard,mysticIdx);
   }
@@ -4151,7 +4177,7 @@ function playNonPMystic(mysticCard,mysticIdx){
     [0,1].forEach(pi=>{(G.players[pi].areaMystics||[]).forEach((am,i)=>{paTargets.push({pi,amIdx:i,am});});});
     const stackItems=_interfereStack.map((item,i)=>({label:`[Queued] ${item.desc}`,data:{type:'stack',stackIdx:i}}));
     const aqDesc=document.getElementById('aq-desc')?.textContent||'';
-    const pendingItem=pendingCb&&aqDesc?[{label:`[ยกเลิก] ${aqDesc}`,data:{type:'pending',desc:aqDesc}}]:[];
+    const pendingItem=pendingCb&&aqDesc&&!_aqChainMode?[{label:`[ยกเลิก] ${aqDesc}`,data:{type:'pending',desc:aqDesc}}]:[];
     if(!psTargets.length&&!paTargets.length&&!stackItems.length&&!pendingItem.length){log('ไม่มี Mystic ในสนาม','bad');return;}
     const opts=[
       ...psTargets.map(fc=>({label:`[PS] ${fc.card.name}: ${getActiveMystics(fc).map(m=>m.mystic.name).join(',')}`,data:{type:'ps',fc}})),

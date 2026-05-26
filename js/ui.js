@@ -715,7 +715,7 @@ function closeCardViewer(){document.getElementById('card-viewer').style.display=
 function openMysticViewer(c){
   document.getElementById('cv-img').src=c.img;
   document.getElementById('cv-name').textContent=c.name;
-  document.getElementById('cv-tribe').textContent=`Mystic · ${c.pasted} · Mc ${c.mc}`;
+  document.getElementById('cv-tribe').textContent=`Mystic · ${c.pasted} · Mp ${c.mc}`;
   document.getElementById('cv-el').innerHTML=`<span style="color:#a78bfa">${c.subtype_name||''}</span>`;
   document.getElementById('cv-stats').innerHTML='';
   document.getElementById('cv-mp').innerHTML='';
@@ -760,7 +760,7 @@ function mysticCardEl(mysticCard,idx,pi=0){
     <img src="${mysticCard.img}" alt="${mysticCard.name}" onerror="this.src='cardback/mystic.jpg'">
     <div class="mystic-card-info">
       <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:bold">${mysticCard.name}</div>
-      <div style="color:#6d28d9">Mc:${mysticCard.mc} ${mysticCard.turns===999?'∞':mysticCard.turns+'T'}</div>
+      <div style="color:#6d28d9">Mp:${mysticCard.mc} ${mysticCard.turns===999?'∞':mysticCard.turns+'T'}</div>
     </div>
   `;
   const mysticOverLimit=phase==='discard'&&p.hand.length+(p.mysticHand||[]).length>getEffectiveCombinedMax(pi);
@@ -775,6 +775,8 @@ function mysticCardEl(mysticCard,idx,pi=0){
     if(canPlay){
       if(isGuest){guestShowMysticAction(mysticCard,idx);}
       else{showMysticAction(mysticCard,idx);}
+    } else {
+      openMysticViewer(mysticCard);
     }
   };
   div.ondblclick=e=>{e.stopPropagation();openMysticViewer(mysticCard);};
@@ -789,7 +791,7 @@ function mysticCardEl(mysticCard,idx,pi=0){
     if(mysticCard.exception_lv)exTxt.push(`Lv<${mysticCard.exception_lv}`);
     if(mysticCard.exception_tribes?.length)exTxt.push(`ไม่ใช้: ${mysticCard.exception_tribes.join('/')}`);
     if(mysticCard.exception_els?.length)exTxt.push(`ไม่ใช้: ${mysticCard.exception_els.join('/')}`);
-    tip.innerHTML=`<b style="color:#a78bfa">${mysticCard.name}</b><br>${mysticCard.pasted}${mysticCard.interfere?' ⚡Interfere':''}<br>Mc:${mysticCard.mc} | ${mysticCard.turns===999?'∞':mysticCard.turns+'T'}<br>${(mysticCard.ability_text||[]).join('<br>')}${exTxt.length?'<br><span style="color:#f87171">'+exTxt.join(' | ')+'</span>':''}`;
+    tip.innerHTML=`<b style="color:#a78bfa">${mysticCard.name}</b><br>${mysticCard.pasted}${mysticCard.interfere?' ⚡Interfere':''}<br>Mp:${mysticCard.mc} | ${mysticCard.turns===999?'∞':mysticCard.turns+'T'}<br>${(mysticCard.ability_text||[]).join('<br>')}${exTxt.length?'<br><span style="color:#f87171">'+exTxt.join(' | ')+'</span>':''}`;
     tip.style.display='block';moveTip(e);
   };
   div.onmousemove=moveTip;
@@ -802,7 +804,7 @@ function openMysticViewer(m){
   document.getElementById('cv-name').textContent=m.name;
   document.getElementById('cv-tribe').textContent=`${m.pasted} | ${m.subtype_name||''}`;
   document.getElementById('cv-el').innerHTML=`<span style="color:#a78bfa">✦ Mystic${m.interfere?' [Interfere]':''}</span>`;
-  document.getElementById('cv-stats').innerHTML=`<span style="color:#38bdf8">Mc ${m.mc}</span> &nbsp; <span style="color:#a78bfa">Turns: ${m.turns===999?'∞':m.turns}</span>`;
+  document.getElementById('cv-stats').innerHTML=`<span style="color:#38bdf8">Mp ${m.mc}</span> &nbsp; <span style="color:#a78bfa">Turns: ${m.turns===999?'∞':m.turns}</span>`;
   document.getElementById('cv-mp').innerHTML=`<span style="color:#a78bfa">Type: ${m.pasted}</span>`;
   document.getElementById('cv-atks').innerHTML='';
   const abilTexts=Array.isArray(m.ability_text)?m.ability_text:(m.ability_text?[m.ability_text]:[]);
