@@ -518,12 +518,13 @@ function render(){
     if(handTargetMode&&lpi===0)img.onclick=()=>clickAIHandCard(i);
     aiHandDiv.appendChild(img);
   });
-  (pR.mysticHand||[]).forEach(()=>{
+  (pR.mysticHand||[]).forEach((_mc,i)=>{
     const img=document.createElement('img');
     img.src='cardback/mystic.jpg';
-    img.className='ai-hcard';
-    img.title='mystic card in opponent hand';
-    img.style.opacity='0.8';
+    img.className='ai-hcard'+(handTargetMode&&lpi===0?' htarget':'');
+    img.title=handTargetMode&&lpi===0?'คลิกเพื่อโจมตี Mystic ในมือ':'mystic card in opponent hand';
+    if(handTargetMode&&lpi===0)img.onclick=()=>clickAIHandMystic(i);
+    else img.style.opacity='0.8';
     aiHandDiv.appendChild(img);
   });
 }

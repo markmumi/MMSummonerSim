@@ -20,6 +20,7 @@ let _ddDiscardResume = null; // resume callback paused by Dark Destiny shrine di
 let fieldActionTarget = null; // {fc, line}
 let handTargetMode = false;
 let handAttackedThisTurn = false;
+let _noSealAtStart = [false, false]; // track no-field-seals at turn start [player, ai/guest]
 let skillMode = null; // {fc, skillIdx}
 let pendingCb = null;
 let handDiscardMode = null; // {fc, skillIdx, onDiscard}
@@ -302,6 +303,7 @@ function loadPlayerDeckFromStorage(){
 }
 
 function initGame(){
+  _noSealAtStart=[false,false];
   const saved=loadPlayerDeckFromStorage();
   const d0=saved?saved.seals:buildDeck();
   const md0=saved?saved.mystics:buildMysticDeck();
@@ -419,6 +421,10 @@ function endBattle(){
 }
 
 function endTurnFromMain2(){
+  if(_noSealAtStart[0]&&G.players[0].atLine.length===0&&G.players[0].dfLine.length===0){
+    log('ไม่มี Seal ในสนามตลอดเทิร์น — แพ้ทันที!','bad');
+    showWin(1,'ไม่มี Seal ในสนามตลอดทั้งเทิร์น');return;
+  }
   showTurnAnim('end',()=>{phase='end';endTurn();});
 }
 
@@ -537,6 +543,7 @@ function endTurn(){
     if(window.Online?.isOnline && Online.isHost){
       startGuestTurn();
     } else {
+      _noSealAtStart[1]=G.players[1].atLine.length===0&&G.players[1].dfLine.length===0;
       phase='draw';
       log(`AI's turn — Draw Phase`,'hi');
       render();
@@ -560,6 +567,7 @@ function endTurn(){
 // ONLINE: INIT GAME + GUEST TURN MANAGEMENT
 // ══════════════════════════════════════════════
 function initGameOnline(guestDeckJSON){
+  _noSealAtStart=[false,false];
   // Host (pi=0): own deck. Guest (pi=1): deck received from guest client.
   const saved=loadPlayerDeckFromStorage();
   const d0=saved?saved.seals:buildDeck();
@@ -591,6 +599,7 @@ function initGameOnline(guestDeckJSON){
 }
 
 function startGuestTurn(){
+  _noSealAtStart[1]=G.players[1].atLine.length===0&&G.players[1].dfLine.length===0;
   drawsRemaining=turnNum>1?2:0;
   if(drawsRemaining===0){
     phase='main';
@@ -606,6 +615,10 @@ function startGuestTurn(){
 }
 
 function endGuestTurn(){
+  if(_noSealAtStart[1]&&G.players[1].atLine.length===0&&G.players[1].dfLine.length===0){
+    log('Guest ไม่มี Seal ในสนามตลอดเทิร์น — Host ชนะ!','good');
+    showWin(0,'Guest ไม่มี Seal ในสนามตลอดทั้งเทิร์น');Online.broadcastState();return;
+  }
   // Vioria on player side: gain Guest's leftover MP before Guest refills
   {const _guestMpLeft=G.players[1].mp;
   const _vioP=[...G.players[0].atLine,...G.players[0].dfLine].filter(x=>x.card.id===56);
@@ -2394,9 +2407,9 @@ function clickFieldSeal(fc,pi,line){
       cancelAtkPanel();
       const enemy=G.players[1];
       const noEnemyField=enemy.atLine.filter(s=>!s.curses?.some(c=>c.type==='charm')).length===0&&enemy.dfLine.filter(s=>!s.curses?.some(c=>c.type==='charm')).length===0;
-      if(noEnemyField&&enemy.hand.length>0){
+      if(noEnemyField&&(enemy.hand.length>0||(enemy.mysticHand||[]).length>0)){
         handTargetMode=true;
-        log(`ไม่มี Seal ของ AI ในสนาม! คลิกการ์ดหลังของ AI เพื่อโจมตี`,'hi');
+        log(`ไม่มี Seal ของ AI ในสนาม! คลิกการ์ดในมือของ AI เพื่อโจมตี (Seal หรือ Mystic)`,'hi');
       } else {
         handTargetMode=false;
         log(`Selected ${fc.card.name} — click enemy or use Attack/Special`,'hi');
@@ -2807,16 +2820,16 @@ function combatAnim(attFC,defFC,attAt,defLine,isAll,callback){
   },500);
 }
 
-function handAttackAnim(attFC,revealCard,callback){
+function handAttackAnim(attFC,revealCard,callback,backImg='cardback/seal.jpg',resultText=null){
   if(window.Online?.isOnline&&Online.isHost){
-    Online.broadcastAnim({attImg:attFC.card.img,attName:attFC.card.name,defImg:'cardback/seal.jpg',defName:'???',result:'',defDies:false,attDies:false,isHandReveal:true,revealImg:revealCard.img,revealName:revealCard.name});
+    Online.broadcastAnim({attImg:attFC.card.img,attName:attFC.card.name,defImg:backImg,defName:'???',result:'',defDies:false,attDies:false,isHandReveal:true,revealImg:revealCard.img,revealName:revealCard.name});
   }
   const attPan=document.getElementById('ca-att-panel');
   const defPan=document.getElementById('ca-def-panel');
   attPan.classList.remove('ca-dead');defPan.classList.remove('ca-dead');
   document.getElementById('ca-att-img').src=attFC.card.img;
   document.getElementById('ca-att-name').textContent=attFC.card.name;
-  document.getElementById('ca-def-img').src='cardback/seal.jpg';
+  document.getElementById('ca-def-img').src=backImg;
   document.getElementById('ca-def-name').textContent='???';
   document.getElementById('ca-result').textContent='';
   const modal=document.getElementById('combat-anim');
@@ -2826,7 +2839,7 @@ function handAttackAnim(attFC,revealCard,callback){
     document.getElementById('ca-def-img').src=revealCard.img;
     document.getElementById('ca-def-name').textContent=revealCard.name;
     defPan.classList.add('ca-dead');
-    document.getElementById('ca-result').textContent=`${revealCard.name} sent to Shrine!`;
+    document.getElementById('ca-result').textContent=resultText||`${revealCard.name} sent to Shrine!`;
     setTimeout(()=>{modal.style.display='none';callback();},600);
   },500);
 }
@@ -3109,15 +3122,22 @@ function shrineTotal(pi){return G.players[pi].shrine.reduce((s,c)=>s+(c?c.lv:0),
 
 function checkLose(){
   for(let pi=0;pi<2;pi++){
-    if(shrineTotal(pi)>=MAX_SHRINE){showWin(1-pi);return;}
-    if(!G.players[pi].deck.length&&!G.players[pi].hand.length){showWin(1-pi);return;}
+    if(shrineTotal(pi)>=MAX_SHRINE){
+      const who=pi===0?'Your':'Enemy';
+      showWin(1-pi,`${who} shrine overflowed!`);return;
+    }
+    if(!G.players[pi].deck.length&&!G.players[pi].hand.length){
+      const who=pi===0?'คุณ':'ศัตรู';
+      showWin(1-pi,`${who} หมดการ์ด Seal ทั้งกอง`);return;
+    }
   }
 }
 
-function showWin(pi){
+function showWin(pi,reason=null){
   gameWinner=pi;
   document.getElementById('win-title').textContent=pi===0?'YOU WIN!':'YOU LOSE!';
-  document.getElementById('win-sub').textContent=pi===0?'Enemy shrine overflowed!':'Your shrine overflowed!';
+  const defaultReason=pi===0?'Enemy shrine overflowed!':'Your shrine overflowed!';
+  document.getElementById('win-sub').textContent=reason||defaultReason;
   document.getElementById('win-screen').classList.add('show');
   const bgm=document.getElementById('bgm');
   if(bgm){bgm.pause();bgm.currentTime=0;}
@@ -3736,6 +3756,10 @@ function aiTurn(){
   }
 
   function endAITurn(){
+    if(_noSealAtStart[1]&&G.players[1].atLine.length===0&&G.players[1].dfLine.length===0){
+      log('AI ไม่มี Seal ในสนามตลอดเทิร์น — Player ชนะ!','good');
+      showWin(0,'AI ไม่มี Seal ในสนามตลอดทั้งเทิร์น');return;
+    }
     _chainDisplay=[];_chainCollapsed=false;_nextChainCard=null;_updateChainDisplay();
     // Vioria on player side: gain AI's leftover MP before AI refills
     {const _aiMpLeft=G.players[1].mp;
@@ -4155,6 +4179,7 @@ function enterDiscardStep(){
 }
 
 function startPlayerDraw(){
+  _noSealAtStart[0]=G.players[0].atLine.length===0&&G.players[0].dfLine.length===0;
   phase='draw';
   drawsRemaining=2;
   render();

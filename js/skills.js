@@ -912,4 +912,23 @@ function clickAIHandCard(idx){
   });
 }
 
+function clickAIHandMystic(idx){
+  if(!handTargetMode||!attackerSeal)return;
+  if(handAttackedThisTurn){logErr('โจมตีมือได้แค่ครั้งเดียวต่อเทิร์น');cancelAction();return;}
+  const ai=G.players[1];
+  const mh=ai.mysticHand||[];
+  if(idx>=mh.length)return;
+  const mc=mh[idx];
+  const attFC=attackerSeal.fc;
+  handTargetMode=false;attackerSeal=null;
+  handAttackAnim(attFC,mc,()=>{
+    mh.splice(idx,1);
+    (ai.mysticGrave=ai.mysticGrave||[]).push(mc);
+    log(`${attFC.card.name} โจมตีมือ AI → ${mc.name} [Mystic] ถูกทิ้ง!`,'good');
+    attFC.exhausted=true;attFC.hasAttacked=true;
+    handAttackedThisTurn=true;
+    checkLose();render();
+  },'cardback/mystic.jpg',`${mc.name} ทิ้งแล้ว!`);
+}
+
 // ══════════════════════════════════════════════
