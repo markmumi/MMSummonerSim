@@ -691,12 +691,22 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
   }
 
   if(skill.effect==='deathCurse'){
+    targetFC.curses=(targetFC.curses||[]);
+    targetFC.curses.push({type:'death',expiresAtSubTurn:Infinity});
+    broadcastSound('Skill');
     showActionQueue(`${skillFC.card.name} [Skill] → ☠ Death Curse <b>${targetFC.card.name}</b>`,()=>{
-      if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
+      const _cleanDC=()=>{targetFC.curses=(targetFC.curses||[]).filter(c=>c.type!=='death');};
+      if(!_skillStillValid(skillFC,skill)){_cleanDC();log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
-      destroyByEffect(targetFC,targetPi);
-      log(`${skillFC.card.name} [Skill]: ☠ Death Curse → ${targetFC.card.name} ถูกทำลายทันที!`,'good');
+      const hasDeath=(targetFC.curses||[]).some(c=>c.type==='death');
+      _cleanDC();
+      if(hasDeath){
+        destroyByEffect(targetFC,targetPi);
+        log(`${skillFC.card.name} [Skill]: ☠ Death Curse → ${targetFC.card.name} ถูกทำลายทันที!`,'good');
+      } else {
+        log(`${skillFC.card.name} [Skill]: ☠ Death Curse ถูกแก้ไขระหว่าง Interfere!`,'bad');
+      }
       checkLose();render();
     });
     return;

@@ -1245,10 +1245,24 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} หาย Curse!`,'good');_done();
     });return;
   }
-  if(skill.effect==='destroyTarget'||skill.effect==='deathCurse'){
+  if(skill.effect==='destroyTarget'){
     showActionQueue(`${skillFC.card.name} [Skill] → ทำลาย ${targetFC.card.name}`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;destroyByEffect(targetFC,targetPi);
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ถูกทำลาย!`,'good');_done();
+    });return;
+  }
+  if(skill.effect==='deathCurse'){
+    targetFC.curses=(targetFC.curses||[]);
+    targetFC.curses.push({type:'death',expiresAtSubTurn:Infinity});
+    broadcastSound('Skill');
+    showActionQueue(`${skillFC.card.name} [Skill] → ☠ Death Curse ${targetFC.card.name}`,()=>{
+      const _cleanDC=()=>{targetFC.curses=(targetFC.curses||[]).filter(c=>c.type!=='death');};
+      p.mp-=skill.mp;skillFC.hasUsedSkill=true;
+      const hasDeath=(targetFC.curses||[]).some(c=>c.type==='death');
+      _cleanDC();
+      if(hasDeath){destroyByEffect(targetFC,targetPi);log(`${skillFC.card.name} [Skill]: ☠ Death Curse → ${targetFC.card.name} ถูกทำลาย!`,'good');}
+      else log(`${skillFC.card.name} [Skill]: ☠ Death Curse ถูกแก้ไขระหว่าง Interfere!`,'bad');
+      _done();
     });return;
   }
   if(skill.effect==='poisonCurse'){
@@ -3276,9 +3290,11 @@ function aiTurn(){
     if(id===46&&ai.atLine.some(x=>x.uid===fc.uid)&&allPlayer.length>=2&&ai.mp>=2){
       const minAt=Math.min(...allPlayer.map(x=>getEffectiveAt(x)));
       const t=allPlayer.find(x=>getEffectiveAt(x)===minAt);
-      if(t)return{mp:2,label:'Death Curse',execute:()=>{
-        destroyByEffect(t,0);
-        log(`AI: ${fc.card.name} [Skill] ☠ Death Curse → ${t.card.name} ถูกทำลาย!`,'bad');
+      if(t)return{mp:2,label:'Death Curse',_dcTarget:t,execute:()=>{
+        const hasDeath=(t.curses||[]).some(c=>c.type==='death');
+        t.curses=(t.curses||[]).filter(c=>c.type!=='death');
+        if(hasDeath){destroyByEffect(t,0);log(`AI: ${fc.card.name} [Skill] ☠ Death Curse → ${t.card.name} ถูกทำลาย!`,'bad');}
+        else log(`AI: ${fc.card.name} [Skill] ☠ Death Curse ถูกแก้ไขระหว่าง Interfere!`,'');
       }};
     }
     // Punishula (id=5): destroy Evil on player field, at line
@@ -3310,9 +3326,11 @@ function aiTurn(){
     // Banshee (id=28): Death Curse Sp 1-3, fused+dark+at line, Mp 3
     if(id===28&&fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness')&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=3){
       const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp));
-      if(t)return{mp:3,label:'Death Curse',execute:()=>{
-        destroyByEffect(t,0);
-        log(`AI: ${fc.card.name} [Skill] ☠ Death Curse → ${t.card.name} ถูกทำลาย!`,'bad');
+      if(t)return{mp:3,label:'Death Curse',_dcTarget:t,execute:()=>{
+        const hasDeath=(t.curses||[]).some(c=>c.type==='death');
+        t.curses=(t.curses||[]).filter(c=>c.type!=='death');
+        if(hasDeath){destroyByEffect(t,0);log(`AI: ${fc.card.name} [Skill] ☠ Death Curse → ${t.card.name} ถูกทำลาย!`,'bad');}
+        else log(`AI: ${fc.card.name} [Skill] ☠ Death Curse ถูกแก้ไขระหว่าง Interfere!`,'');
       }};
     }
     // Mysterious Elephant (id=42): Poison 1 Turn Sp 2-5, fused+at line, Mp 3
@@ -3443,11 +3461,13 @@ function aiTurn(){
       if(!skill)continue;
       fc.hasUsedSkill=true;
       ai.mp=Math.max(0,ai.mp-skill.mp);
+      if(skill._dcTarget){skill._dcTarget.curses=(skill._dcTarget.curses||[]);skill._dcTarget.curses.push({type:'death',expiresAtSubTurn:Infinity});}
       showActionQueue(`🤖 ${fc.card.name} [Skill] → ${skill.label}`,()=>{
         // Re-validate: temporarily restore MP and re-check conditions (e.g. Thunder Bolt unfused during AQ)
         ai.mp+=skill.mp;
         const recheck=getAICardSkill(fc);
         if(!recheck){
+          if(skill._dcTarget)skill._dcTarget.curses=(skill._dcTarget.curses||[]).filter(c=>c.type!=='death');
           log(`${fc.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');
           render();doAISkill(callback);return;
         }
