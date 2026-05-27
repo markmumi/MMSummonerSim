@@ -117,7 +117,7 @@ function playSound(name){
     a.volume=vol;a.currentTime=0;a.play().catch(()=>{});
     return;
   }
-  const ext=(name==='swordslice'||name==='Charm'||name==='blocked')?'mp3':'wav';
+  const ext=(name==='swordslice'||name==='Charm'||name==='Blocked')?'mp3':'wav';
   const a=new Audio(`SoundEffect/${name}.${ext}`);
   a.preload='auto';a.volume=vol;
   a.addEventListener('canplaythrough',()=>{_SFX[name]=a;a.play().catch(()=>{});},{once:true});
@@ -2794,7 +2794,7 @@ function combatAnim(attFC,defFC,attAt,defLine,isAll,callback){
   modal.style.display='flex';
   setTimeout(()=>{
     if(isBlocked){
-      playSound('blocked');
+      playSound('Blocked');
       defPan.classList.add('ca-blocked');
     } else {
       playSound('Damage');

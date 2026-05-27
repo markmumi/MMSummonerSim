@@ -238,7 +238,7 @@ var Online = (() => {
       if (modal) modal.style.display = 'flex';
       setTimeout(() => {
         if (data.isBlocked) {
-          if (typeof playSound === 'function') playSound('blocked');
+          if (typeof playSound === 'function') playSound('Blocked');
           defPan.classList.add('ca-blocked');
           document.getElementById('ca-result').textContent = data.result;
         } else if (data.isHandReveal) {
