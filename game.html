@@ -9,12 +9,13 @@
 <body>
 
 <div id="header">
-  <div style="display:flex;gap:10px;align-items:center">
-    <a href="index.html" style="font-size:11px;padding:2px 8px;background:#374151;border-radius:4px;color:#9ca3af;text-decoration:none;border:1px solid #4b5563" title="กลับ Menu">← Menu</a>
-    <span style="font-size:14px;font-weight:bold;color:#fbbf24">⚔ MMSummonerMasterSim</span>
-    <span id="phase-label" style="font-size:11px;padding:2px 8px;background:#7c3aed;border-radius:4px">-</span>
-    <span id="mode-label" style="font-size:10px;padding:2px 8px;background:#1e293b;border:1px solid #334155;border-radius:4px;color:#64748b">VS AI</span>
+  <div style="display:flex;gap:10px;align-items:center;flex:1;min-width:0">
+    <a href="index.html" style="font-size:11px;padding:2px 8px;background:#374151;border-radius:4px;color:#9ca3af;text-decoration:none;border:1px solid #4b5563;flex-shrink:0" title="กลับ Menu">← Menu</a>
+    <span style="font-size:14px;font-weight:bold;color:#fbbf24;white-space:nowrap">⚔ MMSummonerMasterSim</span>
+    <span id="phase-label" style="font-size:11px;padding:2px 8px;background:#7c3aed;border-radius:4px;flex-shrink:0">-</span>
+    <span id="mode-label" style="font-size:10px;padding:2px 8px;background:#1e293b;border:1px solid #334155;border-radius:4px;color:#64748b;flex-shrink:0">VS AI</span>
   </div>
+  <button id="btn-log-mobile" onclick="toggleLog()">📜 Log</button>
 </div>
 
 <div id="main-wrapper">
@@ -98,7 +99,9 @@
 
   <!-- ── RIGHT PANEL (log) ── -->
   <div id="right-panel">
-    <div class="right-label">📜 Log</div>
+    <div class="right-label" id="log-header" onclick="toggleLog()">
+      <span>📜 Log</span><span id="log-arrow">◀</span>
+    </div>
     <div id="log"></div>
   </div>
 </div>
@@ -347,7 +350,7 @@ function copyRoomCode(){
   const bgm=document.getElementById('bgm');
   const btn=document.getElementById('bgm-btn');
   const vol=document.getElementById('bgm-vol');
-  const savedVol=parseFloat(localStorage.getItem('bgm_volume')||'0.5');
+  const savedVol=parseFloat(localStorage.getItem('bgm_volume')||'0.3');
   const muted=localStorage.getItem('bgm_muted')==='1';
   bgm.volume=savedVol;
   vol.value=Math.round(savedVol*100);

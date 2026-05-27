@@ -315,3 +315,83 @@ body{background:#111827;color:#e5e7eb;font-family:Arial,sans-serif;height:100vh;
 #turn-anim-overlay.active.yours #turn-anim-text{color:#86efac;text-shadow:0 0 20px #22c55e,0 0 48px rgba(34,197,94,.65),0 0 80px rgba(134,239,172,.4)}
 #turn-anim-overlay.active.end #turn-anim-text{color:#fca5a5;text-shadow:0 0 20px #ef4444,0 0 48px rgba(239,68,68,.65),0 0 80px rgba(252,165,165,.4)}
 @keyframes tText{0%{opacity:0;transform:scale(.55)}33%{opacity:0;transform:scale(.55)}50%{opacity:1;transform:scale(1.12)}68%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1)}}
+
+/* ── LOG TOGGLE (all screen sizes) ── */
+#log-header{cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;padding:0 2px}
+#log-arrow{font-size:10px;color:#4b5563;transition:transform .2s;flex-shrink:0}
+#right-panel{transition:width .2s,min-width .2s,padding .2s}
+#right-panel.log-collapsed{width:22px!important;min-width:22px!important;padding:4px 2px;overflow:hidden}
+#right-panel.log-collapsed #log{display:none}
+#right-panel.log-collapsed #log-header{writing-mode:vertical-lr;transform:rotate(180deg);height:100%;justify-content:flex-end;padding:6px 0}
+#right-panel.log-collapsed #log-arrow{display:none}
+#btn-log-mobile{display:none;background:#1e293b;border:1px solid #374151;border-radius:4px;color:#9ca3af;font-size:10px;padding:2px 8px;cursor:pointer;flex-shrink:0;touch-action:manipulation}
+
+/* ── MOBILE (≤ 768px) ── */
+@media(max-width:768px){
+  #btn-log-mobile{display:block!important}
+  #side-panel{display:none!important}
+
+  /* Right panel: fixed overlay, slides in from right */
+  #right-panel{
+    position:fixed!important;top:30px;right:-215px;bottom:0;
+    width:210px!important;min-width:210px!important;
+    z-index:350;padding:6px;overflow:hidden;
+    display:flex!important;flex-direction:column;gap:4px;
+    transition:right .25s!important;border-left:2px solid #374151
+  }
+  #right-panel.log-open{right:0!important}
+  /* Desktop collapse class does nothing on mobile */
+  #right-panel.log-collapsed{
+    width:210px!important;min-width:210px!important;
+    padding:6px!important;overflow:hidden!important
+  }
+  #right-panel.log-collapsed #log{display:flex!important;flex:1}
+  #right-panel.log-collapsed #log-header{
+    writing-mode:initial!important;transform:none!important;
+    height:auto!important;justify-content:space-between!important;padding:0 2px!important
+  }
+  #right-panel.log-collapsed #log-arrow{display:inline!important}
+
+  /* Use small-viewport height so iOS browser chrome doesn't cut off */
+  #main-wrapper{height:calc(100svh - 44px)}
+
+  /* Scale down cards */
+  .card{width:56px;height:80px}
+  .card img{height:56px}
+  .slot-empty,.slot-deploy{width:56px;height:80px}
+  .fused-wrap{height:80px}
+  .stack-peek{width:46px;height:67px}
+  .mystic-card{width:56px;height:80px}
+  .mystic-card img{height:56px}
+  .pip{width:9px;height:9px}
+  .line{min-height:86px;gap:3px;padding:4px 3px}
+  .ai-hcard{width:32px;height:46px}
+  .card-info{font-size:7px;padding:1px 3px}
+  .card-name{font-size:6px}
+
+  /* Touch-friendly buttons */
+  .btn{padding:5px 9px;font-size:10px;touch-action:manipulation}
+  .card,.hand-card,.mystic-card,.slot-deploy,.slot-empty{touch-action:manipulation}
+  #controls{gap:3px;padding:4px 5px;flex-wrap:wrap}
+  #controls-phase{font-size:9px!important;min-width:52px}
+  #aq-desc{max-width:100%;font-size:9px;line-height:1.3}
+
+  /* Info bars: hand wraps to full-width second row */
+  #player-info-bar,#ai-info-bar{
+    font-size:9px!important;padding:3px 5px!important;
+    gap:4px!important;flex-wrap:wrap!important
+  }
+  #hand{order:10;flex:0 0 100%!important;justify-content:flex-start!important;padding:2px 0!important}
+  #ai-hand-display{order:10;flex:0 0 100%!important;flex-wrap:wrap!important;padding:1px 0!important}
+  /* Compact counts */
+  #player-info-bar>div:last-child,#ai-info-bar>div:last-child{font-size:8px!important;gap:6px!important}
+
+  /* Board */
+  #board{padding:2px;gap:0;grid-template-rows:1.15fr auto 0.9fr 3px auto}
+  #hand-area{gap:1px}
+  #log{font-size:10px}
+
+  /* Smaller anim text on mobile */
+  #battle-phase-text{font-size:1.8rem;letter-spacing:3px}
+  #turn-anim-text{font-size:2rem;letter-spacing:3px}
+}

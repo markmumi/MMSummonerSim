@@ -876,7 +876,6 @@ function log(msg,type=''){
   d.className='log-line'+(type?' '+type:'');
   d.innerHTML=_linkifyLog(msg);
   box.prepend(d);
-  while(box.children.length>30)box.removeChild(box.lastChild);
   // Buffer for online host so guest can replay the same log messages
   if(window.Online?.isOnline&&Online.isHost&&typeof _hostLogBuffer!=='undefined'){
     _hostLogBuffer.push({msg,type});
@@ -934,6 +933,18 @@ document.addEventListener('click',function(e){
   const el=e.target.closest('#controls button');
   if(el&&typeof playSound==='function'&&el.id!=='btn-atk'&&el.id!=='btn-cancel')playSound('Confirm');
 },{capture:true});
+
+// ══════════════════════════════════════════════
+// LOG TOGGLE
+// ══════════════════════════════════════════════
+function toggleLog(){
+  const rp=document.getElementById('right-panel');
+  if(window.innerWidth<=768){
+    rp.classList.toggle('log-open');
+  } else {
+    rp.classList.toggle('log-collapsed');
+  }
+}
 
 // ══════════════════════════════════════════════
 // START

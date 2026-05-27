@@ -113,7 +113,7 @@ const _SFX={}; // loaded Audio cache — populated on first use
 
 function playSound(name){
   if(localStorage.getItem('bgm_muted')==='1')return;
-  const vol=parseFloat(localStorage.getItem('bgm_volume')||'0.5');
+  const vol=parseFloat(localStorage.getItem('bgm_volume')||'0.3');
   if(_SFX[name]){
     const a=_SFX[name];
     a.volume=vol;a.currentTime=0;a.play().catch(()=>{});
@@ -524,8 +524,8 @@ function endTurn(){
   G.currentPlayer=G.currentPlayer===0?1:0;
   const pi=G.currentPlayer;
   subTurnNum++;
-  G.players[pi].atLine.forEach(s=>{s.exhausted=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
-  G.players[pi].dfLine.forEach(s=>{s.exhausted=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
+  G.players[pi].atLine.forEach(s=>{s.exhausted=false;s.hasAttacked=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
+  G.players[pi].dfLine.forEach(s=>{s.exhausted=false;s.hasAttacked=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
   tickCurses();
   tickMystics();
   if(pi===0){
@@ -634,8 +634,8 @@ function endGuestTurn(){
   G.currentPlayer=0;
   subTurnNum++;
   [0,1].forEach(rpi=>{
-    G.players[rpi].atLine.forEach(s=>{s.exhausted=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
-    G.players[rpi].dfLine.forEach(s=>{s.exhausted=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
+    G.players[rpi].atLine.forEach(s=>{s.exhausted=false;s.hasAttacked=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
+    G.players[rpi].dfLine.forEach(s=>{s.exhausted=false;s.hasAttacked=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
   });
   {const p=G.players[0];const thor=p.dfLine.find(s=>s.card.id===76);
   if(thor&&G.players[1].atLine.length>0){p.dfLine.splice(p.dfLine.findIndex(s=>s.uid===thor.uid),1);p.atLine.push(thor);log('Thor [Ability]: ย้ายไป At Line อัตโนมัติ','');}}
@@ -3155,7 +3155,7 @@ function showWin(pi,reason=null){
   document.getElementById('win-screen').classList.add('show');
   const bgm=document.getElementById('bgm');
   if(bgm){bgm.pause();bgm.currentTime=0;}
-  const vol=parseFloat(localStorage.getItem('bgm_volume')||'0.5');
+  const vol=parseFloat(localStorage.getItem('bgm_volume')||'0.3');
   const muted=localStorage.getItem('bgm_muted')==='1';
   const winSnd=new Audio(pi===0?'SoundEffect/music/Summoner Win Chime.mp3':'SoundEffect/music/Summoner Lose.mp3');
   winSnd.volume=vol;winSnd.muted=muted;winSnd.play().catch(()=>{});
@@ -3797,8 +3797,8 @@ function aiTurn(){
     G.currentPlayer=0;
     subTurnNum++;
     [0,1].forEach(rpi=>{
-      G.players[rpi].atLine.forEach(s=>{s.exhausted=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
-      G.players[rpi].dfLine.forEach(s=>{s.exhausted=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
+      G.players[rpi].atLine.forEach(s=>{s.exhausted=false;s.hasAttacked=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
+      G.players[rpi].dfLine.forEach(s=>{s.exhausted=false;s.hasAttacked=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
     });
     // Thor Thunder God (76): enforce At Line if enemy has At Line seals
     {const ai=G.players[1];const p=G.players[0];
