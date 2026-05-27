@@ -3423,6 +3423,14 @@ function aiTurn(){
       fc.hasUsedSkill=true;
       ai.mp=Math.max(0,ai.mp-skill.mp);
       showActionQueue(`🤖 ${fc.card.name} [Skill] → ${skill.label}`,()=>{
+        // Re-validate: temporarily restore MP and re-check conditions (e.g. Thunder Bolt unfused during AQ)
+        ai.mp+=skill.mp;
+        const recheck=getAICardSkill(fc);
+        if(!recheck){
+          log(`${fc.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');
+          render();doAISkill(callback);return;
+        }
+        ai.mp=Math.max(0,ai.mp-skill.mp);
         skill.execute();
         checkLose();render();
         doAISkill(callback);
