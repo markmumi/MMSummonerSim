@@ -13,6 +13,7 @@ let fusionMainFC = null;
 let pendingFusionMaterials = []; // staged (chosen) materials before fusion is confirmed
 let _battleAnimPlaying = false;
 let _guestBattleAnimFired = false;
+let _aiAttackerFC = null; // AI's current attacking seal — set in doAIBattle for field highlight
 let _turnAnimPlaying = false;
 let _turnAnimToGuest = false;
 let _ddDiscardResume = null; // resume callback paused by Dark Destiny shrine discard
@@ -3612,8 +3613,9 @@ function aiTurn(){
     render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
 
     function doAttackStep(idx){
-      if(idx>=attackers.length){updateAIPreview(null);setTimeout(()=>endAITurn(),400);return;}
+      if(idx>=attackers.length){_aiAttackerFC=null;updateAIPreview(null);setTimeout(()=>endAITurn(),400);return;}
       const afc=attackers[idx];
+      _aiAttackerFC=afc;
       updateAIPreview(afc.card,'⚔ Attacking...');
       // Centaur Scout (52): cross-line targeting
       const isCSAt=afc.card.id===52&&ai.atLine.some(x=>x.uid===afc.uid);
@@ -3692,7 +3694,7 @@ function aiTurn(){
         const hitCount=winSp.hits||1;
         let hitsDone=0;
         function doHit(){
-          const curT=[...G.players[0].atLine.map(f=>({fc:f,line:'at'})),...G.players[0].dfLine.map(f=>({fc:f,line:'df'}))];
+          const curT=[...G.players[0].atLine.map(f=>({fc:f,line:'at'})),...G.players[0].dfLine.map(f=>({fc:f,line:'df'}))].filter(filterME).filter(filterBrig);
           if(!curT.length||hitsDone>=hitCount){done();return;}
           const htgt=curT.find(({fc:d,line:dl})=>winSp.at>(dl==='at'?getEffectiveAt(d):getEffectiveDf(d)))||curT.reduce((b,{fc:d,line:dl})=>{const ds=dl==='at'?getEffectiveAt(d):getEffectiveDf(d);return(!b||ds<b.ds)?{fc:d,line:dl,ds}:b;},null);
           if(htgt){
@@ -3703,7 +3705,7 @@ function aiTurn(){
           } else {hitsDone++;doHit();}
         }
         {
-          const preT=[...G.players[0].atLine.map(f=>({fc:f,line:'at'})),...G.players[0].dfLine.map(f=>({fc:f,line:'df'}))];
+          const preT=[...G.players[0].atLine.map(f=>({fc:f,line:'at'})),...G.players[0].dfLine.map(f=>({fc:f,line:'df'}))].filter(filterME).filter(filterBrig);
           const firstTgt=preT.find(({fc:d,line:dl})=>winSp.at>(dl==='at'?getEffectiveAt(d):getEffectiveDf(d)))||preT.reduce((b,{fc:d,line:dl})=>{const ds=dl==='at'?getEffectiveAt(d):getEffectiveDf(d);return(!b||ds<b.ds)?{fc:d,line:dl,ds}:b;},null);
           showActionQueue(`🤖 ${afc.card.name} → <b>${winSp.name}</b>${hitCount>1?' ×'+hitCount:''} ⚔ ${firstTgt?.fc.card.name||'?'}`,()=>{
             if(afc.curses?.some(c=>c.type==='stone'||c.type==='freeze')){log(`${afc.card.name} ถูก Stone/Freeze Curse — โจมตีถูกยกเลิก!`,'');done();return;}

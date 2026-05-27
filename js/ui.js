@@ -96,7 +96,7 @@ function cardEl(fc,pi,lineKey,isField){
   const div=document.createElement('div');
   div.className='card';
   if(fc.exhausted)div.classList.add('exhausted');
-  if(fc===attackerSeal?.fc)div.classList.add('attacker');
+  if(fc===attackerSeal?.fc||fc===_aiAttackerFC)div.classList.add('attacker');
   if(attackerSeal&&pi===rpi)div.classList.add('targetable');
   if(fusionMode&&pi===lpi&&canBeFusionMaterial(fc))div.classList.add('fusion-target');
   if(guestFusionMainFC&&pi===lpi&&canBeGuestFusionMaterial(fc))div.classList.add('fusion-target');
