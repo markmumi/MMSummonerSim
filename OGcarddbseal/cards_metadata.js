@@ -618,7 +618,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "reqs": ["any"],
+          "reqs": ["water","water"],
           "atk_name": "Artillery",
           "atk_at": 9,
           "atk_df": null,
@@ -722,7 +722,8 @@ const CARDS_METADATA = {
       ],
       "collector_number": "22/95",
       "illustrator": "Panon Rattanasungh",
-      "ability_text": ""
+      "ability_text": ["Delta-D ยกเลิก Curse",
+        "Delta-D ยกเลิก Mystic Card"]
     },
     {
       "id": 23,
@@ -1133,20 +1134,20 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "reqs": ["water"],
-          "atk_name": "Twin Blade",
-          "atk_at": 8,
-          "atk_df": null,
-          "atk_mp": 2,
-          "atk_all": false,
-          "atk_hits": 2
-        },
-        {
-          "reqs": ["Beast"],
-          "atk_name": "Triple Assault",
-          "atk_at": 7,
+          "reqs": ["darkness","darkness"],
+          "atk_name": "Black Bite",
+        "atk_at": 11,
           "atk_df": null,
           "atk_mp": 3,
+          "atk_all": false
+       
+        },
+        {
+          "reqs": ["fire"],
+          "atk_name": "Fire Breath",
+          "atk_at": 7,
+          "atk_df": null,
+          "atk_mp": 4,
           "atk_all": false,
           "atk_hits": 3
         }

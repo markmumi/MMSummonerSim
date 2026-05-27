@@ -368,7 +368,8 @@ async function init(){
 }
 
 function cvt(j){
-  return{id:j.id,name:j.name,img:j.path,lv:j.lv,at:j.at,df:j.df,sp:j.spd,mc:j.mp_deploy,ma:j.mp_attack,el:j.element[0],tribe:j.tribe[0],skill_text:j.skill_text||null,ability_text:j.ability_text||null};
+  return{id:j.id,name:j.name,img:j.path,lv:j.lv,at:j.at,df:j.df,sp:j.spd,mc:j.mp_deploy,ma:j.mp_attack,el:j.element[0],tribe:j.tribe[0],skill_text:j.skill_text||null,ability_text:j.ability_text||null,
+    fuse:(j.fusions||[]).map(f=>({reqs:f.reqs,name:f.atk_name,at:f.atk_at,df:f.atk_df,sp:f.atk_sp,mp:f.atk_mp,all:f.atk_all,hits:f.atk_hits}))};
 }
 
 /* ── Tab ── */
@@ -732,7 +733,17 @@ function showCv(id,type){
     const txt=[];
     if(c.skill_text)c.skill_text.forEach(t=>txt.push(t));
     if(c.ability_text)c.ability_text.forEach(t=>txt.push(t));
-    document.getElementById('cv-text').innerHTML=txt.map(t=>`<div style="margin-bottom:3px">• ${t}</div>`).join('')||'<div style="color:#475569">—</div>';
+    let fuseHtml='';
+    if(c.fuse&&c.fuse.length){
+      function fuseReqLabel(f){const cnt={};(f.reqs||[]).forEach(r=>{cnt[r]=(cnt[r]||0)+1;});return Object.entries(cnt).map(([r,n])=>n>1?`${n}x ${r}`:r).join('+');}
+      fuseHtml='<div style="color:#6b7280;font-size:10px;margin-top:6px;padding-top:5px;border-top:1px solid #1e293b">FUSION</div>'+
+        c.fuse.map(f=>{
+          const stats=[f.at?`At ${f.at}`:'',f.df?`Df ${f.df}`:'',f.sp!=null?`Sp ${f.sp}`:''].filter(Boolean).join(' ');
+          const extra=[f.all?'ALL':'',f.hits>1?`×${f.hits} hits`:''].filter(Boolean).join(' ');
+          return `<div style="color:#fde68a;margin-bottom:2px">⚡ +${fuseReqLabel(f)} → <b>${f.name}</b> &nbsp;<span style="color:#9ca3af">${stats} Mp ${f.mp}${extra?' '+extra:''}</span></div>`;
+        }).join('');
+    }
+    document.getElementById('cv-text').innerHTML=(txt.map(t=>`<div style="margin-bottom:3px">• ${t}</div>`).join('')||'<div style="color:#475569">—</div>')+fuseHtml;
   }else{
     document.getElementById('cv-tribe').textContent=`${c.subtype_name||''} · ${c.pasted||''} · ${c.rarity||''}`;
     document.getElementById('cv-el').textContent='';

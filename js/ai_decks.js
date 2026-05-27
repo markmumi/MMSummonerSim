@@ -25,8 +25,8 @@ const AI_DECK_TEMPLATES = {
             {id:92, count:3},
     ],
     mystics: [
-      {id:17, count:2},{id:18, count:2},{id:19, count:2},{id:21, count:2},
-      {id:24, count:2},{id:25, count:2},{id:26, count:2},{id:27, count:2},
+      {id:66, count:2},{id:32, count:2},{id:68, count:2},{id:37, count:2},
+      {id:40, count:2},{id:17, count:2},{id:26, count:2},{id:27, count:2},
       {id:29, count:2},{id:30, count:2}
     ]
   },
@@ -49,8 +49,8 @@ const AI_DECK_TEMPLATES = {
       {id:56, count:2}
     ],
     mystics: [
-      {id:17, count:2},{id:18, count:2},{id:19, count:2},{id:21, count:2},
-      {id:24, count:2},{id:25, count:2},{id:26, count:2},{id:27, count:2},
+       {id:66, count:2},{id:32, count:2},{id:68, count:2},{id:37, count:2},
+      {id:40, count:2},{id:17, count:2},{id:26, count:2},{id:27, count:2},
       {id:29, count:2},{id:30, count:2}
     ]
   },
@@ -73,8 +73,8 @@ const AI_DECK_TEMPLATES = {
       {id:80, count:3}
     ],
     mystics: [
-      {id:17, count:2},{id:18, count:2},{id:19, count:2},{id:21, count:2},
-      {id:24, count:2},{id:25, count:2},{id:26, count:2},{id:27, count:2},
+    {id:66, count:2},{id:32, count:2},{id:68, count:2},{id:37, count:2},
+      {id:40, count:2},{id:17, count:2},{id:26, count:2},{id:27, count:2},
       {id:29, count:2},{id:30, count:2}
     ]
   },
@@ -98,8 +98,8 @@ const AI_DECK_TEMPLATES = {
       {id:73, count:2}
     ],
     mystics: [
-      {id:17, count:2},{id:18, count:2},{id:19, count:2},{id:21, count:2},
-      {id:24, count:2},{id:25, count:2},{id:26, count:2},{id:27, count:2},
+    {id:66, count:2},{id:32, count:2},{id:68, count:2},{id:37, count:2},
+      {id:40, count:2},{id:17, count:2},{id:26, count:2},{id:27, count:2},
       {id:29, count:2},{id:30, count:2}
     ]
   }

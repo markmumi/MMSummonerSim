@@ -712,20 +712,6 @@ function openCardViewer(c,fc=null){
 
 function closeCardViewer(){document.getElementById('card-viewer').style.display='none';}
 
-function openMysticViewer(c){
-  document.getElementById('cv-img').src=c.img;
-  document.getElementById('cv-name').textContent=c.name;
-  document.getElementById('cv-tribe').textContent=`Mystic · ${c.pasted} · Mp ${c.mc}`;
-  document.getElementById('cv-el').innerHTML=`<span style="color:#a78bfa">${c.subtype_name||''}</span>`;
-  document.getElementById('cv-stats').innerHTML='';
-  document.getElementById('cv-mp').innerHTML='';
-  document.getElementById('cv-atks').innerHTML='';
-  document.getElementById('cv-fuse').innerHTML='';
-  document.getElementById('cv-skill').innerHTML='';
-  document.getElementById('cv-ability').innerHTML=(c.ability_text||[]).map(t=>`<div>★ ${t}</div>`).join('');
-  document.getElementById('card-viewer').style.display='flex';
-}
-
 function updatePlayerPreviewMystic(m){
   const exParts=[];
   if(m.exception_lv)exParts.push(`Lv&lt;${m.exception_lv}`);
@@ -815,6 +801,8 @@ function openMysticViewer(m){
   if(m.exception_els?.length)exParts.push(`ไม่ติดกับธาตุ ${m.exception_els.join('/')}`);
   if(exParts.length)html+=`<div style="color:#f87171;font-size:10px;margin-top:4px">${exParts.join(' | ')}</div>`;
   document.getElementById('cv-fuse').innerHTML=html;
+  document.getElementById('cv-skill').innerHTML='';
+  document.getElementById('cv-ability').innerHTML='';
   document.getElementById('card-viewer').style.display='flex';
 }
 
