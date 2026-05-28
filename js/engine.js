@@ -846,23 +846,24 @@ function _clickFieldSealGuest(fc,pi,line){
       Online.sendGuestAction({action:'guestMysticPSTarget',targetUid:fc.uid});
       guestMysticPlayMode=null;render();return;
     }
-    if(pi===localPi&&!fc.hasUsedSkill&&G.currentPlayer!==localPi){
-      const p=G.players[localPi];
-      const avail=getCardSkills(fc).filter(s=>s.interfere&&p.mp>=s.mp&&(s.type!=='handDiscard'||p.hand.length>0));
-      if(avail.length>0){
-        document.getElementById('fa-title').textContent=`${fc.card.name} [Interfere]`;
-        const div=document.getElementById('fa-opts');div.innerHTML='';
-        avail.forEach(s=>{
-          const idx=getCardSkills(fc).indexOf(s);
-          addFAOpt(s.label,()=>{
-            closeFAModal();
-            Online.sendGuestAction({action:'interfere',uid:fc.uid,skillIdx:idx});
-          });
-        });
-        addFAOpt('✗ ยกเลิก',()=>{closeFAModal();});
-        document.getElementById('fa-modal').classList.add('show');
-      }
-    }
+    if(guestHandDiscardMode)return; // hand-card picker active
+    // Unified choice modal for guest: interfere skills (own, unused) + view + cancel
+    const p=G.players[localPi];
+    const avail=(pi===localPi&&!fc.hasUsedSkill&&G.currentPlayer!==localPi)
+      ? getCardSkills(fc).filter(s=>s.interfere&&p.mp>=s.mp&&(s.type!=='handDiscard'||p.hand.length>0))
+      : [];
+    document.getElementById('fa-title').textContent=fc.card.name;
+    const _opts=document.getElementById('fa-opts');_opts.innerHTML='';
+    avail.forEach(s=>{
+      const idx=getCardSkills(fc).indexOf(s);
+      addFAOpt(s.label,()=>{
+        closeFAModal();
+        Online.sendGuestAction({action:'interfere',uid:fc.uid,skillIdx:idx});
+      });
+    });
+    addFAOpt('👁 ดูการ์ด',()=>{closeFAModal();openCardViewer(fc.card,fc);});
+    addFAOpt('✗ ยกเลิก',()=>{closeFAModal();});
+    document.getElementById('fa-modal').classList.add('show');
     return;
   }
 
@@ -1104,6 +1105,11 @@ function canBeGuestFusionMaterial(fc){
 function guestDoFusion(mainFC,materialFC){
   if(!fuseMaterialHelps(mainFC,materialFC.card)){logErr('การ์ดนี้ไม่ตรง requirement');Online.broadcastState();return;}
   showActionQueue(`${mainFC.card.name} + ${materialFC.card.name} รวมร่าง`,()=>{
+    // Re-validate after AQ window — PS mystic may have been attached during interfere
+    if(hasPSMystic(materialFC)){
+      log(`${materialFC.card.name} มี PS Mystic — รวมร่างถูกยกเลิก`,'bad');
+      guestFusionMainFC=null;render();Online.broadcastState();return;
+    }
     const p=G.players[1];
     const rm=arr=>{const i=arr.findIndex(x=>x.uid===materialFC.uid);if(i>=0)arr.splice(i,1);};
     rm(p.atLine);rm(p.dfLine);
@@ -2271,6 +2277,14 @@ function confirmFusion(){
   const matNames=materials.map(m=>m.card.name).join(' + ');
   const atkNames=newAtks.map(a=>a.name).join(', ')||'(สะสม)';
   showActionQueue(`⚡ ${mainFC.card.name} + ${matNames} → ${atkNames}`,()=>{
+    // Re-validate: interfere could have attached PS mystic to a support seal during the AQ window
+    const psBlocked=materials.filter(m=>hasPSMystic(m));
+    if(psBlocked.length){
+      materials.forEach(m=>{const p=G.players[0];(p[m._stagedLine||'atLine']).push(m);delete m._stagedLine;});
+      pendingFusionMaterials=[];fusionMode=false;fusionMainFC=null;
+      log(`รวมร่างถูกยกเลิก — ${psBlocked.map(m=>m.card.name).join(',')} มี PS Mystic ติดอยู่`,'bad');
+      render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();return;
+    }
     materials.forEach(m=>{mainFC.fusionStack.push(m);delete m._stagedLine;});
     pendingFusionMaterials=[];
     mainFC.fusionAtks=getUnlockedAtks(mainFC);
@@ -2360,31 +2374,28 @@ function cancelFusion(){
 function clickFieldSeal(fc,pi,line){
   if(window.Online?.isOnline&&!Online.isHost){_clickFieldSealGuest(fc,pi,line);return;}
   if(pendingCb){
-    // During action queue: allow mystic interfere PS
     if(mysticPlayMode&&mysticPlayMode.mysticCard.interfere){
-      attachPSMystic(mysticPlayMode.mysticCard,mysticPlayMode.mysticIdx,fc);
-      return;
+      attachPSMystic(mysticPlayMode.mysticCard,mysticPlayMode.mysticIdx,fc);return;
     }
-    // During action queue: show skill picker for own cards with available interfere skills
-    if(!handDiscardMode&&pi===0&&!fc.hasUsedSkill){
-      const p=G.players[0];
-      const avail=getCardSkills(fc)
-        .map((s,i)=>({s,i}))
-        .filter(({s})=>s.interfere&&p.mp>=s.mp&&(s.type!=='handDiscard'||p.hand.length>0));
-      if(avail.length>0){
-        document.getElementById('fa-title').textContent=`${fc.card.name} [Interfere]`;
-        const opts=document.getElementById('fa-opts');opts.innerHTML='';
-        avail.forEach(({s,i})=>{
-          addFAOpt(s.label,()=>{
-            closeFAModal();
-            if(s.type==='selfSkill')executeInterfereSelfSkill(fc,i);
-            else startInterfereSkill(fc,i);
-          });
-        });
-        addFAOpt('✗ ยกเลิก',()=>{closeFAModal();});
-        document.getElementById('fa-modal').classList.add('show');
-      }
-    }
+    if(handDiscardMode)return; // hand-card picker active
+    // Unified choice modal: interfere skills (own pi=0, unused) + view card + cancel
+    const p=G.players[0];
+    const avail=(pi===0&&!fc.hasUsedSkill)
+      ? getCardSkills(fc).map((s,i)=>({s,i}))
+          .filter(({s})=>s.interfere&&p.mp>=s.mp&&(s.type!=='handDiscard'||p.hand.length>0))
+      : [];
+    document.getElementById('fa-title').textContent=fc.card.name;
+    const opts=document.getElementById('fa-opts');opts.innerHTML='';
+    avail.forEach(({s,i})=>{
+      addFAOpt(s.label,()=>{
+        closeFAModal();
+        if(s.type==='selfSkill')executeInterfereSelfSkill(fc,i);
+        else startInterfereSkill(fc,i);
+      });
+    });
+    addFAOpt('👁 ดูการ์ด',()=>{closeFAModal();openCardViewer(fc.card,fc);});
+    addFAOpt('✗ ยกเลิก',()=>{closeFAModal();});
+    document.getElementById('fa-modal').classList.add('show');
     return;
   }
   if(G.currentPlayer!==0)return;

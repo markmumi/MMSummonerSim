@@ -68,7 +68,7 @@ const CARDS_METADATA = {
           "atk_all": false
         }
       ],
-      "skill_text[": [
+      "skill_text": [
         "[Skill]- รักษา Curse ทุกชนิดให้กับ Seal 1 ใบ (Mp 1)"
       ],
       "collector_number": "2/95",

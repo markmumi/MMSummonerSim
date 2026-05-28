@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>MMSummonerMasterSim</title>
 <link rel="stylesheet" href="css/game.css">
+<script>if(location.search.indexOf('mode=online')>=0){var _s=document.createElement('style');_s.id='online-hide';_s.textContent='#main-wrapper,#header{display:none!important}';document.head.appendChild(_s);}</script>
 </head>
 <body>
 
@@ -481,6 +482,7 @@ function doStartOnlineGame(){
   document.getElementById('btn-start-game').disabled=true;
   document.getElementById('btn-start-game').textContent='กำลังเริ่ม…';
   document.getElementById('online-lobby').style.display='none';
+  var oh=document.getElementById('online-hide'); if(oh)oh.remove();
   initGameOnline(Online.guestDeckData);
 }
 

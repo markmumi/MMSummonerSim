@@ -357,9 +357,13 @@ var Online = (() => {
     _applyHostState(data) {
       if (data.type !== 'state') return;
 
-      // Hide lobby if showing
+      // Hide lobby and reveal board (first state from host triggers game start for guest)
       const lobby = document.getElementById('online-lobby');
-      if (lobby && lobby.style.display !== 'none') lobby.style.display = 'none';
+      if (lobby && lobby.style.display !== 'none') {
+        lobby.style.display = 'none';
+        const oh = document.getElementById('online-hide');
+        if (oh) oh.remove();
+      }
 
       // Replay log messages from host
       if (data.hostLogs && data.hostLogs.length && typeof log === 'function') {

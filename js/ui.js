@@ -247,6 +247,9 @@ function handCardEl(card,idx,pi=0){
     } else {
       div.onclick=()=>clickHandCard(card,idx);
     }
+  } else {
+    // No action available (AQ/interfere window, AI turn, etc.) — tap to view card details
+    div.onclick=()=>openCardViewer(card);
   }
   div.ondblclick=e=>{e.stopPropagation();openCardViewer(card);};
   if(!handDiscardMode&&canPlay){
