@@ -805,6 +805,7 @@ function guestResolveAttack(attFC,defFC,defLine){
       log(`${att.name} ถูก Stone/Freeze — โจมตีถูกยกเลิก!`,'bad');
       attackerSeal=null;render();Online.broadcastState();return;
     }
+    attAt=usedAtk?_fusionAtkAt(usedAtk.at,attFC):getEffectiveAt(attFC);
     log(`${att.name} ⚔ ${defFC.card.name}!`,'hi');
     combatAnim(attFC,defFC,attAt,defLine,false,()=>{
       dealDamage(attFC,defFC,attAt,'normal attack',attPi,defPi,defLine);
@@ -2768,6 +2769,7 @@ function resolveAttack(attFC,defFC,specialAtkIdx,defLine='at'){
       log(`${att.name} ถูก Stone/Freeze Curse — โจมตีถูกยกเลิก!`,'bad');
       attackerSeal=null;render();return;
     }
+    attAt=usedAtk?_fusionAtkAt(usedAtk.at,attFC):getEffectiveAt(attFC);
     const hitLabel=usedAtk?.hits>1?` (1/${usedAtk.hits})`:'';
     log(`${att.name} → ${atkLabel}${hitLabel}!`,'hi');
     combatAnim(attFC,defFC,attAt,defLine,false,()=>{
@@ -2911,7 +2913,7 @@ function _fusionAtkAt(atkAt,fc){
   if(atkAt==null)return getEffectiveAt(fc);
   const boost=(fc.atBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn).reduce((s,b)=>s+b.amount,0);
   const ld=(fc.curses||[]).filter(c=>c.type==='lastDance').reduce((s,c)=>s+(c.atBonus||0),0);
-  return Math.max(0,atkAt+boost+ld);
+  return Math.max(0,atkAt+boost+ld+getMysticAtBonus(fc));
 }
 
 function getEffectiveAt(fc){
@@ -3190,6 +3192,7 @@ function showWin(pi,reason=null){
   const muted=localStorage.getItem('bgm_muted')==='1';
   const winSnd=new Audio(pi===0?'SoundEffect/music/Summoner Win Chime.mp3':'SoundEffect/music/Summoner Lose.mp3');
   winSnd.volume=vol;winSnd.muted=muted;winSnd.play().catch(()=>{});
+  if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
 }
 
 // ══════════════════════════════════════════════
