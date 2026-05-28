@@ -155,9 +155,9 @@
 
 <!-- Card Viewer -->
 <div id="card-viewer" onclick="closeCardViewer()" style="display:none;position:fixed;inset:0;background:#000a;z-index:400;align-items:center;justify-content:center;overflow-y:auto">
-  <div onclick="event.stopPropagation()" style="background:#1f2937;border:2px solid #374151;border-radius:14px;padding:24px;max-width:570px;width:92%;position:relative;margin:auto">
+  <div id="cv-panel" onclick="event.stopPropagation()" style="background:#1f2937;border:2px solid #374151;border-radius:14px;padding:24px;max-width:570px;width:92%;position:relative;margin:auto">
     <button onclick="closeCardViewer()" style="position:absolute;top:10px;right:14px;background:none;border:none;color:#9ca3af;font-size:24px;cursor:pointer">✕</button>
-    <div style="display:flex;gap:20px;align-items:flex-start">
+    <div id="cv-flex" style="display:flex;gap:20px;align-items:flex-start">
       <img id="cv-img" src="" style="width:280px;border-radius:10px;flex-shrink:0;object-fit:cover">
       <div style="flex:1;font-size:13px;line-height:1.7;min-width:0">
         <div id="cv-name" style="font-size:18px;font-weight:bold;color:#f9fafb;margin-bottom:5px"></div>
@@ -253,7 +253,7 @@
 <div id="win-screen">
   <h1 id="win-title">WIN!</h1>
   <p id="win-sub"></p>
-  <button class="btn btn-purple" onclick="location.reload()">▶ Play Again</button>
+  <button class="btn btn-purple" onclick="location.href='index.html'">← กลับเมนูหลัก</button>
 </div>
 
 <script src="js/db.js"></script>
@@ -341,7 +341,8 @@ function copyRoomCode(){
 </script>
 
 <audio id="bgm" loop src="SoundEffect/music/Summoner Clash.mp3"></audio>
-<div id="bgm-ctrl" style="position:fixed;bottom:14px;right:14px;display:flex;align-items:center;gap:6px;background:#1e293b;border:1px solid #334155;border-radius:20px;padding:4px 10px 4px 6px;z-index:999">
+<div id="bgm-ctrl" style="position:fixed;bottom:14px;right:14px;display:flex;align-items:center;gap:6px;background:#1e293b;border:1px solid #334155;border-radius:20px;padding:4px 10px 4px 4px;z-index:999;touch-action:none">
+  <span id="bgm-drag" style="cursor:grab;color:#475569;font-size:14px;line-height:1;padding:0 2px;user-select:none;touch-action:none" title="ลากย้ายตำแหน่ง">⠿</span>
   <button id="bgm-btn" onclick="toggleBGM()" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;flex-shrink:0" title="เปิด/ปิดเพลง">🔊</button>
   <input id="bgm-vol" type="range" min="0" max="100" value="50" style="width:70px;accent-color:#7c3aed;cursor:pointer" oninput="setBGMVolume(this.value)">
 </div>
@@ -371,6 +372,32 @@ function copyRoomCode(){
     if(fv===0){bgm.muted=true;btn.textContent='🔇';localStorage.setItem('bgm_muted','1');}
     else if(bgm.muted){bgm.muted=false;btn.textContent='🔊';localStorage.setItem('bgm_muted','0');}
   };
+})();
+// ── BGM ctrl drag ──
+(function(){
+  const ctrl=document.getElementById('bgm-ctrl');
+  const handle=document.getElementById('bgm-drag');
+  let drag=false,ox=0,oy=0;
+  function start(cx,cy){
+    drag=true;
+    const r=ctrl.getBoundingClientRect();
+    ctrl.style.bottom='auto';ctrl.style.right='auto';
+    ctrl.style.left=r.left+'px';ctrl.style.top=r.top+'px';
+    ox=cx-r.left;oy=cy-r.top;
+    handle.style.cursor='grabbing';
+  }
+  function move(cx,cy){
+    if(!drag)return;
+    ctrl.style.left=Math.max(0,Math.min(window.innerWidth-ctrl.offsetWidth,cx-ox))+'px';
+    ctrl.style.top=Math.max(0,Math.min(window.innerHeight-ctrl.offsetHeight,cy-oy))+'px';
+  }
+  function end(){drag=false;handle.style.cursor='grab';}
+  handle.addEventListener('mousedown',e=>{e.preventDefault();start(e.clientX,e.clientY);});
+  document.addEventListener('mousemove',e=>{move(e.clientX,e.clientY);});
+  document.addEventListener('mouseup',end);
+  handle.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];start(t.clientX,t.clientY);},{passive:false});
+  document.addEventListener('touchmove',e=>{if(drag){e.preventDefault();const t=e.touches[0];move(t.clientX,t.clientY);}},{passive:false});
+  document.addEventListener('touchend',end);
 })();
 </script>
 </body>

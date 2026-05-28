@@ -475,6 +475,8 @@ function makeTile(c){
   else if(cnt>0)cls+=' in-deck';
   div.className=cls;
   div.title=c.name;
+  div.dataset.cardId=c.id;
+  div.dataset.cardType=isSeal?'seal':'mystic';
 
   const elCls='el-'+(c.el||'neutral');
   const elLabel=c.el?c.el.charAt(0).toUpperCase()+c.el.slice(1):'–';
@@ -552,6 +554,21 @@ function updateCounters(){
 function sealTotal(){return Object.values(sealCounts).reduce((a,b)=>a+b,0);}
 function mysticTotal(){return Object.values(mysticCounts).reduce((a,b)=>a+b,0);}
 
+function updateTile(type,id){
+  const tile=document.querySelector(`.card-tile[data-card-id="${id}"][data-card-type="${type}"]`);
+  if(!tile)return;
+  const isSeal=type==='seal';
+  const counts=isSeal?sealCounts:mysticCounts;
+  const card=isSeal?SEAL_DB.find(x=>x.id===id):MYSTIC_DB_LOCAL.find(x=>x.id===id);
+  const maxCopy=isSeal?sealCopyMax(card?.lv):MYSTIC_COPY;
+  const cnt=counts[id]||0;
+  tile.className='card-tile'+(cnt>=maxCopy?' at-limit':cnt>0?' in-deck':'');
+  tile.querySelector('.ct-num').textContent=cnt;
+  const btns=tile.querySelectorAll('.ct-count button');
+  btns[0].disabled=cnt<=0;
+  btns[1].disabled=cnt>=maxCopy;
+  btns[1].title=`${cnt}/${maxCopy}`;
+}
 function modCount(type,id,delta){
   const isSeal=type==='seal';
   const counts=isSeal?sealCounts:mysticCounts;
@@ -564,7 +581,7 @@ function modCount(type,id,delta){
   if(counts[id]<=0)delete counts[id];
   playSound(delta>0?'Draw':'Flip');
   renderDeck();
-  renderPool();
+  updateTile(type,id);
 }
 
 /* ── Clear Deck ── */

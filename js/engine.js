@@ -46,10 +46,41 @@ function _updateChainDisplay(){
     `<div class="chain-lbl">${c.name}</div></div>`
   ).join('');
   el.innerHTML=
-    `<div class="chain-header"><span class="chain-title">⛓ Chain (${_chainDisplay.length})</span>`+
+    `<div style="display:flex;flex-direction:column;gap:4px;flex:1">`+
+    `<div class="chain-header"><span id="chain-drag" style="cursor:grab;color:#6b7280;font-size:13px;padding:0 6px 0 0;user-select:none;touch-action:none;pointer-events:auto;line-height:1.6" title="ลากย้ายตำแหน่ง">⠿</span><span class="chain-title">⛓ Chain (${_chainDisplay.length})</span>`+
     `<button class="chain-toggle" onclick="_chainCollapsed=!_chainCollapsed;_updateChainDisplay()" title="collapse/expand">${toggleIcon}</button></div>`+
-    `<div class="chain-cards-row" style="display:${_chainCollapsed?'none':'flex'}">${cards}</div>`;
+    `<div class="chain-cards-row" style="display:${_chainCollapsed?'none':'flex'}">${cards}</div>`+
+    `</div>`;
+  const handle=document.getElementById('chain-drag');
+  if(handle){
+    handle.onmousedown=e=>{e.preventDefault();_startChainDrag(e.clientX,e.clientY);};
+    handle.ontouchstart=e=>{e.preventDefault();const t=e.touches[0];_startChainDrag(t.clientX,t.clientY);};
+  }
 }
+let _chainDragging=false,_chainDragOx=0,_chainDragOy=0;
+function _startChainDrag(cx,cy){
+  const el=document.getElementById('chain-stack-display');
+  if(!el)return;
+  const r=el.getBoundingClientRect();
+  el.style.position='fixed';el.style.left=r.left+'px';el.style.top=r.top+'px';el.style.transform='none';
+  _chainDragging=true;_chainDragOx=cx-r.left;_chainDragOy=cy-r.top;
+}
+document.addEventListener('mousemove',e=>{
+  if(!_chainDragging)return;
+  const el=document.getElementById('chain-stack-display');if(!el)return;
+  el.style.left=Math.max(0,Math.min(window.innerWidth-el.offsetWidth,e.clientX-_chainDragOx))+'px';
+  el.style.top=Math.max(0,Math.min(window.innerHeight-el.offsetHeight,e.clientY-_chainDragOy))+'px';
+});
+document.addEventListener('mouseup',()=>{_chainDragging=false;});
+document.addEventListener('touchmove',e=>{
+  if(!_chainDragging)return;
+  e.preventDefault();
+  const t=e.touches[0];
+  const el=document.getElementById('chain-stack-display');if(!el)return;
+  el.style.left=Math.max(0,Math.min(window.innerWidth-el.offsetWidth,t.clientX-_chainDragOx))+'px';
+  el.style.top=Math.max(0,Math.min(window.innerHeight-el.offsetHeight,t.clientY-_chainDragOy))+'px';
+},{passive:false,capture:false});
+document.addEventListener('touchend',()=>{_chainDragging=false;});
 
 // ── BGM system ──
 const _AI_BGM={zadin:'Zalom',andre:'Tidebound Sigil',sigmund:'Windbound Duel',harison:'Bone Drum Ritual'};
@@ -2420,7 +2451,7 @@ function clickFieldSeal(fc,pi,line){
       attackerSeal={fc,pi,line};
       cancelAtkPanel();
       const enemy=G.players[1];
-      const noEnemyField=enemy.atLine.filter(s=>!s.curses?.some(c=>c.type==='charm')).length===0&&enemy.dfLine.filter(s=>!s.curses?.some(c=>c.type==='charm')).length===0;
+      const noEnemyField=enemy.atLine.length===0&&enemy.dfLine.length===0;
       if(noEnemyField&&(enemy.hand.length>0||(enemy.mysticHand||[]).length>0)){
         handTargetMode=true;
         log(`ไม่มี Seal ของ AI ในสนาม! คลิกการ์ดในมือของ AI เพื่อโจมตี (Seal หรือ Mystic)`,'hi');
