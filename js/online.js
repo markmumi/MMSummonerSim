@@ -59,6 +59,11 @@ var Online = (() => {
 
     _setStatus(s, msg) {
       E.status = s;
+      if (s === 'disconnected' && typeof G !== 'undefined' && G && G.players) {
+        const ov = document.getElementById('disconnect-overlay');
+        const win = document.getElementById('win-screen');
+        if (ov && !(win && win.classList.contains('show'))) ov.style.display = 'flex';
+      }
       if (E.onStatusChange) E.onStatusChange(s, msg);
     },
 

@@ -623,6 +623,12 @@ function initGameOnline(guestDeckJSON){
   initDragDrop();
   initBattleBGM();
   phase='main';
+  Online.onStatusChange=(status)=>{
+    if(status==='disconnected'){
+      const ov=document.getElementById('disconnect-overlay');
+      if(ov&&!document.getElementById('win-screen')?.classList.contains('show'))ov.style.display='flex';
+    }
+  };
   log(`Turn ${turnNum} — Host's turn | MAIN PHASE`,'hi');
   render();
   Online.broadcastState();
@@ -1553,8 +1559,12 @@ function guestPlayNonPMystic(mysticCard,mysticIdx){
         showMysticPicker('Holy Prayer — เลือก PS Mystic',[...sealOpts,...pendingPSItem],tfc=>{
           if(tfc._cancelPending){
             spend();_stopAQTimer();_nextChainCard=mysticCard;
+            // Thunder Bolt is in _interfereStack → pop it out; original action still proceeds
+            // Otherwise it's in pendingCb itself → null it out
+            const inStack=_interfereStack.length>0&&_pendingMysticCard?.pasted==='PS';
             showActionQueue(`Holy Prayer → ยกเลิก: ${tfc.desc}`,()=>{
-              pendingCb=null;_pendingMysticCard=null;
+              if(inStack){_interfereStack.pop();}else{pendingCb=null;}
+              _pendingMysticCard=null;
               log(`Holy Prayer: ยกเลิก Effect!`,'good');checkLose();render();Online.broadcastState();
             });
             return;
@@ -3936,8 +3946,10 @@ function _maybeAIInterfere(){
       if(t){
         const _mc=mc,_mi=mi;
         ai.mp-=_mc.mc;ai.mysticHand.splice(_mi,1);broadcastSound('Spell');
+        _pendingMysticCard=_mc;
         _nextChainCard=_mc;
         showActionQueue(`🤖 [Interfere] ${_mc.name} → แยกรวมร่าง ${t.card.name}`,()=>{
+          _pendingMysticCard=null;
           const owner=findFCOwner(t);
           if(owner)t.fusionStack.forEach(m=>owner.p.atLine.push(m));
           t.fusionStack=[];t.fusionAtks=[];t.fused=false;t.fusedSinceTurn=null;t.wasMainFusedTurn=turnNum;
@@ -4535,8 +4547,10 @@ function playNonPMystic(mysticCard,mysticIdx){
         showMysticPicker('Holy Prayer — เลือก PS Mystic',[...sealOpts,...pendingPSItem],tfc=>{
           if(tfc._cancelPending){
             spend();_stopAQTimer();_nextChainCard=mysticCard;
+            const inStack=_interfereStack.length>0&&_pendingMysticCard?.pasted==='PS';
             showActionQueue(`Holy Prayer → ยกเลิก: ${tfc.desc}`,()=>{
-              pendingCb=null;_pendingMysticCard=null;
+              if(inStack){_interfereStack.pop();}else{pendingCb=null;}
+              _pendingMysticCard=null;
               log(`Holy Prayer: ยกเลิก Effect!`,'good');checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
             });
             return;

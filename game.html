@@ -174,6 +174,16 @@
   </div>
 </div>
 
+<!-- Opponent disconnected overlay -->
+<div id="disconnect-overlay" style="display:none;position:fixed;inset:0;background:#000c;z-index:500;align-items:center;justify-content:center">
+  <div style="background:#1f2937;border:2px solid #ef4444;border-radius:14px;padding:32px 36px;text-align:center;max-width:340px">
+    <div style="font-size:36px;margin-bottom:12px">🔌</div>
+    <div style="font-size:20px;font-weight:bold;color:#ef4444;margin-bottom:8px">คู่ต่อสู้ออกจากเกม</div>
+    <div style="font-size:13px;color:#9ca3af;margin-bottom:20px">การเชื่อมต่อถูกตัด</div>
+    <button onclick="location.href='index.html'" style="padding:10px 28px;background:#7c3aed;border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;cursor:pointer">← กลับเมนูหลัก</button>
+  </div>
+</div>
+
 <!-- Combat animation modal -->
 <div id="combat-anim" style="display:none;position:fixed;inset:0;background:#000d;z-index:450;align-items:center;justify-content:center;flex-direction:column;gap:24px">
   <div style="display:flex;align-items:center;gap:36px">
