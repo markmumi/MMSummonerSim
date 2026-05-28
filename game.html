@@ -253,6 +253,46 @@
       <div id="join-status" style="font-size:12px;color:#9ca3af;margin-top:10px;min-height:18px"></div>
     </div>
 
+    <!-- Advanced / Debug panel -->
+    <div id="adv-toggle" onclick="toggleAdv()" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:12px;padding:7px 0 0;border-top:1px solid #1e3a5f;user-select:none">
+      <span id="adv-arrow" style="color:#475569;font-size:11px">▶</span>
+      <span style="font-size:12px;color:#475569">⚙ ขั้นสูง / Debug</span>
+    </div>
+    <div id="adv-panel" style="display:none;margin-top:10px">
+
+      <!-- Timeout -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:11px;color:#64748b;width:72px;flex-shrink:0">หมดเวลา:</span>
+        <select id="adv-timeout" onchange="applyAdvTimeout()" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:6px;padding:3px 8px;font-size:12px">
+          <option value="15000">15 วินาที</option>
+          <option value="30000" selected>30 วินาที</option>
+          <option value="60000">60 วินาที</option>
+        </select>
+      </div>
+
+      <!-- Custom TURN -->
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;color:#64748b;margin-bottom:4px">เพิ่ม TURN Server:</div>
+        <input id="adv-turn-url" placeholder="turn:your-server.com:3478" style="width:100%;box-sizing:border-box;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px;margin-bottom:4px">
+        <div style="display:flex;gap:4px">
+          <input id="adv-turn-user" placeholder="username" style="flex:1;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px">
+          <input id="adv-turn-pass" placeholder="password" type="password" style="flex:1;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px">
+          <button onclick="doAddCustomTurn()" style="padding:5px 10px;background:#334155;border:none;border-radius:6px;color:#e2e8f0;font-size:12px;cursor:pointer;font-weight:700">+</button>
+        </div>
+        <div id="adv-turn-list" style="margin-top:4px"></div>
+      </div>
+
+      <!-- System Log -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:11px;color:#64748b">📋 System Log</span>
+        <div style="display:flex;gap:6px">
+          <button onclick="copyOnlineLog()" style="padding:2px 8px;background:#1e3a5f;border:none;border-radius:4px;color:#94a3b8;font-size:10px;cursor:pointer">Copy</button>
+          <button onclick="clearOnlineLog()" style="padding:2px 8px;background:#1e3a5f;border:none;border-radius:4px;color:#94a3b8;font-size:10px;cursor:pointer">ล้าง</button>
+        </div>
+      </div>
+      <div id="online-log" style="background:#020617;border:1px solid #1e3a5f;border-radius:6px;padding:8px;height:150px;overflow-y:auto;font-family:monospace;font-size:10.5px;line-height:1.5;color:#94a3b8;word-break:break-all"></div>
+    </div>
+
     <button onclick="history.back()" style="position:absolute;top:10px;right:14px;background:none;border:none;color:#64748b;font-size:20px;cursor:pointer;line-height:1">✕</button>
   </div>
 </div>
@@ -292,6 +332,72 @@ function setIpMode(mode){
   });
   if(typeof Online!=='undefined') Online.setIpMode(mode);
 }
+
+// ── Advanced / Debug panel ──
+function toggleAdv(){
+  const p=document.getElementById('adv-panel');
+  const a=document.getElementById('adv-arrow');
+  const open=p.style.display==='block';
+  p.style.display=open?'none':'block';
+  a.textContent=open?'▶':'▼';
+}
+function applyAdvTimeout(){
+  const ms=+document.getElementById('adv-timeout').value;
+  if(typeof Online!=='undefined') Online.setConnTimeout(ms);
+}
+let _customTurnList=[];
+function doAddCustomTurn(){
+  const url=document.getElementById('adv-turn-url').value.trim();
+  const user=document.getElementById('adv-turn-user').value.trim();
+  const pass=document.getElementById('adv-turn-pass').value.trim();
+  if(!url){return;}
+  if(typeof Online!=='undefined') Online.addCustomTurn(url,user,pass);
+  _customTurnList.push({url,user,pass});
+  _renderTurnList();
+  document.getElementById('adv-turn-url').value='';
+  document.getElementById('adv-turn-user').value='';
+  document.getElementById('adv-turn-pass').value='';
+}
+function _removeTurn(i){
+  _customTurnList.splice(i,1);
+  if(typeof Online!=='undefined'){
+    Online.clearCustomTurn();
+    _customTurnList.forEach(t=>Online.addCustomTurn(t.url,t.user,t.pass));
+  }
+  _renderTurnList();
+}
+function _renderTurnList(){
+  const el=document.getElementById('adv-turn-list');
+  if(!el) return;
+  el.innerHTML=_customTurnList.map((t,i)=>
+    `<div style="display:flex;align-items:center;gap:4px;margin-top:3px">
+      <span style="font-size:10px;color:#64748b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.url}${t.user?' ('+t.user+')':''}</span>
+      <button onclick="_removeTurn(${i})" style="padding:1px 6px;background:#450a0a;border:none;border-radius:4px;color:#f87171;font-size:10px;cursor:pointer">✕</button>
+    </div>`
+  ).join('');
+}
+function appendOnlineLog(msg,level){
+  const el=document.getElementById('online-log');
+  if(!el) return;
+  const d=new Date();
+  const ts=`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+  const color=level==='ok'?'#4ade80':level==='error'?'#f87171':level==='warn'?'#fbbf24':'#94a3b8';
+  el.innerHTML+=`<div><span style="color:#475569">[${ts}]</span> <span style="color:${color}">${msg}</span></div>`;
+  el.scrollTop=el.scrollHeight;
+}
+function clearOnlineLog(){
+  const el=document.getElementById('online-log');
+  if(el) el.innerHTML='';
+}
+function copyOnlineLog(){
+  const el=document.getElementById('online-log');
+  if(!el) return;
+  navigator.clipboard?.writeText(el.innerText).then(()=>{
+    const b=event.target; b.textContent='✓'; setTimeout(()=>b.textContent='Copy',1500);
+  });
+}
+// Wire log callback
+if(typeof Online!=='undefined') Online.onLog=appendOnlineLog;
 
 function lobbyTab(which){
   document.getElementById('panel-create').style.display=which==='create'?'block':'none';

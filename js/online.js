@@ -6,7 +6,49 @@
 var Online = (() => {
   const PEER_PREFIX = 'MMSM2025-';
   let peer = null, conn = null;
-  let _ipMode = 'ipv4'; // 'ipv4'|'ipv6'|'auto' — set via setIpMode() before connecting
+  let _ipMode = 'ipv4';       // 'ipv4'|'ipv6'|'auto'|'relay'
+  let _connTimeout = 30000;   // ms — configurable via setConnTimeout()
+  let _extraTurnServers = []; // user-added TURN entries
+
+  function _log(msg, level) {
+    if (E.onLog) E.onLog(msg, level || 'info');
+  }
+
+  // Patch RTCPeerConnection constructor to emit ICE events to _log
+  function _patchRTCWithLogging() {
+    if (!window.RTCPeerConnection || window.__rtcLoggingPatched) return;
+    window.__rtcLoggingPatched = true;
+    const _Orig = window.RTCPeerConnection;
+    window.RTCPeerConnection = new Proxy(_Orig, {
+      construct(Target, args) {
+        const pc = new Target(...args);
+        const counts = { host: 0, srflx: 0, relay: 0, prflx: 0 };
+        pc.addEventListener('icecandidate', e => {
+          if (!e.candidate) {
+            const sum = counts.srflx + counts.relay;
+            _log(`ICE gathering สิ้นสุด — host:${counts.host} srflx:${counts.srflx} relay:${counts.relay}`, sum > 0 ? 'ok' : 'warn');
+            return;
+          }
+          const type = e.candidate.type;
+          const addr = (e.candidate.candidate.split(' ')[4]) || '';
+          if (type in counts) counts[type]++;
+          _log(`ICE ${type}: ${addr}`, 'info');
+        });
+        pc.addEventListener('icecandidateerror', e => {
+          _log(`ICE error ${e.errorCode}: ${e.errorText} [${e.url}]`, 'warn');
+        });
+        pc.addEventListener('iceconnectionstatechange', () => {
+          const s = pc.iceConnectionState;
+          _log(`ICE → ${s}`, s === 'connected' || s === 'completed' ? 'ok' : s === 'failed' || s === 'disconnected' ? 'error' : 'info');
+        });
+        pc.addEventListener('connectionstatechange', () => {
+          const s = pc.connectionState;
+          _log(`Peer → ${s}`, s === 'connected' ? 'ok' : s === 'failed' ? 'error' : 'info');
+        });
+        return pc;
+      }
+    });
+  }
 
   // Patch RTCPeerConnection.prototype.addIceCandidate to filter by IP version.
   // ipv4: drop IPv6 candidates (fixes Error 701 broken-IPv6 hang)
@@ -49,9 +91,8 @@ var Online = (() => {
     { urls: 'turn:freestun.net:3478', username: 'free', credential: 'free' },
   ];
 
-  // Returns PeerJS config; relay mode sets iceTransportPolicy:'relay' to skip STUN hole-punch
   function _getPeerConfig() {
-    const cfg = { debug: 0, config: { iceServers: _ICE_SERVERS } };
+    const cfg = { debug: 0, config: { iceServers: [..._ICE_SERVERS, ..._extraTurnServers] } };
     if (_ipMode === 'relay') cfg.config.iceTransportPolicy = 'relay';
     return cfg;
   }
@@ -65,12 +106,26 @@ var Online = (() => {
     onStatusChange: null,
     guestDeckData: null,
 
+    onLog: null, // callback(msg, level:'info'|'ok'|'warn'|'error') — set by UI
+
     setIpMode(mode) {
       _ipMode = mode;
-      _applyRTCIpFilter(); // relay mode skips filter (iceTransportPolicy handles it)
+      _applyRTCIpFilter();
     },
 
+    setConnTimeout(ms) { _connTimeout = ms; },
+
+    addCustomTurn(url, username, credential) {
+      _extraTurnServers.push(credential
+        ? { urls: url, username, credential }
+        : { urls: url });
+      _log(`เพิ่ม TURN: ${url}`, 'info');
+    },
+
+    clearCustomTurn() { _extraTurnServers = []; },
+
     _loadPeerJS(cb) {
+      _patchRTCWithLogging();
       _applyRTCIpFilter();
       if (window.Peer) { cb(); return; }
       const s = document.createElement('script');
@@ -97,20 +152,24 @@ var Online = (() => {
     createRoom(onWaiting, onGuestConnected) {
       E.isHost = true;
       E.localPlayerIdx = 0;
+      _log(`โหมด: ${_ipMode} | timeout: ${_connTimeout/1000}s | TURN เพิ่ม: ${_extraTurnServers.length}`, 'info');
       E._loadPeerJS(() => {
         const code = Math.random().toString(36).slice(2, 8).toUpperCase();
         E.roomCode = code;
+        _log(`สร้างห้อง: ${code} — กำลังเชื่อมต่อ PeerJS server…`, 'info');
         peer = new Peer(PEER_PREFIX + code, _getPeerConfig());
         peer.on('open', () => {
+          _log(`PeerJS server: เชื่อมต่อสำเร็จ — รอ Guest…`, 'ok');
           E._setStatus('waiting', code);
           if (onWaiting) onWaiting(code);
         });
         peer.on('connection', c => {
+          _log('Guest กำลังเชื่อมต่อ…', 'info');
           conn = c;
           conn.on('open', () => {
+            _log('DataChannel เปิด — Host+Guest เชื่อมต่อสำเร็จ!', 'ok');
             E.isOnline = true;
             E._setStatus('connected', null);
-            console.log('[Online] Guest connected! isOnline=true (Host)');
             if(typeof log==='function')log('🌐 Online: Guest เชื่อมต่อแล้ว!','good');
           });
           conn.on('data', data => {
@@ -121,14 +180,13 @@ var Online = (() => {
               E._handleGuestAction(data);
             }
           });
-          conn.on('close', () => E._setStatus('disconnected', null));
-          conn.on('error', err => console.error('PeerJS conn error:', err));
+          conn.on('close', () => { _log('Connection ปิด', 'warn'); E._setStatus('disconnected', null); });
+          conn.on('error', err => { _log(`Conn error: ${err}`, 'error'); console.error('PeerJS conn error:', err); });
         });
         peer.on('error', err => {
-          // ID taken: try a new code
+          _log(`PeerJS error: ${err.type || err}`, 'error');
           if (err.type === 'unavailable-id') {
-            peer.destroy();
-            peer = null;
+            peer.destroy(); peer = null;
             E.createRoom(onWaiting, onGuestConnected);
           } else {
             E._setStatus('error', err.type || String(err));
@@ -142,27 +200,29 @@ var Online = (() => {
       E.isHost = false;
       E.localPlayerIdx = 1;
       E.roomCode = code;
+      _log(`เข้าห้อง: ${code} | โหมด: ${_ipMode} | timeout: ${_connTimeout/1000}s | TURN เพิ่ม: ${_extraTurnServers.length}`, 'info');
       E._loadPeerJS(() => {
         peer = new Peer(undefined, _getPeerConfig());
         peer.on('open', () => {
+          _log(`PeerJS server: เชื่อมต่อสำเร็จ — กำลัง join ห้อง ${code}…`, 'ok');
           E._setStatus('connecting', null);
           conn = peer.connect(PEER_PREFIX + code.toUpperCase().trim(), { reliable: true });
 
           let connectTimer = setTimeout(() => {
             connectTimer = null;
             if (!E.isOnline) {
-              E._setStatus('error', 'หมดเวลา — NAT/Firewall ขัดขวาง ให้เพื่อนลองสร้างห้องแทน แล้วลองใหม่');
+              _log(`หมดเวลา (${_connTimeout/1000}s) — ลอง Force Relay หรือให้เพื่อนสร้างห้องแทน`, 'error');
+              E._setStatus('error', 'หมดเวลา — NAT/Firewall ขัดขวาง ลอง Force Relay หรือให้เพื่อนสร้างห้องแทน');
               if (conn) { try { conn.close(); } catch(e){} conn = null; }
             }
-          }, 30000);
+          }, _connTimeout);
 
           conn.on('open', () => {
             if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+            _log('DataChannel เปิด — เชื่อมต่อกับ Host สำเร็จ!', 'ok');
             E.isOnline = true;
             E._setStatus('connected', null);
-            console.log('[Online] Connected to host! isOnline=true (Guest)');
             if(typeof log==='function')log('🌐 Online: เชื่อมต่อกับ Host สำเร็จ!','good');
-            // Send guest deck data to host
             const deckData = localStorage.getItem('mm_playerDeck') || '{}';
             conn.send({ type: 'deck', deck: deckData });
             if (onConnected) onConnected();
@@ -171,13 +231,15 @@ var Online = (() => {
             if (data.type === 'anim') E._playAnim(data);
             else E._applyHostState(data);
           });
-          conn.on('close', () => E._setStatus('disconnected', null));
+          conn.on('close', () => { _log('Connection ปิด', 'warn'); E._setStatus('disconnected', null); });
           conn.on('error', err => {
             if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+            _log(`Conn error: ${err.type || err}`, 'error');
             E._setStatus('error', 'เชื่อมต่อไม่ได้ — ตรวจสอบอินเทอร์เน็ตหรือลองใหม่');
           });
         });
         peer.on('error', err => {
+          _log(`PeerJS error: ${err.type || err}`, 'error');
           const msg = err.type === 'peer-unavailable'
             ? 'ไม่พบห้อง — Room Code ผิด หรือเพื่อนยังไม่ได้สร้างห้อง'
             : err.type === 'network'
