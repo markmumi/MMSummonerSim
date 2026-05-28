@@ -6,7 +6,7 @@
 var Online = (() => {
   const PEER_PREFIX = 'MMSM2025-';
   let peer = null, conn = null;
-  let _ipMode = 'ipv4';       // 'ipv4'|'ipv6'|'auto'|'relay'
+  let _ipMode = 'auto';       // 'auto'|'ipv4'|'ipv6'|'relay'
   let _connTimeout = 30000;   // ms — configurable via setConnTimeout()
   let _extraTurnServers = []; // user-added TURN entries
 
@@ -148,13 +148,16 @@ var Online = (() => {
       if (E.onStatusChange) E.onStatusChange(s, msg);
     },
 
-    // Host: create a room with a 6-char room code
-    createRoom(onWaiting, onGuestConnected) {
+    // Host: create a room. Pass existingCode to reconnect without changing room code.
+    createRoom(onWaiting, onGuestConnected, existingCode) {
       E.isHost = true;
       E.localPlayerIdx = 0;
+      E.isOnline = false;
+      if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
+      conn = null;
       _log(`โหมด: ${_ipMode} | timeout: ${_connTimeout/1000}s | TURN เพิ่ม: ${_extraTurnServers.length}`, 'info');
       E._loadPeerJS(() => {
-        const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+        const code = existingCode || Math.random().toString(36).slice(2, 8).toUpperCase();
         E.roomCode = code;
         _log(`สร้างห้อง: ${code} — กำลังเชื่อมต่อ PeerJS server…`, 'info');
         peer = new Peer(PEER_PREFIX + code, _getPeerConfig());

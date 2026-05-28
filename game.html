@@ -216,14 +216,6 @@
       <button id="tab-join" onclick="lobbyTab('join')" style="flex:1;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#9ca3af;font-size:13px;font-weight:600;cursor:pointer">🔗 Guest (เข้าห้อง)</button>
     </div>
 
-    <!-- IP Mode selector (shared for both Host & Guest) -->
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:7px 10px;background:#0f172a;border-radius:8px;border:1px solid #1e3a5f">
-      <span style="font-size:11px;color:#64748b;flex-shrink:0">การเชื่อมต่อ:</span>
-      <button id="ipm-ipv4"  onclick="setIpMode('ipv4')"  style="flex:1;padding:5px 4px;border-radius:6px;background:#7c3aed;border:1px solid #7c3aed;color:#fff;font-size:11px;font-weight:600;cursor:pointer">IPv4</button>
-      <button id="ipm-auto"  onclick="setIpMode('auto')"  style="flex:1;padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer">อัตโนมัติ</button>
-      <button id="ipm-relay" onclick="setIpMode('relay')" style="flex:1;padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer">Force Relay</button>
-    </div>
-
     <!-- Create Room panel -->
     <div id="panel-create">
       <p style="font-size:12px;color:#94a3b8;margin-bottom:12px">กด <b style="color:#c4b5fd">Create Room</b> เพื่อสร้างห้อง แล้วแชร์ Room Code ให้ผู้เล่นอีกฝ่าย</p>
@@ -233,7 +225,10 @@
       <div id="room-code-box" style="display:none;margin-top:14px;text-align:center;background:#0f172a;border-radius:10px;padding:14px">
         <div style="font-size:11px;color:#64748b;margin-bottom:4px">Room Code — แชร์ให้เพื่อน</div>
         <div id="room-code-display" style="font-size:36px;font-weight:900;color:#fbbf24;letter-spacing:8px"></div>
-        <button onclick="copyRoomCode()" style="margin-top:8px;padding:4px 14px;background:#334155;border:none;border-radius:6px;color:#94a3b8;font-size:11px;cursor:pointer">📋 Copy</button>
+        <div style="display:flex;gap:6px;justify-content:center;margin-top:8px">
+          <button onclick="copyRoomCode()" style="padding:4px 12px;background:#334155;border:none;border-radius:6px;color:#94a3b8;font-size:11px;cursor:pointer">📋 Copy</button>
+          <button onclick="doReconnectRoom()" style="padding:4px 12px;background:#1e3a5f;border:none;border-radius:6px;color:#94a3b8;font-size:11px;cursor:pointer">🔄 Reconnect (code เดิม)</button>
+        </div>
         <div style="margin-top:10px;font-size:11px;color:#64748b">กำลังรอผู้เล่นอีกฝ่าย…</div>
       </div>
 
@@ -260,8 +255,20 @@
     </div>
     <div id="adv-panel" style="display:none;margin-top:10px">
 
+      <!-- Connection mode -->
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;color:#64748b;margin-bottom:5px">โหมดเชื่อมต่อ:</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+          <button id="ipm-auto"  onclick="setIpMode('auto')"  style="padding:5px 4px;border-radius:6px;background:#7c3aed;border:1px solid #7c3aed;color:#fff;font-size:11px;font-weight:600;cursor:pointer">🔀 อัตโนมัติ</button>
+          <button id="ipm-ipv4"  onclick="setIpMode('ipv4')"  style="padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer">4️⃣ IPv4 เท่านั้น</button>
+          <button id="ipm-ipv6"  onclick="setIpMode('ipv6')"  style="padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer">6️⃣ IPv6 เท่านั้น</button>
+          <button id="ipm-relay" onclick="setIpMode('relay')" style="padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer">🔁 Force Relay</button>
+        </div>
+        <div style="font-size:10px;color:#475569;margin-top:4px" id="ipm-desc">อัตโนมัติ: ลอง IPv6 → IPv4 (browser จัดการ)</div>
+      </div>
+
       <!-- Timeout -->
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <span style="font-size:11px;color:#64748b;width:72px;flex-shrink:0">หมดเวลา:</span>
         <select id="adv-timeout" onchange="applyAdvTimeout()" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:6px;padding:3px 8px;font-size:12px">
           <option value="15000">15 วินาที</option>
@@ -273,6 +280,15 @@
       <!-- Custom TURN -->
       <div style="margin-bottom:10px">
         <div style="font-size:11px;color:#64748b;margin-bottom:4px">เพิ่ม TURN Server:</div>
+        <select id="adv-turn-tpl" onchange="applyTurnTemplate()" style="width:100%;box-sizing:border-box;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px;margin-bottom:4px">
+          <option value="">-- เลือก template หรือกรอกเอง --</option>
+          <option value="turn:openrelay.metered.ca:80|openrelayproject|openrelayproject">openrelay.metered.ca:80 UDP (openrelayproject)</option>
+          <option value="turn:openrelay.metered.ca:443?transport=tcp|openrelayproject|openrelayproject">openrelay.metered.ca:443 TCP (openrelayproject)</option>
+          <option value="turn:freestun.net:3479|free|free">freestun.net:3479 (free/free)</option>
+          <option value="turn:freestun.net:3478|free|free">freestun.net:3478 (free/free)</option>
+          <option value="turn:a.relay.metered.ca:80||">a.relay.metered.ca:80 (ใส่ account เอง)</option>
+          <option value="custom">✏ กรอกเอง…</option>
+        </select>
         <input id="adv-turn-url" placeholder="turn:your-server.com:3478" style="width:100%;box-sizing:border-box;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px;margin-bottom:4px">
         <div style="display:flex;gap:4px">
           <input id="adv-turn-user" placeholder="username" style="flex:1;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px">
@@ -323,13 +339,21 @@
 
 <script>
 // ── Online lobby UI ──
-const _IPM_ACTIVE  = 'flex:1;padding:5px 4px;border-radius:6px;background:#7c3aed;border:1px solid #7c3aed;color:#fff;font-size:11px;font-weight:600;cursor:pointer';
-const _IPM_INACTIVE = 'flex:1;padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer';
+const _IPM_ACTIVE  = 'padding:5px 4px;border-radius:6px;background:#7c3aed;border:1px solid #7c3aed;color:#fff;font-size:11px;font-weight:600;cursor:pointer';
+const _IPM_INACTIVE = 'padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer';
+const _IPM_DESC = {
+  auto:  'อัตโนมัติ: ลอง IPv6 → IPv4 (browser จัดการ)',
+  ipv4:  'IPv4 เท่านั้น: กรอง IPv6 candidates ออก (แก้ Error 701)',
+  ipv6:  'IPv6 เท่านั้น: กรอง IPv4 candidates ออก',
+  relay: 'Force Relay: ผ่าน TURN เท่านั้น ข้าม STUN/hole-punch (แก้ CGNAT)',
+};
 function setIpMode(mode){
-  ['ipv4','auto','relay'].forEach(m=>{
+  ['auto','ipv4','ipv6','relay'].forEach(m=>{
     const b=document.getElementById('ipm-'+m);
     if(b) b.style.cssText = m===mode ? _IPM_ACTIVE : _IPM_INACTIVE;
   });
+  const d=document.getElementById('ipm-desc');
+  if(d) d.textContent=_IPM_DESC[mode]||'';
   if(typeof Online!=='undefined') Online.setIpMode(mode);
 }
 
@@ -344,6 +368,19 @@ function toggleAdv(){
 function applyAdvTimeout(){
   const ms=+document.getElementById('adv-timeout').value;
   if(typeof Online!=='undefined') Online.setConnTimeout(ms);
+}
+function applyTurnTemplate(){
+  const val=document.getElementById('adv-turn-tpl').value;
+  if(!val||val==='custom'){
+    document.getElementById('adv-turn-url').value='';
+    document.getElementById('adv-turn-user').value='';
+    document.getElementById('adv-turn-pass').value='';
+    return;
+  }
+  const [url,user,pass]=val.split('|');
+  document.getElementById('adv-turn-url').value=url||'';
+  document.getElementById('adv-turn-user').value=user||'';
+  document.getElementById('adv-turn-pass').value=pass||'';
 }
 let _customTurnList=[];
 function doAddCustomTurn(){
@@ -410,12 +447,15 @@ function lobbyTab(which){
     :'flex:1;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#9ca3af;font-size:13px;font-weight:600;cursor:pointer';
 }
 
-function doCreateRoom(){
+let _hostRoomCode='';
+function doCreateRoom(forceCode){
   document.getElementById('btn-create-room').disabled=true;
   document.getElementById('btn-create-room').textContent='กำลังสร้าง…';
   document.getElementById('create-status').textContent='กำลังเชื่อมต่อ…';
+  document.getElementById('guest-connected-box').style.display='none';
   Online.onStatusChange=(status,msg)=>{
     if(status==='waiting'){
+      _hostRoomCode=msg;
       document.getElementById('create-status').textContent='รอ Guest เชื่อมต่อ…';
       document.getElementById('room-code-box').style.display='block';
       document.getElementById('room-code-display').textContent=msg;
@@ -425,12 +465,16 @@ function doCreateRoom(){
       document.getElementById('btn-create-room').textContent='Create Room';
     }
   };
-  Online.createRoom(
-    ()=>{},
-    ()=>{
-      document.getElementById('guest-connected-box').style.display='block';
-    }
-  );
+  Online.createRoom(()=>{},()=>{
+    document.getElementById('guest-connected-box').style.display='block';
+  }, forceCode||undefined);
+}
+function doReconnectRoom(){
+  if(!_hostRoomCode) return;
+  document.getElementById('room-code-box').style.display='none';
+  document.getElementById('guest-connected-box').style.display='none';
+  document.getElementById('btn-create-room').textContent='Create Room';
+  doCreateRoom(_hostRoomCode);
 }
 
 function doStartOnlineGame(){
