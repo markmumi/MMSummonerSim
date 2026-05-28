@@ -9,7 +9,7 @@ var Online = (() => {
   let _ipMode = 'auto';       // 'auto'|'ipv4'|'ipv6'|'relay'
   let _connTimeout = 30000;   // ms — configurable via setConnTimeout()
   let _extraTurnServers = []; // user-added TURN entries
-  let _autoSwap = false;      // auto role-swap on connection failure
+  let _autoSwap = true;       // auto role-swap on connection failure (default ON)
 
   // Swap roles using the same room code:
   // Guest-that-failed  → creates room (becomes Host)
@@ -307,7 +307,14 @@ var Online = (() => {
           });
         });
         peer.on('error', err => {
-          _log(`PeerJS error: ${err.type || err}`, 'error');
+          _log(`PeerJS error: ${err.type || err}`, err.type === 'peer-unavailable' ? 'info' : 'error');
+          // Auto-swap retry: new Host (original Guest) may not have room ready yet
+          if (_autoSwap && !E.isOnline && err.type === 'peer-unavailable') {
+            _log('🔄 Auto-swap: ห้องยังไม่พร้อม — รอ 4s แล้วลองใหม่…', 'info');
+            if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
+            setTimeout(() => E.joinRoom(code, onConnected), 4000);
+            return;
+          }
           const msg = err.type === 'peer-unavailable'
             ? 'ไม่พบห้อง — Room Code ผิด หรือเพื่อนยังไม่ได้สร้างห้อง'
             : err.type === 'network'
