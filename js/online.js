@@ -6,18 +6,31 @@
 var Online = (() => {
   const PEER_PREFIX = 'MMSM2025-';
   let peer = null, conn = null;
+  let _ipMode = 'ipv4'; // 'ipv4'|'ipv6'|'auto' — set via setIpMode() before connecting
 
-  // Patch addIceCandidate to drop IPv6 candidates — prevents connection hang
-  // when one peer has broken IPv6 (browser tries IPv6 first, times out before IPv4)
-  function _patchRTCIPv4Preferred() {
-    if (!window.RTCPeerConnection || RTCPeerConnection.prototype.__ipv4Patched) return;
-    RTCPeerConnection.prototype.__ipv4Patched = true;
-    const _origAdd = RTCPeerConnection.prototype.addIceCandidate;
+  // Patch RTCPeerConnection.prototype.addIceCandidate to filter by IP version.
+  // ipv4: drop IPv6 candidates (fixes Error 701 broken-IPv6 hang)
+  // ipv6: drop IPv4 candidates
+  // auto: no filtering (restore original)
+  function _applyRTCIpFilter() {
+    if (!window.RTCPeerConnection) return;
+    if (!RTCPeerConnection.prototype.__origAddICE) {
+      RTCPeerConnection.prototype.__origAddICE = RTCPeerConnection.prototype.addIceCandidate;
+    }
+    const _orig = RTCPeerConnection.prototype.__origAddICE;
+    if (_ipMode === 'auto') {
+      RTCPeerConnection.prototype.addIceCandidate = _orig;
+      return;
+    }
+    const mode = _ipMode;
     RTCPeerConnection.prototype.addIceCandidate = function(candidate) {
-      if (candidate && candidate.candidate && /(?:[0-9a-f]{1,4}:){2}/i.test(candidate.candidate)) {
-        return Promise.resolve(); // drop IPv6 candidate
+      if (candidate && candidate.candidate) {
+        const addr = (candidate.candidate.split(' ')[4]) || '';
+        const isIPv6 = addr.includes(':');
+        if (mode === 'ipv4' && isIPv6)  return Promise.resolve();
+        if (mode === 'ipv6' && !isIPv6) return Promise.resolve();
       }
-      return _origAdd.apply(this, arguments);
+      return _orig.apply(this, arguments);
     };
   }
 
@@ -59,8 +72,13 @@ var Online = (() => {
     onStatusChange: null,
     guestDeckData: null,
 
+    setIpMode(mode) {
+      _ipMode = mode;
+      _applyRTCIpFilter();
+    },
+
     _loadPeerJS(cb) {
-      _patchRTCIPv4Preferred();
+      _applyRTCIpFilter();
       if (window.Peer) { cb(); return; }
       const s = document.createElement('script');
       s.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
