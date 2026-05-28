@@ -1119,7 +1119,7 @@ function guestDoFusion(mainFC,materialFC){
     else{log('เลือกการ์ดต่อ หรือกด Cancel เพื่อหยุด','hi');}
     render();
     Online.broadcastState();
-  },null,mainFC.card,'⚡ Guest Fusing...');
+  },mainFC,mainFC.card,'⚡ Guest Fusing...');
 }
 
 function guestDoUnfuse(fc){

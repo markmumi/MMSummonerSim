@@ -357,6 +357,8 @@ async function init(){
   SEAL_DB=CARDS_METADATA.cards.map(cvt);
   await loadScript('OGcarddbseal/mystics_metadata.js');
   MYSTIC_DB_LOCAL=MYSTICS_METADATA.mystics;
+  await loadScript('js/ai_decks.js');
+  seedDefaultPresets();
 
   const tribes=[...new Set(SEAL_DB.map(c=>c.tribe))].sort();
   const fs=document.getElementById('f-tribe');
@@ -658,6 +660,16 @@ function loadSaved(){
 /* ── Presets ── */
 const PRESET_KEY='mm_deckPresets';
 const PRESET_MAX=20;
+
+function seedDefaultPresets(){
+  if(getPresets().length) return;
+  const order=['zadin','andre','sigmund','harison'];
+  const defaults=order.filter(k=>AI_DECK_TEMPLATES[k]).map(k=>{
+    const d=AI_DECK_TEMPLATES[k];
+    return {name:d.name, savedAt:Date.now(), seals:d.seals, mystics:d.mystics};
+  });
+  if(defaults.length) setPresets(defaults);
+}
 
 function getPresets(){try{return JSON.parse(localStorage.getItem(PRESET_KEY)||'[]');}catch{return[];}}
 function setPresets(arr){localStorage.setItem(PRESET_KEY,JSON.stringify(arr));}
