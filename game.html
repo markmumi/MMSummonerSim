@@ -497,6 +497,12 @@ function doCreateRoom(forceCode){
       document.getElementById('guest-connected-box').style.display='none';
       return;
     }
+    if(status==='guest-ready'){
+      document.getElementById('guest-connected-box').style.display='block';
+      document.getElementById('btn-start-game').disabled=false;
+      document.getElementById('btn-start-game').textContent='▶ เริ่มเกม';
+      return;
+    }
     if(status==='waiting'){
       _hostRoomCode=msg;
       document.getElementById('create-status').textContent='รอ Guest เชื่อมต่อ…';
@@ -549,6 +555,12 @@ function doJoinRoom(){
       document.getElementById('join-status').textContent='🔄 Auto-swap: รอ Host ใหม่สร้างห้อง…';
       document.getElementById('join-status').style.color='#fbbf24';
       document.getElementById('btn-join-room').disabled=true;
+      return;
+    }
+    if(status==='guest-ready'){
+      document.getElementById('guest-connected-box').style.display='block';
+      document.getElementById('btn-start-game').disabled=false;
+      document.getElementById('btn-start-game').textContent='▶ เริ่มเกม';
       return;
     }
     if(status==='connecting'){

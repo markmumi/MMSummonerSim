@@ -241,6 +241,7 @@ var Online = (() => {
             if (data.type === 'deck') {
               E.guestDeckData = data.deck;
               if (onGuestConnected) onGuestConnected(data.deck);
+              E._setStatus('guest-ready', null); // always fire — UI shows Start Game btn
             } else if (data.type === 'action') {
               E._handleGuestAction(data);
             }
