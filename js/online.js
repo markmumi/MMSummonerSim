@@ -7,6 +7,20 @@ var Online = (() => {
   const PEER_PREFIX = 'MMSM2025-';
   let peer = null, conn = null;
 
+  // Patch addIceCandidate to drop IPv6 candidates — prevents connection hang
+  // when one peer has broken IPv6 (browser tries IPv6 first, times out before IPv4)
+  function _patchRTCIPv4Preferred() {
+    if (!window.RTCPeerConnection || RTCPeerConnection.prototype.__ipv4Patched) return;
+    RTCPeerConnection.prototype.__ipv4Patched = true;
+    const _origAdd = RTCPeerConnection.prototype.addIceCandidate;
+    RTCPeerConnection.prototype.addIceCandidate = function(candidate) {
+      if (candidate && candidate.candidate && /(?:[0-9a-f]{1,4}:){2}/i.test(candidate.candidate)) {
+        return Promise.resolve(); // drop IPv6 candidate
+      }
+      return _origAdd.apply(this, arguments);
+    };
+  }
+
   const PEER_CONFIG = {
     debug: 0,
     config: {
@@ -46,6 +60,7 @@ var Online = (() => {
     guestDeckData: null,
 
     _loadPeerJS(cb) {
+      _patchRTCIPv4Preferred();
       if (window.Peer) { cb(); return; }
       const s = document.createElement('script');
       s.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
