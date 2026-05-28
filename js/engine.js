@@ -430,7 +430,7 @@ function skipToNextPhase(){
   cancelAction();
   if(phase==='draw'){phase='main';log('MAIN PHASE','hi');}
   else if(phase==='main'){
-    if(turnNum===1){phase='main2';log('MAIN PHASE 2 (ไม่มี Battle Phase เทิน 1)','hi');render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();return;}
+    if(turnNum===1){endTurnFromMain2();return;}
     phase='battle';
     log('BATTLE PHASE — select a Seal then click enemy','hi');
     render();
