@@ -3812,8 +3812,9 @@ function aiTurn(){
         ai.mp-=maCost;
         showActionQueue(`🤖 ${afc.card.name} ⚔ ${bestTarget.fc.card.name}`,()=>{
           if(afc.curses?.some(c=>c.type==='stone'||c.type==='freeze')){log(`${afc.card.name} ถูก Stone/Freeze Curse — โจมตีถูกยกเลิก!`,'');done();return;}
-          combatAnim(afc,bestTarget.fc,myAt,bestTarget.line,false,()=>{
-            dealDamage(afc,bestTarget.fc,myAt,'normal attack',1,0,bestTarget.line);
+          const curAt=getEffectiveAt(afc); // recalculate after interfere window (e.g. Yin debuff)
+          combatAnim(afc,bestTarget.fc,curAt,bestTarget.line,false,()=>{
+            dealDamage(afc,bestTarget.fc,curAt,'normal attack',1,0,bestTarget.line);
             afterDD(done);
           });
         });
