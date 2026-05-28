@@ -218,10 +218,10 @@
 
     <!-- IP Mode selector (shared for both Host & Guest) -->
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:7px 10px;background:#0f172a;border-radius:8px;border:1px solid #1e3a5f">
-      <span style="font-size:11px;color:#64748b;flex-shrink:0">เชื่อมต่อผ่าน:</span>
-      <button id="ipm-ipv4" onclick="setIpMode('ipv4')" style="flex:1;padding:5px 4px;border-radius:6px;background:#7c3aed;border:1px solid #7c3aed;color:#fff;font-size:11px;font-weight:600;cursor:pointer">IPv4 เท่านั้น</button>
-      <button id="ipm-ipv6" onclick="setIpMode('ipv6')" style="flex:1;padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer">IPv6 เท่านั้น</button>
-      <button id="ipm-auto" onclick="setIpMode('auto')"  style="flex:1;padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer">อัตโนมัติ</button>
+      <span style="font-size:11px;color:#64748b;flex-shrink:0">การเชื่อมต่อ:</span>
+      <button id="ipm-ipv4"  onclick="setIpMode('ipv4')"  style="flex:1;padding:5px 4px;border-radius:6px;background:#7c3aed;border:1px solid #7c3aed;color:#fff;font-size:11px;font-weight:600;cursor:pointer">IPv4</button>
+      <button id="ipm-auto"  onclick="setIpMode('auto')"  style="flex:1;padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer">อัตโนมัติ</button>
+      <button id="ipm-relay" onclick="setIpMode('relay')" style="flex:1;padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer">Force Relay</button>
     </div>
 
     <!-- Create Room panel -->
@@ -286,7 +286,7 @@
 const _IPM_ACTIVE  = 'flex:1;padding:5px 4px;border-radius:6px;background:#7c3aed;border:1px solid #7c3aed;color:#fff;font-size:11px;font-weight:600;cursor:pointer';
 const _IPM_INACTIVE = 'flex:1;padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer';
 function setIpMode(mode){
-  ['ipv4','ipv6','auto'].forEach(m=>{
+  ['ipv4','auto','relay'].forEach(m=>{
     const b=document.getElementById('ipm-'+m);
     if(b) b.style.cssText = m===mode ? _IPM_ACTIVE : _IPM_INACTIVE;
   });

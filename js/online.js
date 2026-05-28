@@ -18,7 +18,7 @@ var Online = (() => {
       RTCPeerConnection.prototype.__origAddICE = RTCPeerConnection.prototype.addIceCandidate;
     }
     const _orig = RTCPeerConnection.prototype.__origAddICE;
-    if (_ipMode === 'auto') {
+    if (_ipMode === 'auto' || _ipMode === 'relay') {
       RTCPeerConnection.prototype.addIceCandidate = _orig;
       return;
     }
@@ -34,34 +34,27 @@ var Online = (() => {
     };
   }
 
-  const PEER_CONFIG = {
-    debug: 0,
-    config: {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
-        { urls: 'stun:stun.cloudflare.com:3478' },
-        {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        }
-      ]
-    }
-  };
+  const _ICE_SERVERS = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'stun:freestun.net:3479' },
+    // openrelay (free public TURN)
+    { urls: 'turn:openrelay.metered.ca:80',              username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',             username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:3478',            username: 'openrelayproject', credential: 'openrelayproject' },
+    // freestun (separate provider — diversity fallback)
+    { urls: 'turn:freestun.net:3479', username: 'free', credential: 'free' },
+    { urls: 'turn:freestun.net:3478', username: 'free', credential: 'free' },
+  ];
+
+  // Returns PeerJS config; relay mode sets iceTransportPolicy:'relay' to skip STUN hole-punch
+  function _getPeerConfig() {
+    const cfg = { debug: 0, config: { iceServers: _ICE_SERVERS } };
+    if (_ipMode === 'relay') cfg.config.iceTransportPolicy = 'relay';
+    return cfg;
+  }
 
   const E = {
     isOnline: false,
@@ -74,7 +67,7 @@ var Online = (() => {
 
     setIpMode(mode) {
       _ipMode = mode;
-      _applyRTCIpFilter();
+      _applyRTCIpFilter(); // relay mode skips filter (iceTransportPolicy handles it)
     },
 
     _loadPeerJS(cb) {
@@ -107,7 +100,7 @@ var Online = (() => {
       E._loadPeerJS(() => {
         const code = Math.random().toString(36).slice(2, 8).toUpperCase();
         E.roomCode = code;
-        peer = new Peer(PEER_PREFIX + code, PEER_CONFIG);
+        peer = new Peer(PEER_PREFIX + code, _getPeerConfig());
         peer.on('open', () => {
           E._setStatus('waiting', code);
           if (onWaiting) onWaiting(code);
@@ -150,7 +143,7 @@ var Online = (() => {
       E.localPlayerIdx = 1;
       E.roomCode = code;
       E._loadPeerJS(() => {
-        peer = new Peer(undefined, PEER_CONFIG);
+        peer = new Peer(undefined, _getPeerConfig());
         peer.on('open', () => {
           E._setStatus('connecting', null);
           conn = peer.connect(PEER_PREFIX + code.toUpperCase().trim(), { reliable: true });
