@@ -10,13 +10,15 @@ var Online = (() => {
   let _connTimeout = 30000;   // ms — configurable via setConnTimeout()
   let _extraTurnServers = []; // user-added TURN entries
   let _autoSwap = true;       // auto role-swap on connection failure (default ON)
+  let _swapping = false;      // guard: prevent double-trigger of swap
 
   // Swap roles using the same room code:
   // Guest-that-failed  → creates room (becomes Host)
   // Host-that-got-err  → joins room  (becomes Guest)
   function _doAutoSwap() {
     const code = E.roomCode;
-    if (!code || E.isOnline) return;
+    if (!code || E.isOnline || _swapping) return;
+    _swapping = true;
     _log(`🔄 Auto-swap: สลับบทบาท โค้ด ${code}…`, 'info');
     if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
     conn = null; E.isOnline = false;
@@ -62,6 +64,10 @@ var Online = (() => {
         pc.addEventListener('iceconnectionstatechange', () => {
           const s = pc.iceConnectionState;
           _log(`ICE → ${s}`, s === 'connected' || s === 'completed' ? 'ok' : s === 'failed' || s === 'disconnected' ? 'error' : 'info');
+          // Trigger auto-swap immediately on ICE failure — don't wait for 30s timeout
+          if ((s === 'failed' || s === 'disconnected') && _autoSwap && !E.isOnline && !_swapping) {
+            setTimeout(_doAutoSwap, 800);
+          }
         });
         pc.addEventListener('connectionstatechange', () => {
           const s = pc.connectionState;
@@ -227,7 +233,7 @@ var Online = (() => {
           conn = c;
           conn.on('open', () => {
             _log('DataChannel เปิด — Host+Guest เชื่อมต่อสำเร็จ!', 'ok');
-            E.isOnline = true;
+            _swapping = false; E.isOnline = true;
             E._setStatus('connected', null);
             if(typeof log==='function')log('🌐 Online: Guest เชื่อมต่อแล้ว!','good');
           });
@@ -247,10 +253,16 @@ var Online = (() => {
           });
         });
         peer.on('error', err => {
-          _log(`PeerJS error: ${err.type || err}`, 'error');
+          _log(`PeerJS error: ${err.type || err}`, err.type === 'unavailable-id' ? 'info' : 'error');
           if (err.type === 'unavailable-id') {
             peer.destroy(); peer = null;
-            E.createRoom(onWaiting, onGuestConnected);
+            if (existingCode && _autoSwap) {
+              // Original Host hasn't released the ID yet — retry same code
+              _log(`🔄 Auto-swap: ID ${existingCode} ยังถูกใช้อยู่ — รอ 2s แล้วลองใหม่…`, 'info');
+              setTimeout(() => E.createRoom(onWaiting, onGuestConnected, existingCode), 2000);
+            } else {
+              E.createRoom(onWaiting, onGuestConnected); // gen new code (normal flow)
+            }
           } else {
             E._setStatus('error', err.type || String(err));
           }
@@ -284,7 +296,7 @@ var Online = (() => {
           conn.on('open', () => {
             if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
             _log('DataChannel เปิด — เชื่อมต่อกับ Host สำเร็จ!', 'ok');
-            E.isOnline = true;
+            _swapping = false; E.isOnline = true;
             E._setStatus('connected', null);
             if(typeof log==='function')log('🌐 Online: เชื่อมต่อกับ Host สำเร็จ!','good');
             const deckData = localStorage.getItem('mm_playerDeck') || '{}';
