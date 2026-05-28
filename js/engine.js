@@ -3782,7 +3782,7 @@ function aiTurn(){
         showActionQueue(`🤖 ${afc.card.name} → <b>${allSp.name}</b> (ALL)`,()=>{
           if(afc.curses?.some(c=>c.type==='stone'||c.type==='freeze')){log(`${afc.card.name} ถูก Stone/Freeze Curse — โจมตีถูกยกเลิก!`,'');done();return;}
           log(`AI: ${afc.card.name} uses ${allSp.name} (ALL)`);
-          animateAllTargets(afc,allTargets,allSp.at,allSp.name,1,0,done);
+          animateAllTargets(afc,allTargets,_fusionAtkAt(allSp.at,afc),allSp.name,1,0,done);
         });
       } else if(winSp){
         ai.mp-=Math.max(0,winSp.mp-maMod);
@@ -3791,10 +3791,11 @@ function aiTurn(){
         function doHit(){
           const curT=[...G.players[0].atLine.map(f=>({fc:f,line:'at'})),...G.players[0].dfLine.map(f=>({fc:f,line:'df'}))].filter(filterME).filter(filterBrig);
           if(!curT.length||hitsDone>=hitCount){done();return;}
-          const htgt=curT.find(({fc:d,line:dl})=>winSp.at>(dl==='at'?getEffectiveAt(d):getEffectiveDf(d)))||curT.reduce((b,{fc:d,line:dl})=>{const ds=dl==='at'?getEffectiveAt(d):getEffectiveDf(d);return(!b||ds<b.ds)?{fc:d,line:dl,ds}:b;},null);
+          const effAt=_fusionAtkAt(winSp.at,afc); // recalculate — includes mystic debuffs applied during interfere
+          const htgt=curT.find(({fc:d,line:dl})=>effAt>(dl==='at'?getEffectiveAt(d):getEffectiveDf(d)))||curT.reduce((b,{fc:d,line:dl})=>{const ds=dl==='at'?getEffectiveAt(d):getEffectiveDf(d);return(!b||ds<b.ds)?{fc:d,line:dl,ds}:b;},null);
           if(htgt){
-            combatAnim(afc,htgt.fc,winSp.at,htgt.line,false,()=>{
-              dealDamage(afc,htgt.fc,winSp.at,winSp.name,1,0,htgt.line);
+            combatAnim(afc,htgt.fc,effAt,htgt.line,false,()=>{
+              dealDamage(afc,htgt.fc,effAt,winSp.name,1,0,htgt.line);
               afterDD(()=>{hitsDone++;render();doHit();});
             });
           } else {hitsDone++;doHit();}

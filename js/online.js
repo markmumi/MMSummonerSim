@@ -9,6 +9,27 @@ var Online = (() => {
   let _ipMode = 'auto';       // 'auto'|'ipv4'|'ipv6'|'relay'
   let _connTimeout = 30000;   // ms — configurable via setConnTimeout()
   let _extraTurnServers = []; // user-added TURN entries
+  let _autoSwap = false;      // auto role-swap on connection failure
+
+  // Swap roles using the same room code:
+  // Guest-that-failed  → creates room (becomes Host)
+  // Host-that-got-err  → joins room  (becomes Guest)
+  function _doAutoSwap() {
+    const code = E.roomCode;
+    if (!code || E.isOnline) return;
+    _log(`🔄 Auto-swap: สลับบทบาท โค้ด ${code}…`, 'info');
+    if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
+    conn = null; E.isOnline = false;
+    if (E.isHost) {
+      // Host becomes Guest: wait for the (now-Host) guest to register, then join
+      E._setStatus('swap-to-guest', code);
+      setTimeout(() => E.joinRoom(code, () => {}), 2000);
+    } else {
+      // Guest becomes Host: create room with same code after a brief pause
+      E._setStatus('swap-to-host', code);
+      setTimeout(() => E.createRoom(() => {}, () => {}, code), 500);
+    }
+  }
 
   function _log(msg, level) {
     if (E.onLog) E.onLog(msg, level || 'info');
@@ -30,9 +51,10 @@ var Online = (() => {
             return;
           }
           const type = e.candidate.type;
-          const addr = (e.candidate.candidate.split(' ')[4]) || '';
+          const parts = e.candidate.candidate.split(' ');
+          const addr = parts[4] || '', port = parts[5] || '';
           if (type in counts) counts[type]++;
-          _log(`ICE ${type}: ${addr}`, 'info');
+          _log(`ICE ${type}: ${addr}:${port}`, 'info');
         });
         pc.addEventListener('icecandidateerror', e => {
           _log(`ICE error ${e.errorCode}: ${e.errorText} [${e.url}]`, 'warn');
@@ -77,18 +99,18 @@ var Online = (() => {
   }
 
   const _ICE_SERVERS = [
+    // STUN — IPv4 preferred; browser tries IPv4 and IPv6 in parallel
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
-    { urls: 'stun:freestun.net:3479' },
-    // openrelay (free public TURN)
-    { urls: 'turn:openrelay.metered.ca:80',              username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443',             username: 'openrelayproject', credential: 'openrelayproject' },
+    // TURN UDP (plain) — fastest when available
+    { urls: 'turn:openrelay.metered.ca:80',   username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:3478', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:freestun.net:3479',         username: 'free', credential: 'free' },
+    // TURN TCP 443 — firewall-friendly (works through most NAT/proxies)
     { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:3478',            username: 'openrelayproject', credential: 'openrelayproject' },
-    // freestun (separate provider — diversity fallback)
-    { urls: 'turn:freestun.net:3479', username: 'free', credential: 'free' },
-    { urls: 'turn:freestun.net:3478', username: 'free', credential: 'free' },
+    // TURNS (TLS on 443) — looks like HTTPS; hardest to block, best relay fallback
+    { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turns:freestun.net:5349',        username: 'free', credential: 'free' },
   ];
 
   function _getPeerConfig() {
@@ -114,6 +136,40 @@ var Online = (() => {
     },
 
     setConnTimeout(ms) { _connTimeout = ms; },
+    setAutoSwap(v) { _autoSwap = v; },
+
+    async checkNATType() {
+      _log('กำลังตรวจสอบ NAT type (ใช้ STUN 3 เซิร์ฟเวอร์)…', 'info');
+      const srflxPorts = new Set();
+      let done = false;
+      let pc;
+      try {
+        pc = new RTCPeerConnection({ iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+        ]});
+        pc.createDataChannel('nat');
+        pc.onicecandidate = e => {
+          if (!e.candidate) {
+            if (!done) { done = true; try{pc.close();}catch(e){} _analyzeNAT(); }
+          } else if (e.candidate.type === 'srflx') {
+            const p = e.candidate.candidate.split(' ');
+            srflxPorts.add(p[5]); // external port
+          }
+        };
+        await pc.setLocalDescription(await pc.createOffer());
+        setTimeout(() => { if (!done) { done = true; try{pc.close();}catch(e){} _analyzeNAT(); } }, 6000);
+      } catch(err) { _log(`NAT check error: ${err}`, 'error'); }
+      function _analyzeNAT() {
+        if (!srflxPorts.size) { _log('NAT check: ไม่พบ srflx — STUN ถูก block ทั้งหมด → ต้องใช้ Force Relay', 'error'); return; }
+        const ports = [...srflxPorts].join(', ');
+        if (srflxPorts.size > 1)
+          _log(`NAT type: Symmetric NAT ❌ (ports: ${ports}) — hole-punch ไม่ได้ ต้องใช้ Force Relay + TURN server ที่เชื่อถือได้`, 'error');
+        else
+          _log(`NAT type: Cone NAT ✅ (port: ${ports}) — น่าจะ hole-punch ได้ ถ้าจอยไม่ได้อาจเป็นเรื่อง TURN`, 'ok');
+      }
+    },
 
     addCustomTurn(url, username, credential) {
       _extraTurnServers.push(credential
@@ -184,7 +240,11 @@ var Online = (() => {
             }
           });
           conn.on('close', () => { _log('Connection ปิด', 'warn'); E._setStatus('disconnected', null); });
-          conn.on('error', err => { _log(`Conn error: ${err}`, 'error'); console.error('PeerJS conn error:', err); });
+          conn.on('error', err => {
+            _log(`Conn error: ${err}`, 'error');
+            if (!E.isOnline && _autoSwap) { _doAutoSwap(); return; }
+            console.error('PeerJS conn error:', err);
+          });
         });
         peer.on('error', err => {
           _log(`PeerJS error: ${err.type || err}`, 'error');
@@ -214,9 +274,10 @@ var Online = (() => {
           let connectTimer = setTimeout(() => {
             connectTimer = null;
             if (!E.isOnline) {
-              _log(`หมดเวลา (${_connTimeout/1000}s) — ลอง Force Relay หรือให้เพื่อนสร้างห้องแทน`, 'error');
-              E._setStatus('error', 'หมดเวลา — NAT/Firewall ขัดขวาง ลอง Force Relay หรือให้เพื่อนสร้างห้องแทน');
+              _log(`หมดเวลา (${_connTimeout/1000}s)${_autoSwap?' — กำลัง auto-swap…':' — ลอง Force Relay หรือให้เพื่อนสร้างห้องแทน'}`, _autoSwap?'info':'error');
               if (conn) { try { conn.close(); } catch(e){} conn = null; }
+              if (_autoSwap) { _doAutoSwap(); return; }
+              E._setStatus('error', 'หมดเวลา — NAT/Firewall ขัดขวาง ลอง Force Relay หรือให้เพื่อนสร้างห้องแทน');
             }
           }, _connTimeout);
 
@@ -234,10 +295,14 @@ var Online = (() => {
             if (data.type === 'anim') E._playAnim(data);
             else E._applyHostState(data);
           });
-          conn.on('close', () => { _log('Connection ปิด', 'warn'); E._setStatus('disconnected', null); });
+          conn.on('close', () => {
+            if (!E.isOnline && _autoSwap) { if(connectTimer){clearTimeout(connectTimer);connectTimer=null;} _doAutoSwap(); return; }
+            _log('Connection ปิด', 'warn'); E._setStatus('disconnected', null);
+          });
           conn.on('error', err => {
             if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
             _log(`Conn error: ${err.type || err}`, 'error');
+            if (!E.isOnline && _autoSwap) { _doAutoSwap(); return; }
             E._setStatus('error', 'เชื่อมต่อไม่ได้ — ตรวจสอบอินเทอร์เน็ตหรือลองใหม่');
           });
         });

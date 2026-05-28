@@ -254,6 +254,7 @@
     <div id="adv-toggle" onclick="toggleAdv()" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:12px;padding:7px 0 0;border-top:1px solid #1e3a5f;user-select:none">
       <span id="adv-arrow" style="color:#475569;font-size:11px">▶</span>
       <span style="font-size:12px;color:#475569">⚙ ขั้นสูง / Debug</span>
+      <button onclick="event.stopPropagation();doCheckNAT()" style="margin-left:auto;padding:3px 10px;background:#1e3a5f;border:none;border-radius:6px;color:#94a3b8;font-size:10px;cursor:pointer">🔍 เช็ค NAT Type</button>
     </div>
     <div id="adv-panel" style="display:none;margin-top:10px">
 
@@ -267,6 +268,15 @@
           <button id="ipm-relay" onclick="setIpMode('relay')" style="padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer">🔁 Force Relay</button>
         </div>
         <div style="font-size:10px;color:#475569;margin-top:4px" id="ipm-desc">อัตโนมัติ: ลอง IPv6 → IPv4 (browser จัดการ)</div>
+      </div>
+
+      <!-- Auto-swap -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:7px 10px;background:#0f172a;border-radius:8px;border:1px solid #1e3a5f">
+        <input type="checkbox" id="adv-autoswap" onchange="applyAutoSwap()" style="accent-color:#7c3aed;width:14px;height:14px;cursor:pointer">
+        <div>
+          <div style="font-size:11px;color:#e2e8f0;font-weight:600">🔄 Auto-swap Roles เมื่อต่อไม่ได้</div>
+          <div style="font-size:10px;color:#475569">Guest fail → สลับเป็น Host (code เดิม) | Host error → สลับเป็น Guest</div>
+        </div>
       </div>
 
       <!-- Timeout -->
@@ -360,6 +370,14 @@ function setIpMode(mode){
 }
 
 // ── Advanced / Debug panel ──
+function doCheckNAT(){
+  if(typeof Online==='undefined')return;
+  // Auto-open advanced panel and scroll log into view
+  const p=document.getElementById('adv-panel');
+  const a=document.getElementById('adv-arrow');
+  if(p&&p.style.display!=='block'){p.style.display='block';if(a)a.textContent='▼';}
+  Online.checkNATType();
+}
 function toggleAdv(){
   const p=document.getElementById('adv-panel');
   const a=document.getElementById('adv-arrow');
@@ -370,6 +388,10 @@ function toggleAdv(){
 function applyAdvTimeout(){
   const ms=+document.getElementById('adv-timeout').value;
   if(typeof Online!=='undefined') Online.setConnTimeout(ms);
+}
+function applyAutoSwap(){
+  const on=document.getElementById('adv-autoswap').checked;
+  if(typeof Online!=='undefined') Online.setAutoSwap(on);
 }
 function applyTurnTemplate(){
   const val=document.getElementById('adv-turn-tpl').value;
@@ -456,6 +478,25 @@ function doCreateRoom(forceCode){
   document.getElementById('create-status').textContent='กำลังเชื่อมต่อ…';
   document.getElementById('guest-connected-box').style.display='none';
   Online.onStatusChange=(status,msg)=>{
+    if(status==='swap-to-guest'){
+      // Was Host → now joining as Guest
+      lobbyTab('join');
+      document.getElementById('join-code-input').value=msg;
+      document.getElementById('join-status').textContent='🔄 Auto-swap: รอ Guest ใหม่สร้างห้อง…';
+      document.getElementById('join-status').style.color='#fbbf24';
+      document.getElementById('btn-join-room').disabled=true;
+      return;
+    }
+    if(status==='swap-to-host'){
+      // Was Guest → now creating room as Host
+      lobbyTab('create');
+      document.getElementById('create-status').textContent='🔄 Auto-swap: กำลังสร้างห้อง '+msg+'…';
+      document.getElementById('btn-create-room').disabled=true;
+      document.getElementById('btn-create-room').textContent='🔄 Auto-swap…';
+      document.getElementById('room-code-box').style.display='none';
+      document.getElementById('guest-connected-box').style.display='none';
+      return;
+    }
     if(status==='waiting'){
       _hostRoomCode=msg;
       document.getElementById('create-status').textContent='รอ Guest เชื่อมต่อ…';
@@ -493,6 +534,23 @@ function doJoinRoom(){
   document.getElementById('btn-join-room').disabled=true;
   document.getElementById('join-status').textContent='กำลังเชื่อมต่อ…';
   Online.onStatusChange=(status,msg)=>{
+    if(status==='swap-to-host'){
+      lobbyTab('create');
+      document.getElementById('create-status').textContent='🔄 Auto-swap: กำลังสร้างห้อง '+msg+'…';
+      document.getElementById('btn-create-room').disabled=true;
+      document.getElementById('btn-create-room').textContent='🔄 Auto-swap…';
+      document.getElementById('room-code-box').style.display='none';
+      document.getElementById('guest-connected-box').style.display='none';
+      return;
+    }
+    if(status==='swap-to-guest'){
+      lobbyTab('join');
+      document.getElementById('join-code-input').value=msg;
+      document.getElementById('join-status').textContent='🔄 Auto-swap: รอ Host ใหม่สร้างห้อง…';
+      document.getElementById('join-status').style.color='#fbbf24';
+      document.getElementById('btn-join-room').disabled=true;
+      return;
+    }
     if(status==='connecting'){
       document.getElementById('join-status').textContent='กำลังเชื่อมต่อ…';
     } else if(status==='connected'){
