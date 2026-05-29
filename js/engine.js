@@ -506,6 +506,12 @@ function tickCurses(){
       if(dd.curses?.length){dd.curses=[];dd.charmed=null;log(`Delta-D [Ability]: ยกเลิก Curse ของตัวเอง!`,'');}
     });
   });
+  // Angel of Sword (20): cancel all curses on itself
+  [0,1].forEach(pi=>{
+    [...G.players[pi].atLine,...G.players[pi].dfLine].filter(x=>x.card.id===20).forEach(as=>{
+      if(as.curses?.length){as.curses=[];as.charmed=null;log(`Angel of Sword [Ability]: ยกเลิก Curse ของตัวเอง!`,'');}
+    });
+  });
   let needCheck=false;
   [0,1].forEach(pi=>{
     ['atLine','dfLine'].forEach(lineKey=>{
@@ -709,6 +715,7 @@ function guestDeploy(card,idx,line){
     broadcastSound('Deploy');
     log(`Guest deployed ${card.name} to ${line==='at'?'At':'Df'} Line`,'good');
     if(card.id===90) triggerAndreAbility(1);
+    if(card.id===20){const oppMH=G.players[0].mysticHand||[];log(`Angel of Sword [Ability]: เห็น Mystic ฝ่ายตรงข้าม — ${oppMH.length>0?oppMH.map(m=>m.name).join(', '):'(ไม่มี)'}`,'');}
     if(card.id===72&&(p.mysticGrave||[]).length>0){G._pendingGuestDD=true;}
     checkLose();render();Online.broadcastState();
   },null,card,'⬇ Guest Deploying...');
@@ -1233,22 +1240,20 @@ function guestExecuteSelfSkill(skillFC,skillIdx,drawType){
       checkLose();render();Online.broadcastState();
     });return;
   }
-  if(skill.effect==='discardRandomMystic'){
-    showActionQueue(`${skillFC.card.name} [Skill] ฝ่ายตรงข้ามทิ้ง Mystic แบบสุ่ม`,()=>{
+  if(skill.effect==='returnSelfToHand'){
+    showActionQueue(`${skillFC.card.name} [Skill] กลับสู่มือ`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      if((opp.mysticHand||[]).length>0){
-        const i=Math.floor(Math.random()*opp.mysticHand.length);
-        const c=opp.mysticHand.splice(i,1)[0];
-        (opp.mysticGrave=opp.mysticGrave||[]).push(c);
-        log(`${skillFC.card.name} [Skill]: Host ทิ้ง Mystic ${c.name}!`,'good');
-      } else {log(`${skillFC.card.name} [Skill]: Host ไม่มี Mystic`,'bad');}
+      const rmA=p.atLine.findIndex(x=>x.uid===skillFC.uid);if(rmA>=0)p.atLine.splice(rmA,1);
+      const rmD=p.dfLine.findIndex(x=>x.uid===skillFC.uid);if(rmD>=0)p.dfLine.splice(rmD,1);
+      const ok=bounceSealToHand(skillFC,1);
+      log(`${skillFC.card.name} [Skill]: ${ok?'กลับสู่มือ!':'ลง Shrine (มือเต็ม)!'}`,ok?'good':'bad');
       checkLose();render();Online.broadcastState();
     });return;
   }
   if(skill.effect==='massReset'){
     showActionQueue(`${skillFC.card.name} [Skill] Reset สนาม`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      for(let pi=0;pi<2;pi++){const own=G.players[pi];const all=[...own.atLine,...own.dfLine];own.atLine=[];own.dfLine=[];all.forEach(fc=>{fc.mystics=[];if(fc.fusionStack?.length)fc.fusionStack.forEach(m=>own.deck.push(m.card));own.deck.push(fc.card);});shuffle(own.deck);}
+      for(let pi=0;pi<2;pi++){const own=G.players[pi];const all=[...own.atLine,...own.dfLine];own.atLine=[];own.dfLine=[];all.forEach(fc=>{_drainAllMystics(fc,pi);if(fc.fusionStack?.length)fc.fusionStack.forEach(m=>{_drainAllMystics(m,pi);own.deck.push(m.card);});own.deck.push(fc.card);});shuffle(own.deck);}
       for(let pi=0;pi<2;pi++){const own=G.players[pi];const tp=[...own.hand];own.hand=[];tp.forEach(c=>{own.atLine.push(makeFieldCard(c,true));});}
       log(`${skillFC.card.name} [Skill]: Reset สนาม!`,'good');
       checkLose();render();Online.broadcastState();
@@ -1402,7 +1407,7 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     const doDestroy=mEntry=>{
       showActionQueue(`${skillFC.card.name} [Skill] → ทำลาย ${mEntry.mystic.name}`,()=>{
         p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-        const mIdx=(targetFC.mystics||[]).indexOf(mEntry);if(mIdx>=0)targetFC.mystics.splice(mIdx,1);
+        _mysticSplice(targetFC,mEntry);
         log(`${skillFC.card.name} [Skill]: ทำลาย ${mEntry.mystic.name}!`,'good');_done();
       });
     };
@@ -1445,7 +1450,7 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
   if(!canAttachMystic(mysticCard,targetFC)){logErr(`ไม่สามารถติด ${mysticCard.name} กับ ${targetFC.card.name}`);render();Online.broadcastState();return;}
   const targetOwner=findFCOwner(targetFC);
   if(targetOwner&&G.players[targetOwner.pi].atLine.some(x=>x.card.id===67)){log(`Gregory the Bishop: ยกเลิก Mystic`,'bad');render();Online.broadcastState();return;}
-  if(targetFC.card.id===82){log(`Heaven Knight: ยกเลิก Mystic ฝ่ายตรงข้าม!`,'bad');render();Online.broadcastState();return;}
+  if(targetFC.card.id===82&&(!targetOwner||targetOwner.pi!==1)){log(`Heaven Knight: ยกเลิก Mystic ฝ่ายตรงข้าม!`,'bad');render();Online.broadcastState();return;}
   if(targetFC.card.id===22){log(`Delta-D [Ability]: ยกเลิก Mystic!`,'bad');render();Online.broadcastState();return;}
   if(hasMysticProtect(targetFC)){log(`${targetFC.card.name} ถูกป้องกัน — ติด Mystic ไม่ได้!`,'bad');render();Online.broadcastState();return;}
   _pendingMysticCard=mysticCard;
@@ -1468,7 +1473,8 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
   function doAttach(atBonus=0,dfBonus=0,spBonus=0,flags={}){addMysticEntry(atBonus,dfBonus,spBonus,flags);}
   if(id===37){
     if(!fc.fused||!fc.fusionStack?.length){log(`${fc.card.name} ไม่ได้รวมร่าง`,'bad');render();Online.broadcastState();return;}
-    spend();showActionQueue(`${mysticCard.name} → แยกการรวมร่าง ${fc.card.name}`,()=>{
+    spend();(p.mysticGrave=p.mysticGrave||[]).push(mysticCard);
+    showActionQueue(`${mysticCard.name} → แยกการรวมร่าง ${fc.card.name}`,()=>{
       const owner=findFCOwner(fc);if(owner)fc.fusionStack.forEach(m=>{owner.p.atLine.push(m);});
       fc.fusionStack=[];fc.fusionAtks=[];fc.fused=false;fc.fusedSinceTurn=null;fc.wasMainFusedTurn=turnNum;
       log(`${mysticCard.name}: ${fc.card.name} แยกรวมร่าง!`,'good');checkLose();render();Online.broadcastState();
@@ -1477,6 +1483,7 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
   if(id===68){
     spend();showActionQueue(`${mysticCard.name} → ${fc.card.name} willMind`,()=>{
       fc.willMind=true;
+      (fc.mystics=fc.mystics||[]).push({mystic:mysticCard,atBonus:0,dfBonus:0,spBonus:0,willMind:true,expiresBeforeSubTurn:subTurnNum+1});
       log(`${mysticCard.name}: ${fc.card.name} willMind ON!`,'good');checkLose();render();Online.broadcastState();
     });return;
   }
@@ -1498,7 +1505,7 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
   }
   if(id===21){
     const el=getEffectiveEl(fc);
-    if(el==='light'||el==='fire'||el==='divine'){spend();showActionQueue(`${mysticCard.name} → ${fc.card.name} At +2`,()=>doAttach(2));}
+    if(el==='light'||el==='fire'||el==='divine'||fc.card.tribe==='Divine'){spend();showActionQueue(`${mysticCard.name} → ${fc.card.name} At +2`,()=>doAttach(2));}
     else{log(`${fc.card.name} ไม่ตรงเงื่อนไข Holy Sun (ธาตุ: ${el})`,'bad');render();}
     return;
   }
@@ -1603,7 +1610,7 @@ function guestPlayNonPMystic(mysticCard,mysticIdx){
           showMysticPicker('เลือก Mystic ที่จะทำลาย',actMys.map((m,i)=>({label:m.mystic.name,data:i})),mIdx=>{
             spend();
             showActionQueue(`Holy Prayer → ทำลาย ${actMys[mIdx].mystic.name}`,()=>{
-              const _m=actMys[mIdx];tfc.mystics.splice(tfc.mystics.indexOf(_m),1);clearPSCurseFromEntry(tfc,_m);
+              const _m=actMys[mIdx];_mysticSplice(tfc,_m);
               log(`Holy Prayer: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();
             });
           });
@@ -1636,20 +1643,21 @@ function guestPlayNonPMystic(mysticCard,mysticIdx){
     showMysticPicker('Inquisition — เลือก Mystic',opts,choice=>{
       if(choice.type==='pa'){
         spend();showActionQueue(`Inquisition → ทำลาย [PA] ${G.players[choice.pi].areaMystics[choice.amIdx].mystic.name}`,()=>{
-          G.players[choice.pi].areaMystics.splice(choice.amIdx,1);
+          const _am=G.players[choice.pi].areaMystics.splice(choice.amIdx,1)[0];
+          if(_am)(G.players[choice.pi].mysticGrave=G.players[choice.pi].mysticGrave||[]).push(_am.mystic);
           log(`Inquisition: ทำลาย PA Mystic!`,'good');checkLose();render();Online.broadcastState();
         });
       } else {
         const actMys=getActiveMystics(choice.fc);
         if(actMys.length===1){
           spend();showActionQueue(`Inquisition → ทำลาย ${actMys[0].mystic.name}`,()=>{
-            const _m0=actMys[0];choice.fc.mystics.splice(choice.fc.mystics.indexOf(_m0),1);clearPSCurseFromEntry(choice.fc,_m0);
+            const _m0=actMys[0];_mysticSplice(choice.fc,_m0);
             log(`Inquisition: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();
           });
         } else {
           showMysticPicker('เลือก Mystic ที่จะทำลาย',actMys.map((m,i)=>({label:m.mystic.name,data:i})),mIdx=>{
             spend();showActionQueue(`Inquisition → ทำลาย ${actMys[mIdx].mystic.name}`,()=>{
-              const _mN=actMys[mIdx];choice.fc.mystics.splice(choice.fc.mystics.indexOf(_mN),1);clearPSCurseFromEntry(choice.fc,_mN);
+              const _mN=actMys[mIdx];_mysticSplice(choice.fc,_mN);
               log(`Inquisition: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();
             });
           });
@@ -1830,7 +1838,7 @@ function guestPlayNonPMysticResolved(mysticCard,mysticIdx,resolution){
     } else {
       const tfc=allF.find(fc=>fc.uid===resolution.targetUid);if(!tfc)return;
       const actMys=getActiveMystics(tfc);const mEntry=actMys[resolution.mIdx];if(!mEntry)return;
-      spend();showActionQueue(`Holy Prayer → ทำลาย ${mEntry.mystic.name}`,()=>{tfc.mystics.splice(tfc.mystics.indexOf(mEntry),1);clearPSCurseFromEntry(tfc,mEntry);log(`Holy Prayer: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();});
+      spend();showActionQueue(`Holy Prayer → ทำลาย ${mEntry.mystic.name}`,()=>{_mysticSplice(tfc,mEntry);log(`Holy Prayer: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();});
     }
     return;
   }
@@ -1851,7 +1859,7 @@ function guestPlayNonPMysticResolved(mysticCard,mysticIdx,resolution){
     } else {
       const tfc=allF.find(fc=>fc.uid===resolution.targetUid);if(!tfc)return;
       const actMys=getActiveMystics(tfc);const mEntry=actMys[resolution.mIdx];if(!mEntry)return;
-      spend();showActionQueue(`Inquisition → ทำลาย ${mEntry.mystic.name}`,()=>{tfc.mystics.splice(tfc.mystics.indexOf(mEntry),1);clearPSCurseFromEntry(tfc,mEntry);log(`Inquisition: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();});
+      spend();showActionQueue(`Inquisition → ทำลาย ${mEntry.mystic.name}`,()=>{_mysticSplice(tfc,mEntry);log(`Inquisition: ทำลาย Mystic!`,'good');checkLose();render();Online.broadcastState();});
     }
     return;
   }
@@ -1958,6 +1966,20 @@ function showMysticPicker(title,opts,onPick){
   document.getElementById('fa-modal').classList.add('show');
 }
 
+function showLineChoicePicker(cardName,onPick){
+  document.getElementById('fa-title').textContent=`วาง ${cardName} ที่ Line ใด?`;
+  const div=document.getElementById('fa-opts');
+  div.innerHTML='';
+  [{label:'⚔ Attack Line',data:'at'},{label:'🛡 Defense Line',data:'df'}].forEach(({label,data})=>{
+    const btn=document.createElement('button');
+    btn.className='fopt';
+    btn.textContent=label;
+    btn.onclick=()=>{closeFAModal();onPick(data);};
+    div.appendChild(btn);
+  });
+  document.getElementById('fa-modal').classList.add('show');
+}
+
 function getEffectiveMc(card){
   let mc=card.mc;
   const p=G.players[0];
@@ -2006,6 +2028,22 @@ function doDeploy(line){
     log(`Host deployed ${card.name} to ${line==='at'?'At':'Df'} Line`,'good');
     if(card.id===67&&line==='at') triggerGregoryCancel(0);
     if(card.id===90) triggerAndreAbility(0);
+    if(card.id===20){
+      const oppMH=G.players[1].mysticHand||[];
+      if(oppMH.length>0){
+        document.getElementById('fa-title').textContent='Angel of Sword [Ability]: Mystic ของฝ่ายตรงข้าม';
+        const opts=document.getElementById('fa-opts');opts.innerHTML='';
+        const _asCancelBtn=document.getElementById('fa-cancel-btn');if(_asCancelBtn)_asCancelBtn.style.display='none';
+        oppMH.forEach(mc=>{const d=document.createElement('div');d.style.cssText='padding:3px 2px;color:#fde68a;font-size:10px';d.textContent=mc.name;opts.appendChild(d);});
+        const okBtn=document.createElement('button');okBtn.className='btn btn-gray';okBtn.style.cssText='margin-top:4px;width:100%';okBtn.textContent='OK';
+        okBtn.onclick=()=>{if(_asCancelBtn)_asCancelBtn.style.display='';document.getElementById('fa-modal').classList.remove('show');};
+        opts.appendChild(okBtn);
+        document.getElementById('fa-modal').classList.add('show');
+        log(`Angel of Sword [Ability]: เห็น Mystic ฝ่ายตรงข้าม — ${oppMH.map(m=>m.name).join(', ')}`,'');
+      } else {
+        log(`Angel of Sword [Ability]: ฝ่ายตรงข้ามไม่มี Mystic ในมือ`,'');
+      }
+    }
     if(card.id===72&&(p.mysticGrave||[]).length>0){
       document.getElementById('fa-title').textContent='Dark Destiny [Ability]: นำ Mystic จาก Shrine ขึ้นมือ?';
       const opts=document.getElementById('fa-opts');opts.innerHTML='';
@@ -2215,7 +2253,10 @@ function triggerGregoryCancel(ownerPi){
   const p=G.players[ownerPi];
   [...p.atLine,...p.dfLine].forEach(seal=>{
     if(!seal.mystics?.length)return;
-    seal.mystics.forEach(m=>log(`Gregory [Ability]: ยกเลิก ${m.mystic.name} บน ${seal.card.name}`,'bad'));
+    seal.mystics.forEach(m=>{
+      log(`Gregory [Ability]: ยกเลิก ${m.mystic.name} บน ${seal.card.name}`,'bad');
+      (p.mysticGrave=p.mysticGrave||[]).push(m.mystic);
+    });
     seal.mystics=[];
     seal.magicalEl=null;
   });
@@ -2580,6 +2621,12 @@ function clickFieldSeal(fc,pi,line){
       // Mor Mercenary: choose At or Df comparison
       showMorMercenaryPicker(attFC,fc,line);
     } else {
+      // Auto-select fusion attack if player clicked target directly without pressing Attack/Special
+      if(pendingAttackIdx===null){
+        const pool=getActiveAtks(attFC);
+        if(pool.length===1){pendingAttackIdx=0;}
+        else if(pool.length>1){openFusionPicker(pool);return;}
+      }
       resolveAttack(attFC,fc,pendingAttackIdx,line);
     }
     pendingAttackIdx=null;
@@ -2675,7 +2722,7 @@ function declareAttack(){
   if(!attackerSeal){log('Select a Seal first','');return;}
   const fc=attackerSeal.fc;
   if(fc.activeMultiAtk&&fc.hitsLeft>0){
-    log(`${fc.card.name}: ${fc.activeMultiAtk.name} ×${fc.hitsLeft} เหลือ — เลือกเป้าหมาย`,'hi');
+    log(`${fc.card.name}: ${fc.activeMultiAtk.name} ×${fc.hitsLeft} เหลือ — คลิก Seal ศัตรูเพื่อโจมตีต่อ`,'hi');
     render();return;
   }
   const fusionAtks=getActiveAtks(fc);
@@ -2856,8 +2903,9 @@ function resolveAttack(attFC,defFC,specialAtkIdx,defLine='at'){
       if(usedAtk?.hits>1){
         attFC.activeMultiAtk={...usedAtk};
         attFC.hitsLeft=usedAtk.hits-1;
-        log(`${att.name} ยังตีได้อีก ${usedAtk.hits-1} ครั้ง! เลือกการ์ด แล้วเลือกเป้าหมาย`,'hi');
-        attackerSeal=null;
+        const _multiAlive=[...G.players[0].atLine,...G.players[0].dfLine].some(x=>x.uid===attFC.uid);
+        if(_multiAlive){log(`${att.name} ยังตีได้อีก ${usedAtk.hits-1} ครั้ง! เลือกเป้าหมาย`,'hi');}
+        else{attackerSeal=null;}
       } else {
         // Felasia Dragon (60): 2 attacks when fused with Dragon
         const felasiaAlive=!usedAtk&&att.id===60&&attFC.fused&&
@@ -2889,6 +2937,7 @@ function executeMultiStrikeHit(attFC,defFC,defLine){
   const atk=attFC.activeMultiAtk;
   const attAt=atk.at??getEffectiveAt(attFC);
   const hitNum=atk.hits-attFC.hitsLeft+1;
+  const _savedSeal=attackerSeal;
   attackerSeal=null;
   showActionQueue(`${attFC.card.name} → <b>${atk.name}</b> ⚔ ${defFC.card.name} (${hitNum}/${atk.hits})`,()=>{
     log(`${attFC.card.name}: ${atk.name} (${hitNum}/${atk.hits})!`,'hi');
@@ -2899,7 +2948,8 @@ function executeMultiStrikeHit(attFC,defFC,defLine){
         attFC.exhausted=true;attFC.hasAttacked=true;attFC.activeMultiAtk=null;
         log(`${attFC.card.name} exhausted`,'');
       } else {
-        log(`ยังตีได้อีก ${attFC.hitsLeft} ครั้ง! เลือกการ์ดตัวเอง แล้วเลือกเป้าหมาย`,'hi');
+        const _alive=[...G.players[0].atLine,...G.players[0].dfLine].some(x=>x.uid===attFC.uid);
+        if(_alive){attackerSeal=_savedSeal;log(`ยังตีได้อีก ${attFC.hitsLeft} ครั้ง! เลือกเป้าหมาย`,'hi');}
       }
       checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
     });
@@ -3191,6 +3241,9 @@ function sendToShrine(fc,ownerPi){
   if(fc.charmed&&fc.charmed.originalPi!==undefined)ownerPi=fc.charmed.originalPi;
   const p=G.players[ownerPi];
   const op=G.players[1-ownerPi];
+  // Send any attached PS mystics to owner's mysticGrave before removing from field
+  _drainAllMystics(fc,ownerPi);
+  if(fc.fusionStack?.length)fc.fusionStack.forEach(mfc=>_drainAllMystics(mfc,ownerPi));
   const rm=arr=>{const i=arr.findIndex(x=>x.uid===fc.uid);if(i>=0)arr.splice(i,1);};
   rm(p.atLine);rm(p.dfLine);rm(op.atLine);rm(op.dfLine);
   p.shrine.push(fc.card);
@@ -3283,6 +3336,19 @@ function showWin(pi,reason=null){
 // ══════════════════════════════════════════════
 // AI TURN — step by step with preview
 // ══════════════════════════════════════════════
+// Returns true if targetFC is immune to any AI mystic attachment.
+// Centralised check used by _attachPS, _attachPSInterfere, and Thunder-Bolt finders.
+function _aiMysticBlocked(targetFC){
+  // Heaven Knight (82): blocks ENEMY mystics only — AI (pi=1) is blocked from targeting player's (pi=0) HK
+  if(targetFC.card.id===82){const o=findFCOwner(targetFC);if(!o||o.pi===0)return true;}
+  // Delta-D (22): blocks all mystics regardless of side
+  if(targetFC.card.id===22)return true;
+  // Gregory (67) in AtLine: blocks all seals on the same side from receiving mystics
+  const owner=findFCOwner(targetFC);
+  if(owner&&G.players[owner.pi].atLine.some(x=>x.card.id===67))return true;
+  return false;
+}
+
 function aiTurn(){
   const ai=G.players[1];
 
@@ -3357,7 +3423,7 @@ function aiTurn(){
     const id=fc.card.id;
     // Infernos (id=6): LastDance on player card sp 3-5, fused with dark + at line
     if(id===6&&fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness')&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
-      const t=allPlayer.find(t=>[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance'));
+      const t=allPlayer.find(t=>[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t)return{mp:2,label:'Last Dance Curse',execute:()=>{
         t.curses=(t.curses||[]);t.curses.push({type:'lastDance',atBonus:2,expiresAtSubTurn:subTurnNum+4});
         broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance Curse At+2 / 2 Turn!`,'bad');
@@ -3365,7 +3431,7 @@ function aiTurn(){
     }
     // Desert Chimera (id=7): Poison on player card, fused + at line
     if(id===7&&fc.fused&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
-      const t=allPlayer.find(t=>!t.curses?.some(c=>c.type==='poison'));
+      const t=allPlayer.find(t=>!t.curses?.some(c=>c.type==='poison')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t)return{mp:2,label:'Poison Curse',execute:()=>{
         t.curses=(t.curses||[]);t.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+6});
         broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 3 Turn!`,'bad');
@@ -3373,7 +3439,7 @@ function aiTurn(){
     }
     // Cockatrice (id=11): Stone on player card sp 1-4, fused
     if(id===11&&fc.fused&&ai.mp>=2){
-      const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone'));
+      const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t)return{mp:2,label:'Stone Curse',execute:()=>{
         t.curses=(t.curses||[]);t.curses.push({type:'stone',expiresAtSubTurn:subTurnNum+2});
         broadcastSound('Stone');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Stone Curse 1 Turn!`,'bad');
@@ -3381,7 +3447,7 @@ function aiTurn(){
     }
     // Jiu Wei Hu Le (id=12): Charm on player card sp 1-3, fused with dark
     if(id===12&&fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness')&&ai.mp>=2){
-      const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='charm'));
+      const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='charm')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t){
         const fromLine=player.atLine.includes(t)?'atLine':'dfLine';
         return{mp:2,label:'Charm Curse',execute:()=>{
@@ -3394,7 +3460,7 @@ function aiTurn(){
     }
     // Armadillon (id=15): Freeze on player card sp 2-4, fused + at line
     if(id===15&&fc.fused&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
-      const t=allPlayer.find(t=>[2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='freeze'));
+      const t=allPlayer.find(t=>[2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='freeze')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t){
         const fromLine=player.atLine.includes(t)?'atLine':'dfLine';
         return{mp:2,label:'Freeze Curse',execute:()=>{
@@ -3407,8 +3473,9 @@ function aiTurn(){
     }
     // Assassin Doll (id=46): Death Curse on lowest-At player card, At Line, 2+ player seals
     if(id===46&&ai.atLine.some(x=>x.uid===fc.uid)&&allPlayer.length>=2&&ai.mp>=2){
-      const minAt=Math.min(...allPlayer.map(x=>getEffectiveAt(x)));
-      const t=allPlayer.find(x=>getEffectiveAt(x)===minAt);
+      const _dc46=allPlayer.filter(x=>x.card.id!==82&&x.card.id!==22);
+      const minAt=_dc46.length?Math.min(..._dc46.map(x=>getEffectiveAt(x))):Infinity;
+      const t=_dc46.find(x=>getEffectiveAt(x)===minAt);
       if(t)return{mp:2,label:'Death Curse',_dcTarget:t,execute:()=>{
         const hasDeath=(t.curses||[]).some(c=>c.type==='death');
         t.curses=(t.curses||[]).filter(c=>c.type!=='death');
@@ -3428,6 +3495,7 @@ function aiTurn(){
     if(id===16&&fc.fused&&fc.fusionStack.length>=1){
       return{mp:0,label:'Return to deck',execute:()=>{
         fc.fusionStack.forEach(mfc=>{ai.atLine.push(mfc);});
+        _drainAllMystics(fc,1);
         const rmA=ai.atLine.findIndex(x=>x.uid===fc.uid);if(rmA>=0)ai.atLine.splice(rmA,1);
         const rmD=ai.dfLine.findIndex(x=>x.uid===fc.uid);if(rmD>=0)ai.dfLine.splice(rmD,1);
         ai.deck.push(fc.card);shuffle(ai.deck);
@@ -3444,7 +3512,7 @@ function aiTurn(){
     }
     // Banshee (id=28): Death Curse Sp 1-3, fused+dark+at line, Mp 3
     if(id===28&&fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness')&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=3){
-      const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp));
+      const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t)return{mp:3,label:'Death Curse',_dcTarget:t,execute:()=>{
         const hasDeath=(t.curses||[]).some(c=>c.type==='death');
         t.curses=(t.curses||[]).filter(c=>c.type!=='death');
@@ -3454,7 +3522,7 @@ function aiTurn(){
     }
     // Mysterious Elephant (id=42): Poison 1 Turn Sp 2-5, fused+at line, Mp 3
     if(id===42&&fc.fused&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=3){
-      const t=allPlayer.find(t=>[2,3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison'));
+      const t=allPlayer.find(t=>[2,3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t)return{mp:3,label:'Poison Curse 1 Turn',execute:()=>{
         t.curses=(t.curses||[]);t.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+2});
         broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 1 Turn!`,'bad');
@@ -3462,7 +3530,7 @@ function aiTurn(){
     }
     // Hydra of Warok (id=50): Poison 2 Turn Sp 3-5, fused+at line, Mp 2
     if(id===50&&fc.fused&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
-      const t=allPlayer.find(t=>[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison'));
+      const t=allPlayer.find(t=>[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t)return{mp:2,label:'Poison Curse 2 Turn',execute:()=>{
         t.curses=(t.curses||[]);t.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+4});
         broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 2 Turn!`,'bad');
@@ -3486,14 +3554,14 @@ function aiTurn(){
       const fusedBW=fc.fused&&fc.fusionStack.some(m=>m.card.id===41);
       const fusedDark=fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness');
       if(fusedBW&&atLine&&ai.mp>=3){
-        const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance'));
+        const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
         if(t)return{mp:3,label:'Last Dance At+3/2T',execute:()=>{
           t.curses=(t.curses||[]);t.curses.push({type:'lastDance',atBonus:3,expiresAtSubTurn:subTurnNum+4});
           broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance At+3 / 2T!`,'bad');
         }};
       }
       if(fusedDark&&atLine&&ai.mp>=2){
-        const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance'));
+        const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
         if(t)return{mp:2,label:'Last Dance At+2/3T',execute:()=>{
           t.curses=(t.curses||[]);t.curses.push({type:'lastDance',atBonus:2,expiresAtSubTurn:subTurnNum+6});
           broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance At+2 / 3T!`,'bad');
@@ -3502,7 +3570,7 @@ function aiTurn(){
     }
     // Succubus (45): Charm Curse 1T on non-Light player seal, fused + at line
     if(id===45&&fc.fused&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
-      const t=allPlayer.find(t=>t.card.el!=='light'&&!t.curses?.some(c=>c.type==='charm'));
+      const t=allPlayer.find(t=>t.card.el!=='light'&&!t.curses?.some(c=>c.type==='charm')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t){const fromLine=player.atLine.some(x=>x.uid===t.uid)?'atLine':'dfLine';
         return{mp:2,label:'Charm Curse 1T',execute:()=>{
           t.charmed={originalPi:0,originalLine:fromLine};
@@ -3515,14 +3583,14 @@ function aiTurn(){
     // Medusa (48): Stone ∞ (Earth Mp3) or Poison 3T (Water Mp2)
     if(id===48){
       if(fc.fused&&fc.fusionStack.some(m=>m.card.el==='earth')&&ai.mp>=3){
-        const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone'));
+        const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
         if(t)return{mp:3,label:'Stone Curse ∞',execute:()=>{
           t.curses=(t.curses||[]);t.curses.push({type:'stone',expiresAtSubTurn:Infinity});
           broadcastSound('Stone');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Stone Curse ∞!`,'bad');
         }};
       }
       if(fc.fused&&fc.fusionStack.some(m=>m.card.el==='water')&&ai.mp>=2){
-        const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison'));
+        const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
         if(t)return{mp:2,label:'Poison Curse 3T',execute:()=>{
           t.curses=(t.curses||[]);t.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+6});
           broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 3T!`,'bad');
@@ -3531,7 +3599,7 @@ function aiTurn(){
     }
     // Siren (58): Charm Curse 2T on player seal sp 3-5, fused+Dark+at line
     if(id===58&&fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness')&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
-      const t=allPlayer.find(t=>[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='charm'));
+      const t=allPlayer.find(t=>[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='charm')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t){const fromLine=player.atLine.some(x=>x.uid===t.uid)?'atLine':'dfLine';
         return{mp:2,label:'Charm Curse 2T',execute:()=>{
           t.charmed={originalPi:0,originalLine:fromLine};
@@ -3613,6 +3681,7 @@ function aiTurn(){
       });
     }
     function _attachPS(mc,mi,targetFC,atB,dfB,spB,flags,desc){
+      if(_aiMysticBlocked(targetFC)){log(`${targetFC.card.name} [Ability]: ยกเลิก Mystic!`,'');return;}
       const expires=mc.turns===999?Infinity:subTurnNum+(mc.turns*2);
       _playMC(mc,mi,`${mc.name} → ${targetFC.card.name}${desc?' ('+desc+')':''}`,()=>{
         if(mc.turns!==0){
@@ -3636,13 +3705,13 @@ function aiTurn(){
 
       // id:32 Yin — weaken player's highest-At AtLine seal (-At by Lv)
       if(id===32){
-        const tgts=[...player.atLine].filter(fc=>canAttachMystic(mc,fc)&&!fc.curses?.some(c=>c.type==='stone'));
+        const tgts=[...player.atLine].filter(fc=>canAttachMystic(mc,fc)&&!fc.curses?.some(c=>c.type==='stone')&&!_aiMysticBlocked(fc));
         if(tgts.length){const t=tgts.sort((a,b)=>getEffectiveAt(b)-getEffectiveAt(a))[0];_attachPS(mc,mi,t,-t.card.lv,0,0,{},`-At${t.card.lv}`);return;}
       }
 
       // id:37 Thunder Bolt — unfuse player's fused seal
       if(id===37){
-        const t=[...player.atLine,...player.dfLine].find(fc=>fc.fused&&canAttachMystic(mc,fc));
+        const t=[...player.atLine,...player.dfLine].find(fc=>fc.fused&&canAttachMystic(mc,fc)&&!_aiMysticBlocked(fc));
         if(t){
           const _mc37=mc,_mi37=mi;
           ai.mp-=_mc37.mc;ai.mysticHand.splice(_mi37,1);(ai.mysticGrave=ai.mysticGrave||[]).push(_mc37);broadcastSound('Spell');
@@ -3669,7 +3738,7 @@ function aiTurn(){
         if(psT.length){
           const t=psT[0],m0=getActiveMystics(t)[0];
           _playMC(mc,mi,`Holy Prayer → ทำลาย ${m0.mystic.name}`,()=>{
-            t.mystics.splice(t.mystics.indexOf(m0),1);clearPSCurseFromEntry(t,m0);
+            _mysticSplice(t,m0);
             log(`AI: Holy Prayer → ทำลาย ${m0.mystic.name}!`,'bad');
           });
           return;
@@ -3682,7 +3751,7 @@ function aiTurn(){
         if(psT.length){
           const t=psT[0],m0=getActiveMystics(t)[0];
           _playMC(mc,mi,`Inquisition → ทำลาย ${m0.mystic.name}`,()=>{
-            t.mystics.splice(t.mystics.indexOf(m0),1);clearPSCurseFromEntry(t,m0);
+            _mysticSplice(t,m0);
             log(`AI: Inquisition → ทำลาย ${m0.mystic.name}!`,'bad');
           });
           return;
@@ -3691,7 +3760,7 @@ function aiTurn(){
 
       // id:30 Houdini — stone-curse player's strongest non-stoned AtLine seal
       if(id===30){
-        const tgts=[...player.atLine].filter(fc=>canAttachMystic(mc,fc)&&!fc.curses?.some(c=>c.type==='stone'));
+        const tgts=[...player.atLine].filter(fc=>canAttachMystic(mc,fc)&&!fc.curses?.some(c=>c.type==='stone')&&!_aiMysticBlocked(fc)&&fc.card.id!==20);
         if(tgts.length){const t=tgts.sort((a,b)=>getEffectiveAt(b)-getEffectiveAt(a))[0];_attachPS(mc,mi,t,0,0,0,{curseType:'stone'},'Stone Curse');return;}
       }
 
@@ -3942,7 +4011,8 @@ function aiTurn(){
       for(const lk of['atLine','dfLine']){
         const idx=owner[lk].findIndex(s=>s.card.id===82&&turnNum-s.deployedTurn>=3);
         if(idx>=0){const hk=owner[lk].splice(idx,1)[0];
-          if(hk.fusionStack?.length)hk.fusionStack.forEach(m=>owner.shrine.push(m.card));
+          _drainAllMystics(hk,pi);
+          if(hk.fusionStack?.length)hk.fusionStack.forEach(m=>{_drainAllMystics(m,pi);owner.shrine.push(m.card);});
           owner.deck.push(hk.card);shuffle(owner.deck);
           log(`Heaven Knight [Ability]: อยู่ในสนามครบ 3 Turn — กลับสู่กอง!`,'');
         }
@@ -3994,6 +4064,7 @@ function _maybeAIInterfere(){
     });
   }
   function _attachPSInterfere(mc,mi,targetFC,atB,dfB,spB,flags,desc){
+    if(_aiMysticBlocked(targetFC)){log(`${targetFC.card.name} [Ability]: ยกเลิก Mystic!`,'');return;}
     const expires=mc.turns===999?Infinity:subTurnNum+(mc.turns*2);
     _spendInterfere(mc,mi,`${mc.name} → ${targetFC.card.name}${desc?' ('+desc+')':''}`,()=>{
       if(mc.turns!==0){
@@ -4016,19 +4087,19 @@ function _maybeAIInterfere(){
 
     // id:30 Houdini — stone-curse player's strongest unexhausted AtLine seal (best during battle)
     if(id===30&&phase==='battle'){
-      const tgts=[...player.atLine].filter(fc=>!fc.exhausted&&canAttachMystic(mc,fc)&&!fc.curses?.some(c=>c.type==='stone'));
+      const tgts=[...player.atLine].filter(fc=>!fc.exhausted&&canAttachMystic(mc,fc)&&!fc.curses?.some(c=>c.type==='stone')&&!_aiMysticBlocked(fc)&&fc.card.id!==20);
       if(tgts.length){const t=tgts.sort((a,b)=>getEffectiveAt(b)-getEffectiveAt(a))[0];_attachPSInterfere(mc,mi,t,0,0,0,{curseType:'stone'},'Stone Curse');return;}
     }
 
     // id:32 Yin — weaken player's strongest unexhausted AtLine seal during battle
     if(id===32&&phase==='battle'){
-      const tgts=[...player.atLine].filter(fc=>!fc.exhausted&&canAttachMystic(mc,fc)&&!fc.curses?.some(c=>c.type==='stone'));
+      const tgts=[...player.atLine].filter(fc=>!fc.exhausted&&canAttachMystic(mc,fc)&&!fc.curses?.some(c=>c.type==='stone')&&!_aiMysticBlocked(fc));
       if(tgts.length){const t=tgts.sort((a,b)=>getEffectiveAt(b)-getEffectiveAt(a))[0];_attachPSInterfere(mc,mi,t,-t.card.lv,0,0,{},`-At${t.card.lv}`);return;}
     }
 
     // id:37 Thunder Bolt — unfuse player's fused seal (any phase)
     if(id===37){
-      const t=[...player.atLine,...player.dfLine].find(fc=>fc.fused&&canAttachMystic(mc,fc));
+      const t=[...player.atLine,...player.dfLine].find(fc=>fc.fused&&canAttachMystic(mc,fc)&&!_aiMysticBlocked(fc));
       if(t){
         const _mc=mc,_mi=mi;
         ai.mp-=_mc.mc;ai.mysticHand.splice(_mi,1);broadcastSound('Spell');
@@ -4059,7 +4130,7 @@ function _maybeAIInterfere(){
       if(psT.length){
         const t=psT[0],m0=getActiveMystics(t)[0];
         _spendInterfere(mc,mi,`Holy Prayer → ทำลาย ${m0.mystic.name}`,()=>{
-          t.mystics.splice(t.mystics.indexOf(m0),1);clearPSCurseFromEntry(t,m0);
+          _mysticSplice(t,m0);
           log(`AI [Interfere]: Holy Prayer → ทำลาย ${m0.mystic.name}!`,'bad');
         });
         return;
@@ -4072,7 +4143,7 @@ function _maybeAIInterfere(){
       if(psT.length){
         const t=psT[0],m0=getActiveMystics(t)[0];
         _spendInterfere(mc,mi,`Inquisition → ทำลาย ${m0.mystic.name}`,()=>{
-          t.mystics.splice(t.mystics.indexOf(m0),1);clearPSCurseFromEntry(t,m0);
+          _mysticSplice(t,m0);
           log(`AI [Interfere]: Inquisition → ทำลาย ${m0.mystic.name}!`,'bad');
         });
         return;
@@ -4438,8 +4509,8 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
     log(`Gregory the Bishop [Ability]: ยกเลิก Mystic — Seal ฝ่าย${G.players[targetOwner.pi].name} รับ Mystic ไม่ได้ขณะอยู่ใน At Line`,'bad');
     render();return;
   }
-  // Heaven Knight (82): cannot have opponent's Mystic Cards attached to itself
-  if(targetFC.card.id===82){
+  // Heaven Knight (82): blocks only ENEMY mystics (own player can still attach to own HK)
+  if(targetFC.card.id===82&&targetOwner?.pi!==0){
     log(`Heaven Knight [Ability]: ยกเลิก Mystic ฝ่ายตรงข้าม!`,'bad');
     render();return;
   }
@@ -4484,7 +4555,8 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
   // ── Thunder Bolt (37): instant, split fusion ──
   if(id===37){
     if(!fc.fused||!fc.fusionStack?.length){log(`${fc.card.name} ไม่ได้รวมร่าง`,'bad');render();return;}
-    spend();showActionQueue(`${mysticCard.name} → แยกการรวมร่าง ${fc.card.name}`,()=>{
+    spend();(p.mysticGrave=p.mysticGrave||[]).push(mysticCard);
+    showActionQueue(`${mysticCard.name} → แยกการรวมร่าง ${fc.card.name}`,()=>{
       const owner=findFCOwner(fc);
       if(owner){
         const mainLine=owner.p.atLine.some(x=>x.uid===fc.uid)?'atLine':'dfLine';
@@ -4501,6 +4573,7 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
   if(id===68){
     spend();showActionQueue(`${mysticCard.name} → ${fc.card.name} ใช้ท่า/Skill โดยไม่ต้องรวมร่าง 1 ครั้ง`,()=>{
       fc.willMind=true;
+      (fc.mystics=fc.mystics||[]).push({mystic:mysticCard,atBonus:0,dfBonus:0,spBonus:0,willMind:true,expiresBeforeSubTurn:subTurnNum+1});
       log(`${mysticCard.name}: ${fc.card.name} willMind ON!`,'good');
       checkLose();render();
       if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
@@ -4549,7 +4622,7 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
   }
   if(id===21){ // Holy Sun
     const el=getEffectiveEl(fc);
-    if(el==='light'||el==='fire'||el==='divine'){spend();showActionQueue(`${mysticCard.name} → ${fc.card.name} At +2`,()=>doAttach(2));}
+    if(el==='light'||el==='fire'||el==='divine'||fc.card.tribe==='Divine'){spend();showActionQueue(`${mysticCard.name} → ${fc.card.name} At +2`,()=>doAttach(2));}
     else{log(`${fc.card.name} ไม่ตรงเงื่อนไข Holy Sun (ธาตุ: ${el})`,'bad');render();}
     return;
   }
@@ -4682,7 +4755,7 @@ function playNonPMystic(mysticCard,mysticIdx){
           showMysticPicker('เลือก Mystic ที่จะทำลาย',actMys.map((m,i)=>({label:m.mystic.name,data:i})),mIdx=>{
             spend();
             showActionQueue(`Holy Prayer → ทำลาย ${actMys[mIdx].mystic.name}`,()=>{
-              const _m=actMys[mIdx];tfc.mystics.splice(tfc.mystics.indexOf(_m),1);clearPSCurseFromEntry(tfc,_m);
+              const _m=actMys[mIdx];_mysticSplice(tfc,_m);
               log(`Holy Prayer: ทำลาย Mystic!`,'good');checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
             });
           });
@@ -4725,7 +4798,8 @@ function playNonPMystic(mysticCard,mysticIdx){
       } else if(choice.type==='pa'){
         spend();
         showActionQueue(`Inquisition → ทำลาย [PA] ${G.players[choice.pi].areaMystics[choice.amIdx].mystic.name}`,()=>{
-          G.players[choice.pi].areaMystics.splice(choice.amIdx,1);
+          const _am=G.players[choice.pi].areaMystics.splice(choice.amIdx,1)[0];
+          if(_am)(G.players[choice.pi].mysticGrave=G.players[choice.pi].mysticGrave||[]).push(_am.mystic);
           log(`Inquisition: ทำลาย PA Mystic!`,'good');checkLose();render();
         });
       } else {
@@ -4733,14 +4807,14 @@ function playNonPMystic(mysticCard,mysticIdx){
         if(actMys.length===1){
           spend();
           showActionQueue(`Inquisition → ทำลาย ${actMys[0].mystic.name}`,()=>{
-            const _m0=actMys[0];choice.fc.mystics.splice(choice.fc.mystics.indexOf(_m0),1);clearPSCurseFromEntry(choice.fc,_m0);
+            const _m0=actMys[0];_mysticSplice(choice.fc,_m0);
             log(`Inquisition: ทำลาย Mystic!`,'good');checkLose();render();
           });
         } else {
           showMysticPicker('เลือก Mystic ที่จะทำลาย',actMys.map((m,i)=>({label:m.mystic.name,data:i})),mIdx=>{
             spend();
             showActionQueue(`Inquisition → ทำลาย ${actMys[mIdx].mystic.name}`,()=>{
-              const _mN=actMys[mIdx];choice.fc.mystics.splice(choice.fc.mystics.indexOf(_mN),1);clearPSCurseFromEntry(choice.fc,_mN);
+              const _mN=actMys[mIdx];_mysticSplice(choice.fc,_mN);
               log(`Inquisition: ทำลาย Mystic!`,'good');checkLose();render();
             });
           });
@@ -4867,6 +4941,24 @@ function clearPSCurseFromEntry(fc,mEntry){
     if(mEntry.curseType==='charm')fc.charmed=null;
   }
 }
+// Remove one mystic entry from a field card and send it to the seal owner's mysticGrave.
+function _mysticSplice(fc,mEntry){
+  const i=(fc.mystics||[]).indexOf(mEntry);if(i>=0)fc.mystics.splice(i,1);
+  clearPSCurseFromEntry(fc,mEntry);
+  if(mEntry.mystic?.id===33)fc.magicalEl=null;
+  const ownerPi=findFCOwner(fc)?.pi??0;
+  (G.players[ownerPi].mysticGrave=G.players[ownerPi].mysticGrave||[]).push(mEntry.mystic);
+}
+// Clear all mystics from a field card and send them to ownerPi's mysticGrave.
+function _drainAllMystics(fc,ownerPi){
+  if(!fc.mystics?.length)return;
+  fc.mystics.forEach(m=>{
+    clearPSCurseFromEntry(fc,m);
+    if(m.mystic?.id===33)fc.magicalEl=null;
+    (G.players[ownerPi].mysticGrave=G.players[ownerPi].mysticGrave||[]).push(m.mystic);
+  });
+  fc.mystics=[];
+}
 
 // Bounce a FieldCard (Active Seal) back to hand, following the fusion-bounce rule:
 // Sub Seals in fusionStack also return to hand; PS Mystics on any of them go to owner's mysticGrave.
@@ -4874,17 +4966,13 @@ function clearPSCurseFromEntry(fc,mEntry){
 function bounceSealToHand(fc, ownerPi){
   const owner=G.players[ownerPi];
   function drainPS(fieldCard){
-    const remaining=[];
     for(const m of (fieldCard.mystics||[])){
-      if(m.mystic&&m.mystic.pasted==='PS'){
-        clearPSCurseFromEntry(fieldCard,m);
-        (owner.mysticGrave=owner.mysticGrave||[]).push(m.mystic);
-        log(`${m.mystic.name} [PS Mystic] ตก Shrine เนื่องจากสูญเสียเป้าหมาย`,'bad');
-      } else {
-        remaining.push(m);
-      }
+      clearPSCurseFromEntry(fieldCard,m);
+      if(m.mystic?.id===33)fieldCard.magicalEl=null;
+      (owner.mysticGrave=owner.mysticGrave||[]).push(m.mystic);
+      log(`${m.mystic.name} [Mystic] ตก Shrine เนื่องจากสูญเสียเป้าหมาย`,'bad');
     }
-    fieldCard.mystics=remaining;
+    fieldCard.mystics=[];
   }
   function toHand(rawCard){
     if(owner.hand.length<getEffectiveHandMax(ownerPi)){
@@ -4915,6 +5003,7 @@ function tickMystics(){
           log(`${m.mystic.name} [Mystic] หมดอายุจาก ${fc.card.name}`,'');
           (p.mysticGrave=p.mysticGrave||[]).push(m.mystic);
           if(m.mystic?.id===33)fc.magicalEl=null;
+          if(m.willMind)fc.willMind=false;
           if(m.curseType){
             fc.curses=(fc.curses||[]).filter(c=>!(c.type===m.curseType&&c.fromPS===m.mystic.id));
             if(m.curseType==='charm')fc.charmed=null;

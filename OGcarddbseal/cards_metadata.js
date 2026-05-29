@@ -643,7 +643,7 @@ const CARDS_METADATA = {
     },
     {
       "id": 20,
-      "name": "Angel of Sword",
+      "name": "Angel of Sword, the Revelation",
       "path": "OGcarddbseal/card_20.jpg",
       "lv": 2,
       "at": 6,
@@ -677,11 +677,11 @@ const CARDS_METADATA = {
         }
       ],
       "skill_text": [
-        "[Skill]- ผู้เล่นฝ่ายตรงข้าม 1 คน ทิ้ง Mystic Card 1 ใบในมือแบบสุ่ม เมื่อ Francessca, the Angel of Swords รวมร่าง (At Line) (Mp 3)"
+       "[Skill]- นำ Angel of Sword, the Revelation ขึ้นมือจากสนาม (Mp 3)"
       ],
       "collector_number": "20/95",
       "illustrator": "Kasaemsun Boorijongruk",
-      "ability_text": ""
+      "ability_text": ["เมื่อ Angel of Sword, the Revelation เข้ามาในสนาม เราดู Mystic ทุกใบในมือฝ่ายตรงข้าม","Angel of Sword, the Revelation ยกเลิก Curse"]
     },
     {
       "id": 22,
