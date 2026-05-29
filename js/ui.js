@@ -2,7 +2,7 @@
 // HELPERS
 // ══════════════════════════════════════════════
 function getEffectiveMa(fc){
-  if(fc.fused){
+  if(fc.fused||fc.magicalEl){
     const atks=getActiveAtks(fc);
     if(atks.length){
       const best=atks.filter(a=>a.at).sort((a,b)=>b.at-a.at)[0]||atks[0];
@@ -583,6 +583,23 @@ function showShrineModal(lpi){
     row.onclick=()=>openCardViewer(c);
     opts.appendChild(row);
   });
+  // Mystic Graveyard section
+  const mg=p.mysticGrave||[];
+  if(mg.length){
+    const hdr=document.createElement('div');
+    hdr.style.cssText='color:#a78bfa;font-size:10px;font-weight:bold;margin-top:10px;border-top:1px solid #374151;padding-top:6px;margin-bottom:2px';
+    hdr.textContent=`✦ Mystic Graveyard (${mg.length})`;
+    opts.appendChild(hdr);
+    mg.forEach(m=>{
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer;border-radius:4px';
+      row.onmouseenter=()=>row.style.background='#374151';
+      row.onmouseleave=()=>row.style.background='';
+      row.innerHTML=`<img src="${m.img||''}" style="width:28px;height:38px;object-fit:cover;border-radius:2px;flex-shrink:0"><div style="font-size:9px;line-height:1.5"><div style="font-weight:bold;color:#c4b5fd">${m.name}</div><div style="color:#9ca3af">Mystic</div></div>`;
+      row.onclick=()=>openCardViewer(m);
+      opts.appendChild(row);
+    });
+  }
   // Phoenix interfere: only when AQ window is open (pendingCb set = host/offline)
   if(pendingCb && p.shrine.some(c=>c.id===78) && p.mp>=2){
     const btn=addFAOpt('🔥 [Interfere] ลง Phoenix จาก Shrine (Mp 2)',()=>{

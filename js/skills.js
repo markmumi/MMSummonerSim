@@ -867,7 +867,12 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
         if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
         p.mp-=skill.mp;skillFC.hasUsedSkill=true;
         const mIdx=(targetFC.mystics||[]).indexOf(mEntry);
-        if(mIdx>=0){targetFC.mystics.splice(mIdx,1);clearPSCurseFromEntry(targetFC,mEntry);}
+        if(mIdx>=0){
+          targetFC.mystics.splice(mIdx,1);clearPSCurseFromEntry(targetFC,mEntry);
+          if(mEntry.mystic?.id===33)targetFC.magicalEl=null;
+          const tOwner=findFCOwner(targetFC);
+          if(tOwner)(G.players[tOwner.pi].mysticGrave=G.players[tOwner.pi].mysticGrave||[]).push(mEntry.mystic);
+        }
         log(`${skillFC.card.name} [Skill]: ทำลาย ${mEntry.mystic.name} บน ${targetFC.card.name}!`,'good');
         checkLose();render();
       });

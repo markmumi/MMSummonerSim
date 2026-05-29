@@ -1458,6 +1458,8 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
       fc.mystics=(fc.mystics||[]);
       fc.mystics.push({mystic:mysticCard,atBonus,dfBonus,spBonus,...flags,expiresBeforeSubTurn:expires});
       if(flags.curseType){fc.curses=(fc.curses||[]);fc.curses.push({type:flags.curseType,expiresAtSubTurn:Infinity,fromPS:mysticCard.id});playSound(flags.curseType==='stone'?'Stone':flags.curseType==='freeze'?'Freeze':flags.curseType==='poison'?'Poison':flags.curseType==='charm'?'Charm':'Skill');}
+    } else {
+      (p.mysticGrave=p.mysticGrave||[]).push(mysticCard);
     }
     log(`${mysticCard.name} [Mystic] ติดกับ ${fc.card.name}!`,'good');
     checkLose();render();
@@ -1558,21 +1560,29 @@ function guestPlayNonPMystic(mysticCard,mysticIdx){
   let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);broadcastSound('Spell');}
   const allField=()=>[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
   if(id===17){ // Holy Prayer — pick target first, THEN enter interfere chain
+    const inInterfere=!!pendingCb;
+    const ownSeals=[...G.players[1].atLine,...G.players[1].dfLine];
     const cursed=allField().filter(fc=>fc.curses?.length);
+    const cureTargets=inInterfere?ownSeals:cursed;
     const withPS=allField().filter(fc=>getActiveMystics(fc).length&&!hasMysticProtect(fc));
     const _aqDescNow=document.getElementById('aq-desc')?.textContent||'';
     const pendingPSItem=(_pendingMysticCard?.pasted==='PS')&&pendingCb&&_aqDescNow?[{label:`[ยกเลิก] ${_aqDescNow}`,data:{_cancelPending:true,desc:_aqDescNow}}]:[];
     const modeOpts=[];
-    if(cursed.length)modeOpts.push({label:'รักษา Curse ทุกชนิด',data:'cure'});
+    if(cureTargets.length)modeOpts.push({label:'รักษา Curse ทุกชนิด',data:'cure'});
     if(withPS.length||pendingPSItem.length)modeOpts.push({label:'ทำลาย [PS] Mystic Card',data:'destroy'});
     if(!modeOpts.length){log('Holy Prayer: ไม่มีเป้าหมายที่ใช้ได้','bad');return;}
     showMysticPicker('Holy Prayer — เลือก',modeOpts,mode=>{
       if(mode==='cure'){
-        showMysticPicker('เลือก Seal ที่จะรักษา',cursed.map(fc=>({label:`${fc.card.name} (${fc.curses.map(c=>c.type).join(',')})`,data:fc})),tfc=>{
+        const cureLabel=fc=>fc.curses?.length?`${fc.card.name} (${fc.curses.map(c=>c.type).join(',')})`:`${fc.card.name} (รักษาหลัง AQ)`;
+        showMysticPicker('เลือก Seal ที่จะรักษา',cureTargets.map(fc=>({label:cureLabel(fc),data:fc})),tfc=>{
           spend();
-          showActionQueue(`Holy Prayer → รักษา ${tfc.card.name}`,()=>{
-            tfc.curses=[];log(`Holy Prayer: รักษา Curse!`,'good');checkLose();render();Online.broadcastState();
-          });
+          const _hpDesc=`Holy Prayer → รักษา ${tfc.card.name}`;
+          const _hpCb=()=>{tfc.curses=[];log(`Holy Prayer: รักษา Curse!`,'good');checkLose();render();Online.broadcastState();};
+          if(inInterfere){
+            if(_interfereStack.length>0){_interfereStack.unshift({desc:_hpDesc,cb:_hpCb});}
+            else{const _o=pendingCb;pendingCb=()=>{_o();_hpCb();};}
+            _enterChainMode(_hpDesc);
+          }else{showActionQueue(_hpDesc,_hpCb);}
         });
       } else {
         const sealOpts=withPS.map(fc=>({label:`${fc.card.name} [${getActiveMystics(fc).map(m=>m.mystic.name).join(',')}]`,data:fc}));
@@ -1733,15 +1743,19 @@ function guestShowMysticAction(mysticCard,mysticIdx){
     });
   } else if(mysticCard.id===17){ // Holy Prayer — check targets first, then pick locally on guest
     const allF=()=>[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
+    const inInterfere=!!pendingCb;
+    const ownSealsG=[...G.players[1].atLine,...G.players[1].dfLine];
     const cursed=allF().filter(fc=>fc.curses?.length);
+    const cureTargets=inInterfere?ownSealsG:cursed;
     const withPS=allF().filter(fc=>getActiveMystics(fc).length&&!hasMysticProtect(fc));
     const modeOpts=[];
-    if(cursed.length)modeOpts.push({label:'รักษา Curse ทุกชนิด',data:'cure'});
+    if(cureTargets.length)modeOpts.push({label:'รักษา Curse ทุกชนิด',data:'cure'});
     if(withPS.length)modeOpts.push({label:'ทำลาย [PS] Mystic Card',data:'destroy'});
     if(!modeOpts.length){log('Holy Prayer: ไม่มีเป้าหมายที่ใช้ได้','bad');return;}
     showMysticPicker('Holy Prayer — เลือก',modeOpts,mode=>{
       if(mode==='cure'){
-        showMysticPicker('เลือก Seal ที่จะรักษา',cursed.map(fc=>({label:`${fc.card.name} (${fc.curses.map(c=>c.type).join(',')})`,data:fc})),tfc=>{
+        const cureLabel=fc=>fc.curses?.length?`${fc.card.name} (${fc.curses.map(c=>c.type).join(',')})`:`${fc.card.name} (รักษาหลัง AQ)`;
+        showMysticPicker('เลือก Seal ที่จะรักษา',cureTargets.map(fc=>({label:cureLabel(fc),data:fc})),tfc=>{
           Online.sendGuestAction({action:'guestNonPResolved',mysticIdx,resolution:{id:17,type:'cure',targetUid:tfc.uid}});
         });
       } else {
@@ -2209,15 +2223,33 @@ function triggerGregoryCancel(ownerPi){
 
 // ── FUSION ──
 function _unlockedAtksForStack(fuseEntries, stackCards){
-  // Find all unlocked entry indices
+  // Specific entries (have at least one name/tribe req) are processed first.
+  // Cards they consume cannot also satisfy element-only entries, preventing a
+  // card like Hellish Bird (name='Hellish Bird', el='darkness') from simultaneously
+  // unlocking both the "Hellish Bird" fusion attack AND the "darkness" fusion attack.
+  const isElemReq=r=>_ELEMENTS.has(r);
+  const specificIdxs=[],genericIdxs=[];
+  fuseEntries.forEach((f,i)=>(f.reqs.every(r=>isElemReq(r))?genericIdxs:specificIdxs).push(i));
+
+  const usedIdxs=new Set();
   const unlocked=[];
-  for(let i=0;i<fuseEntries.length;i++){
-    const f=fuseEntries[i];
-    const cards=[...stackCards];
+  // Pass 1: name/tribe-specific entries consume their matched cards
+  for(const i of specificIdxs){
+    const pool=stackCards.map((c,idx)=>({c,idx})).filter(({idx})=>!usedIdxs.has(idx));
+    let ok=true;const used=[];
+    for(const req of fuseEntries[i].reqs){
+      const hit=pool.find(({c})=>matchesReq(req,c));
+      if(hit){used.push(hit.idx);pool.splice(pool.indexOf(hit),1);}else{ok=false;break;}
+    }
+    if(ok){unlocked.push(i);used.forEach(idx=>usedIdxs.add(idx));}
+  }
+  // Pass 2: element-only entries use remaining (unconsumed) cards
+  for(const i of genericIdxs){
+    const pool=stackCards.map((c,idx)=>({c,idx})).filter(({idx})=>!usedIdxs.has(idx));
     let ok=true;
-    for(const req of f.reqs){
-      const idx=cards.findIndex(c=>matchesReq(req,c));
-      if(idx>=0)cards.splice(idx,1);else{ok=false;break;}
+    for(const req of fuseEntries[i].reqs){
+      const hit=pool.find(({c})=>matchesReq(req,c));
+      if(hit)pool.splice(pool.indexOf(hit),1);else{ok=false;break;}
     }
     if(ok)unlocked.push(i);
   }
@@ -2432,7 +2464,7 @@ function clickFieldSeal(fc,pi,line){
     showMysticPicker('Sacrifice — เลือก Seal ที่จะทิ้ง (1/2)',hand.map(c=>({label:`${c.name} (${c.tribe} Lv${c.lv})`,data:c})),c1=>{
       const rest=hand.filter(c=>c!==c1);
       showMysticPicker('Sacrifice — เลือก Seal ที่จะทิ้ง (2/2)',rest.map(c=>({label:`${c.name} (${c.tribe} Lv${c.lv})`,data:c})),c2=>{
-        const p=G.players[0];p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);broadcastSound('Spell');
+        const p=G.players[0];p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);(p.mysticGrave=p.mysticGrave||[]).push(mysticCard);broadcastSound('Spell');
         showActionQueue(`Sacrifice → ทำลาย ${targetFC.card.name} + ทิ้ง ${c1.name}, ${c2.name}`,()=>{
           const owner=findFCOwner(targetFC);
           if(owner){destroyByEffect(targetFC,owner.pi);}
@@ -2784,7 +2816,12 @@ function resolveAttack(attFC,defFC,specialAtkIdx,defLine='at'){
   if(specialAtkIdx!==null){
     const pool=getActiveAtks(attFC);
     const sa=pool[specialAtkIdx];
-    if(!sa)return;
+    if(!sa){
+      // Fusion attack no longer valid (e.g. Magical World destroyed during AQ) — fall back to normal attack
+      if(p.mp<maCost){log(`Mp ไม่พอในการโจมตี (ต้องการ ${maCost})`,'bad');return;}
+      p.mp-=maCost;
+      // fall through to normal attack with base attAt and maCost already handled
+    } else {
     const saNetMp=Math.max(0,sa.mp-getMysticMaReduction(attFC));
     if(p.mp<saNetMp){log(`Mp ไม่พอสำหรับ ${sa.name} (ต้องการ ${saNetMp})`,'bad');return;}
     p.mp-=saNetMp;
@@ -2801,6 +2838,7 @@ function resolveAttack(attFC,defFC,specialAtkIdx,defLine='at'){
       });
       return;
     }
+    } // close else-sa block
   } else {
     if(p.mp<maCost){log(`Mp ไม่พอในการโจมตี (ต้องการ ${maCost})`,'bad');return;}
     p.mp-=maCost;
@@ -3065,25 +3103,25 @@ function getEffectiveSp(fc){
 }
 
 function applyPassiveAbilities(attFC,defFC,attAt){
-  if(attFC.card.id===85&&defFC.card.el==='light')attAt=Math.max(0,attAt-3);
+  const defEl=getEffectiveEl(defFC);
+  if(attFC.card.id===85&&defEl==='light')attAt=Math.max(0,attAt-3);
   // Scalo (id=10): when attacking a fused Seal, use Df if Df > At
   if(attFC.card.id===10&&defFC.fused){
     const scaloDf=getEffectiveDf(attFC);
     if(scaloDf>attAt)attAt=scaloDf;
   }
   // Hydra of Warok (id=50): At -3 when fighting Earth
-  if(attFC.card.id===50&&defFC.card.el==='earth')attAt=Math.max(0,attAt-3);
+  if(attFC.card.id===50&&defEl==='earth')attAt=Math.max(0,attAt-3);
   // Wool Wyvern (id=80): At -2 when fighting Fire
-  if(attFC.card.id===80&&defFC.card.el==='fire')attAt=Math.max(0,attAt-2);
+  if(attFC.card.id===80&&defEl==='fire')attAt=Math.max(0,attAt-2);
   // Jormungand (id=84): At -3 when fighting Earth
-  if(attFC.card.id===84&&defFC.card.el==='earth')attAt=Math.max(0,attAt-3);
+  if(attFC.card.id===84&&defEl==='earth')attAt=Math.max(0,attAt-3);
   // Python (id=73): At -3 when fighting Wind
-  if(attFC.card.id===73&&defFC.card.el==='wind')attAt=Math.max(0,attAt-3);
+  if(attFC.card.id===73&&defEl==='wind')attAt=Math.max(0,attAt-3);
   // Divine Dragon (id=86): At -2 when fighting Knight tribe
   if(attFC.card.id===86&&defFC.card.tribe==='Knight')attAt=Math.max(0,attAt-2);
   // Centaur Ranger (id=9): At +2 when attacking a Seal with lower Sp
   if(attFC.card.id===9&&getEffectiveSp(defFC)<getEffectiveSp(attFC))attAt+=2;
-  // Sigmund 3rd (id=89): attacker At ignores benefit; but we apply to attacker side here as AT boost
   return attAt;
 }
 function getDefStatWithPassive(defFC,attFC,defLine){
@@ -3091,6 +3129,8 @@ function getDefStatWithPassive(defFC,attFC,defLine){
   // Python (73): always defends with Df regardless of line
   if(defFC.card.id===73)s=getEffectiveDf(defFC);
   if(defFC.card.id===85&&attFC.card.el==='light')s=Math.max(0,s-3);
+  // Centaur Ranger (id=9): At +2 when fighting a Seal with lower Sp — also applies when defending in At Line
+  if(defFC.card.id===9&&defLine==='at'&&getEffectiveSp(attFC)<getEffectiveSp(defFC))s+=2;
   // Magamouth (id=13): Df +1 when fighting a fused attacker
   if(defFC.card.id===13&&attFC.fused)s+=1;
   // Sigmund 3rd (id=89): defender Df -2 when defender's Sp < Sigmund's Sp
@@ -3263,9 +3303,9 @@ function aiTurn(){
       if(usedUids.has(mainFC.uid))continue;  // already committed as someone's material
       if(mainFC.curses?.some(c=>c.type==='charm'))continue; // charmed — player controls it
       const mats=[...ai.dfLine,...ai.atLine].filter(m=>{
-        if(m.uid===mainFC.uid||m.fused||usedUids.has(m.uid)||newFromHand(m))return false;
+        if(m.uid===mainFC.uid||m.fused||usedUids.has(m.uid)||newFromHand(m)||hasPSMystic(m))return false;
         if(m.wasMainFusedTurn===turnNum)return false;
-        if(m.curses?.some(c=>c.type==='charm'))return false; // charmed — player controls it
+        if(m.curses?.some(c=>c.type==='charm'))return false;
         return fuseMaterialHelps(mainFC,m.card);
       });
       if(!mats.length)continue;
@@ -3564,7 +3604,7 @@ function aiTurn(){
     const player=G.players[0];
     // Helpers defined once outside the loop to avoid function-in-loop issues
     function _playMC(mc,mi,aqDesc,execCb){
-      ai.mp-=mc.mc; ai.mysticHand.splice(mi,1); broadcastSound('Spell');
+      ai.mp-=mc.mc; ai.mysticHand.splice(mi,1); (ai.mysticGrave=ai.mysticGrave||[]).push(mc); broadcastSound('Spell');
       showActionQueue(`🤖 ${aqDesc}`,()=>{
         execCb();
         checkLose();render();
@@ -3605,7 +3645,7 @@ function aiTurn(){
         const t=[...player.atLine,...player.dfLine].find(fc=>fc.fused&&canAttachMystic(mc,fc));
         if(t){
           const _mc37=mc,_mi37=mi;
-          ai.mp-=_mc37.mc;ai.mysticHand.splice(_mi37,1);broadcastSound('Spell');
+          ai.mp-=_mc37.mc;ai.mysticHand.splice(_mi37,1);(ai.mysticGrave=ai.mysticGrave||[]).push(_mc37);broadcastSound('Spell');
           showActionQueue(`🤖 ${_mc37.name} → แยกรวมร่าง ${t.card.name}`,()=>{
             const owner=findFCOwner(t);
             if(owner)t.fusionStack.forEach(m=>owner.p.atLine.push(m));
@@ -3778,21 +3818,30 @@ function aiTurn(){
       }
 
       const maMod=getMysticMaReduction(afc);
-      const maCost=Math.max(0,(afc.card.ma||1)-maMod);
-      const allSp=(afc.fused?afc.fusionAtks:[]).filter(a=>a.all&&a.at&&ai.mp>=Math.max(0,a.mp-maMod)).sort((a,b)=>b.at-a.at)[0];
-      const winSp=(afc.fused?afc.fusionAtks:[]).filter(a=>!a.all&&a.at&&ai.mp>=Math.max(0,a.mp-maMod)).filter(a=>{
+      const _aiActiveAtks=getActiveAtks(afc);
+      const _aiBestAtk=_aiActiveAtks.filter(a=>a.at).sort((a,b)=>b.at-a.at)[0]||_aiActiveAtks[0];
+      const maCost=_aiBestAtk?Math.max(0,(_aiBestAtk.mp||1)-maMod):Math.max(0,(afc.card.ma||1)-maMod);
+      const allSp=_aiActiveAtks.filter(a=>a.all&&a.at&&ai.mp>=Math.max(0,a.mp-maMod)).sort((a,b)=>b.at-a.at)[0];
+      const winSp=_aiActiveAtks.filter(a=>!a.all&&a.at&&ai.mp>=Math.max(0,a.mp-maMod)).filter(a=>{
         const bestT=targets.reduce((best,{fc:d,line:dl})=>{
           const ds=dl==='at'?getEffectiveAt(d):getEffectiveDf(d);
           return (!best||a.at>ds)?{fc:d,dl,ds}:best;
         },null);
         return bestT&&(a.at>bestT.ds||(a.at===bestT.ds&&getEffectiveSp(afc)>getEffectiveSp(bestT.fc)));
       }).sort((a,b)=>b.at-a.at)[0];
-      const myAt=getEffectiveAt(afc);
+      const myAtBase=getEffectiveAt(afc);
       const bestTarget=targets.reduce((best,{fc:d,line:dl})=>{
         const ds=dl==='at'?getEffectiveAt(d):getEffectiveDf(d);
-        return (!best||ds<best.ds)?{fc:d,line:dl,ds}:best;
+        const myAtVs=applyPassiveAbilities(afc,d,myAtBase);
+        const wins=myAtVs>ds||(myAtVs===ds&&getEffectiveSp(afc)>getEffectiveSp(d));
+        if(!best)return{fc:d,line:dl,ds,myAtVs,wins};
+        // prefer winning targets; among equal, prefer weakest
+        if(wins&&!best.wins)return{fc:d,line:dl,ds,myAtVs,wins};
+        if(!wins&&best.wins)return best;
+        return ds<best.ds?{fc:d,line:dl,ds,myAtVs,wins}:best;
       },null);
-      const normalWins=bestTarget&&(myAt>bestTarget.ds||(myAt===bestTarget.ds&&getEffectiveSp(afc)>getEffectiveSp(bestTarget.fc)))&&ai.mp>=maCost;
+      const myAt=bestTarget?.myAtVs??myAtBase;
+      const normalWins=bestTarget&&bestTarget.wins&&ai.mp>=maCost;
 
       function done(){
         afc.exhausted=true;
@@ -3844,7 +3893,7 @@ function aiTurn(){
           });
         });
       } else {
-        const hasAffordableFusion=(afc.fused?afc.fusionAtks:[]).some(a=>a.at&&ai.mp>=Math.max(0,a.mp-maMod));
+        const hasAffordableFusion=_aiActiveAtks.some(a=>a.at&&ai.mp>=Math.max(0,a.mp-maMod));
         if(!hasAffordableFusion&&ai.mp<maCost){
           doAttackStep(idx+1);
         } else {
@@ -3937,7 +3986,7 @@ function _maybeAIInterfere(){
   const ai=G.players[1], player=G.players[0];
 
   function _spendInterfere(mc,mi,aqDesc,execCb){
-    ai.mp-=mc.mc; ai.mysticHand.splice(mi,1); broadcastSound('Spell');
+    ai.mp-=mc.mc; ai.mysticHand.splice(mi,1); (ai.mysticGrave=ai.mysticGrave||[]).push(mc); broadcastSound('Spell');
     _nextChainCard=mc;
     showActionQueue(`🤖 [Interfere] ${aqDesc}`,()=>{
       execCb();
@@ -4423,6 +4472,8 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
         fc.curses.push({type:flags.curseType,expiresAtSubTurn:Infinity,fromPS:mysticCard.id});
         playSound(flags.curseType==='stone'?'Stone':flags.curseType==='freeze'?'Freeze':flags.curseType==='poison'?'Poison':flags.curseType==='charm'?'Charm':'Skill');
       }
+    } else {
+      (p.mysticGrave=p.mysticGrave||[]).push(mysticCard);
     }
     log(`${mysticCard.name} [Mystic] ติดกับ ${fc.card.name}!`,'good');
     checkLose();render();
@@ -4578,27 +4629,41 @@ function playNonPMystic(mysticCard,mysticIdx){
   const p=G.players[0];
   const id=mysticCard.id;
   _nextChainCard=mysticCard;
-  let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);broadcastSound('Spell');}
+  let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);(p.mysticGrave=p.mysticGrave||[]).push(mysticCard);broadcastSound('Spell');}
   const allField=()=>[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
 
   if(id===17){ // Holy Prayer — pick target first, THEN enter interfere chain
+    const inInterfere=!!pendingCb;
+    const ownSeals=[...G.players[0].atLine,...G.players[0].dfLine];
     const cursed=allField().filter(fc=>fc.curses?.length);
+    const cureTargets=inInterfere?ownSeals:cursed; // interfere: any own seal (pre-cure incoming curse)
     const withPS=allField().filter(fc=>getActiveMystics(fc).length&&!hasMysticProtect(fc));
     const _aqDescNow=document.getElementById('aq-desc')?.textContent||'';
     const pendingPSItem=(_pendingMysticCard?.pasted==='PS')&&pendingCb&&_aqDescNow?[{label:`[ยกเลิก] ${_aqDescNow}`,data:{_cancelPending:true,desc:_aqDescNow}}]:[];
     const modeOpts=[];
-    if(cursed.length)modeOpts.push({label:'รักษา Curse ทุกชนิดให้ Seal 1 ใบ',data:'cure'});
+    if(cureTargets.length)modeOpts.push({label:'รักษา Curse ทุกชนิดให้ Seal 1 ใบ',data:'cure'});
     if(withPS.length||pendingPSItem.length)modeOpts.push({label:'ทำลาย [PS] Mystic Card 1 ใบในสนาม',data:'destroy'});
     if(!modeOpts.length){log('Holy Prayer: ไม่มีเป้าหมายที่ใช้ได้','bad');return;}
     showMysticPicker('Holy Prayer — เลือก',modeOpts,mode=>{
       if(mode==='cure'){
-        showMysticPicker('เลือก Seal ที่จะรักษา',cursed.map(fc=>({label:`${fc.card.name} (${fc.curses.map(c=>c.type).join(',')})`,data:fc})),tfc=>{
+        const cureLabel=fc=>fc.curses?.length?`${fc.card.name} (${fc.curses.map(c=>c.type).join(',')})`:`${fc.card.name} (รักษาหลัง AQ)`;
+        showMysticPicker('เลือก Seal ที่จะรักษา',cureTargets.map(fc=>({label:cureLabel(fc),data:fc})),tfc=>{
           spend();
-          showActionQueue(`Holy Prayer → รักษา ${tfc.card.name}`,()=>{
-            tfc.curses=[];
-            log(`Holy Prayer: รักษา Curse ${tfc.card.name}!`,'good');
-            checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
-          });
+          const _hpDesc=`Holy Prayer → รักษา ${tfc.card.name}`;
+          const _hpCb=()=>{tfc.curses=[];log(`Holy Prayer: รักษา Curse ${tfc.card.name}!`,'good');checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();};
+          if(inInterfere){
+            if(_interfereStack.length>0){
+              // Other interferes already in stack (e.g. Houdini) — sit below them so they fire first
+              _interfereStack.unshift({desc:_hpDesc,cb:_hpCb});
+            } else {
+              // pendingCb IS the curse action — wrap it so Holy Prayer fires immediately after
+              const _origCb=pendingCb;
+              pendingCb=()=>{_origCb();_hpCb();};
+            }
+            _enterChainMode(_hpDesc);
+          } else {
+            showActionQueue(_hpDesc,_hpCb);
+          }
         });
       } else {
         const sealOpts=withPS.map(fc=>({label:`${fc.card.name} [${getActiveMystics(fc).map(m=>m.mystic.name).join(',')}]`,data:fc}));
@@ -4848,7 +4913,8 @@ function tickMystics(){
         fc.mystics=fc.mystics.filter(m=>m.expiresBeforeSubTurn===Infinity||subTurnNum<m.expiresBeforeSubTurn);
         expired.forEach(m=>{
           log(`${m.mystic.name} [Mystic] หมดอายุจาก ${fc.card.name}`,'');
-          // Remove PS-bound curse when its source PS expires
+          (p.mysticGrave=p.mysticGrave||[]).push(m.mystic);
+          if(m.mystic?.id===33)fc.magicalEl=null;
           if(m.curseType){
             fc.curses=(fc.curses||[]).filter(c=>!(c.type===m.curseType&&c.fromPS===m.mystic.id));
             if(m.curseType==='charm')fc.charmed=null;
@@ -4859,7 +4925,7 @@ function tickMystics(){
     if(p.areaMystics?.length){
       const expired=p.areaMystics.filter(am=>am.expiresBeforeSubTurn!==Infinity&&subTurnNum>=am.expiresBeforeSubTurn);
       p.areaMystics=p.areaMystics.filter(am=>am.expiresBeforeSubTurn===Infinity||subTurnNum<am.expiresBeforeSubTurn);
-      expired.forEach(am=>log(`${am.mystic.name} [Mystic Area] หมดอายุ`,''));
+      expired.forEach(am=>{log(`${am.mystic.name} [Mystic Area] หมดอายุ`,'');(p.mysticGrave=p.mysticGrave||[]).push(am.mystic);});
     }
   });
 }
