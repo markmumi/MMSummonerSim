@@ -278,25 +278,6 @@
         </select>
       </div>
 
-      <!-- Custom TURN -->
-      <div style="margin-bottom:10px">
-        <div style="font-size:11px;color:#64748b;margin-bottom:4px">เพิ่ม TURN Server:</div>
-        <select id="adv-turn-tpl" onchange="applyTurnTemplate()" style="width:100%;box-sizing:border-box;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px;margin-bottom:4px">
-          <option value="">-- เลือก template หรือกรอกเอง --</option>
-          <option value="turn:openrelay.metered.ca:80|openrelayproject|openrelayproject">openrelay.metered.ca:80 UDP</option>
-          <option value="turn:openrelay.metered.ca:443?transport=tcp|openrelayproject|openrelayproject">openrelay.metered.ca:443 TCP</option>
-          <option value="turn:freestun.net:3479|free|free">freestun.net:3479 (free)</option>
-          <option value="turn:freestun.net:3478|free|free">freestun.net:3478 (free)</option>
-          <option value="custom">✏ กรอกเอง…</option>
-        </select>
-        <input id="adv-turn-url" placeholder="turn:your-server.com:3478" style="width:100%;box-sizing:border-box;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px;margin-bottom:4px">
-        <div style="display:flex;gap:4px">
-          <input id="adv-turn-user" placeholder="username" style="flex:1;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px">
-          <input id="adv-turn-pass" placeholder="password" type="password" style="flex:1;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px">
-          <button onclick="doAddCustomTurn()" style="padding:5px 10px;background:#334155;border:none;border-radius:6px;color:#e2e8f0;font-size:12px;cursor:pointer;font-weight:700">+</button>
-        </div>
-        <div id="adv-turn-list" style="margin-top:4px"></div>
-      </div>
 
       <!-- System Log -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
@@ -368,50 +349,6 @@ function toggleAdv(){
 function applyAdvTimeout(){
   const ms=+document.getElementById('adv-timeout').value;
   if(typeof Online!=='undefined') Online.setConnTimeout(ms);
-}
-function applyTurnTemplate(){
-  const val=document.getElementById('adv-turn-tpl').value;
-  if(!val||val==='custom'){
-    document.getElementById('adv-turn-url').value='';
-    document.getElementById('adv-turn-user').value='';
-    document.getElementById('adv-turn-pass').value='';
-    return;
-  }
-  const [url,user,pass]=val.split('|');
-  document.getElementById('adv-turn-url').value=url||'';
-  document.getElementById('adv-turn-user').value=user||'';
-  document.getElementById('adv-turn-pass').value=pass||'';
-}
-let _customTurnList=[];
-function doAddCustomTurn(){
-  const url=document.getElementById('adv-turn-url').value.trim();
-  const user=document.getElementById('adv-turn-user').value.trim();
-  const pass=document.getElementById('adv-turn-pass').value.trim();
-  if(!url){return;}
-  if(typeof Online!=='undefined') Online.addCustomTurn(url,user,pass);
-  _customTurnList.push({url,user,pass});
-  _renderTurnList();
-  document.getElementById('adv-turn-url').value='';
-  document.getElementById('adv-turn-user').value='';
-  document.getElementById('adv-turn-pass').value='';
-}
-function _removeTurn(i){
-  _customTurnList.splice(i,1);
-  if(typeof Online!=='undefined'){
-    Online.clearCustomTurn();
-    _customTurnList.forEach(t=>Online.addCustomTurn(t.url,t.user,t.pass));
-  }
-  _renderTurnList();
-}
-function _renderTurnList(){
-  const el=document.getElementById('adv-turn-list');
-  if(!el) return;
-  el.innerHTML=_customTurnList.map((t,i)=>
-    `<div style="display:flex;align-items:center;gap:4px;margin-top:3px">
-      <span style="font-size:10px;color:#64748b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.url}${t.user?' ('+t.user+')':''}</span>
-      <button onclick="_removeTurn(${i})" style="padding:1px 6px;background:#450a0a;border:none;border-radius:4px;color:#f87171;font-size:10px;cursor:pointer">✕</button>
-    </div>`
-  ).join('');
 }
 function appendOnlineLog(msg,level){
   const el=document.getElementById('online-log');
