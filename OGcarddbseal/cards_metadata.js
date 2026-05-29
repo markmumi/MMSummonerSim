@@ -701,7 +701,7 @@ const CARDS_METADATA = {
       ],
       "fusions": [
         {
-          "reqs": ["wind"],
+          "reqs": ["light"],
           "atk_name": "Flash Ray",
           "atk_at": 10,
           "atk_df": null,
@@ -709,7 +709,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "reqs": ["wind", "wind"],
+          "reqs": ["fire"],
           "atk_name": "Burning Beam",
           "atk_at": 9,
           "atk_df": null,

@@ -2276,24 +2276,24 @@ function confirmFusion(){
   const newAtks=_unlockedAtksForStack(fuse,withP).filter(a=>!prevAtks.some(b=>b.name===a.name));
   const matNames=materials.map(m=>m.card.name).join(' + ');
   const atkNames=newAtks.map(a=>a.name).join(', ')||'(สะสม)';
+  // Lock fusion state before opening AQ so cancelAction() during interfere phase
+  // cannot return materials to the field while the closure still holds them.
+  pendingFusionMaterials=[];fusionMode=false;fusionMainFC=null;
   showActionQueue(`⚡ ${mainFC.card.name} + ${matNames} → ${atkNames}`,()=>{
     // Re-validate: interfere could have attached PS mystic to a support seal during the AQ window
     const psBlocked=materials.filter(m=>hasPSMystic(m));
     if(psBlocked.length){
       materials.forEach(m=>{const p=G.players[0];(p[m._stagedLine||'atLine']).push(m);delete m._stagedLine;});
-      pendingFusionMaterials=[];fusionMode=false;fusionMainFC=null;
       log(`รวมร่างถูกยกเลิก — ${psBlocked.map(m=>m.card.name).join(',')} มี PS Mystic ติดอยู่`,'bad');
       render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();return;
     }
     materials.forEach(m=>{mainFC.fusionStack.push(m);delete m._stagedLine;});
-    pendingFusionMaterials=[];
     mainFC.fusionAtks=getUnlockedAtks(mainFC);
     mainFC.fused=true;
     if(!mainFC.fusedSinceTurn)mainFC.fusedSinceTurn=turnNum;
     mainFC.fusedAtTurn=turnNum;
     broadcastSound('Fusion Complete');
     log(`+${matNames} → ${mainFC.card.name}: ${atkNames}`,'good');
-    fusionMode=false;fusionMainFC=null;
     render();
     if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
   },null,mainFC.card,'⚡ Fusing...');
