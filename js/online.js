@@ -801,7 +801,7 @@ var Online = (() => {
         }
         case 'guestSelfSkill': {
           const fc = g1all().find(f => f.uid === data.uid);
-          if (fc){updateAIPreview(fc.card,'✦ Guest Skill'); guestExecuteSelfSkill(fc, data.skillIdx);}
+          if (fc){updateAIPreview(fc.card,'✦ Guest Skill'); guestExecuteSelfSkill(fc, data.skillIdx, data.drawType);}
           break;
         }
         case 'guestStartHandDiscard': {

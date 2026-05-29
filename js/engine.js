@@ -129,6 +129,7 @@ let mysticPlayMode = null; // {mysticCard, mysticIdx} — waiting to paste PS to
 let sacrificeTargetMode = null; // {mysticCard, mysticIdx} — waiting to click field seal to destroy
 const MYSTIC_HAND_MAX = 7;
 let drawsRemaining = 0;
+let _deltaDDrawCb = null;
 let guestSkillMode = null;       // {fc, skillIdx} — guest's active skill targeting
 let guestFusionMainFC = null;    // fc — guest's active fusion main card
 let guestHandDiscardMode = null; // {fc, skillIdx} — guest interfere hand-discard
@@ -878,7 +879,8 @@ function _clickFieldSealGuest(fc,pi,line){
     };
     // Magical World / Chaotic World: pick element locally on guest
     if(mc.id===33||mc.id===39){
-      const elements=['fire','water','earth','wind','light','darkness'].filter(e=>e!==fc.card.el);
+      const allEls=['fire','water','earth','wind','light','darkness'];
+      const elements=mc.id===33?allEls:allEls.filter(e=>e!==fc.card.el);
       showMysticPicker(`${mc.name} — เลือกธาตุสำหรับ ${fc.card.name}`,elements.map(el=>({label:el,data:el})),el=>_sendPS({element:el}));
       return;
     }
@@ -980,7 +982,11 @@ function showFieldActionGuest(fc,line){
       if(skill.type==='handDiscard'){
         Online.sendGuestAction({action:'guestStartHandDiscard',uid:fc.uid,skillIdx:idx});
       } else if(skill.type==='selfSkill'){
-        Online.sendGuestAction({action:'guestSelfSkill',uid:fc.uid,skillIdx:idx});
+        if(skill.effect==='drawCardChoice'){
+          showDeltaDDrawModal((type)=>{Online.sendGuestAction({action:'guestSelfSkill',uid:fc.uid,skillIdx:idx,drawType:type});});
+        } else {
+          Online.sendGuestAction({action:'guestSelfSkill',uid:fc.uid,skillIdx:idx});
+        }
       } else if(skill.type==='garudaInterfere'||skill.type==='phoenixInterfere'){
         logErr(`ใช้ได้เฉพาะ Action Queue`);
       } else if(skill.type==='handPickBeast'){
@@ -1159,16 +1165,21 @@ function guestExecuteHandDiscard(cardIdx){
   checkLose();render();Online.broadcastState();
 }
 
-function guestExecuteSelfSkill(skillFC,skillIdx){
+function guestExecuteSelfSkill(skillFC,skillIdx,drawType){
   const p=G.players[1],opp=G.players[0];
   const skill=getCardSkills(skillFC)[skillIdx];
   if(!skill||p.mp<skill.mp){logErr('Mp ไม่พอ');return;}
   broadcastSound('Skill');
-  if(skill.effect==='drawCard'){
+  if(skill.effect==='drawCardChoice'){
     showActionQueue(`${skillFC.card.name} [Skill] จั่วการ์ด 1 ใบ`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      if(p.deck.length){p.hand.push(p.deck.pop());log(`${skillFC.card.name} [Skill]: จั่วการ์ด 1 ใบ!`,'good');}
-      else log(`${skillFC.card.name} [Skill]: ไม่มีการ์ดในกอง`,'bad');
+      if(drawType==='mystic'){
+        if((p.mysticDeck||[]).length){drawMysticCard(1,true,true);log(`${skillFC.card.name} [Skill]: จั่ว Mystic 1 ใบ!`,'good');}
+        else log(`${skillFC.card.name} [Skill]: ไม่มี Mystic ในกอง`,'bad');
+      } else {
+        if(p.deck.length){drawCard(1,true,true);log(`${skillFC.card.name} [Skill]: จั่ว Seal 1 ใบ!`,'good');}
+        else log(`${skillFC.card.name} [Skill]: ไม่มีการ์ดในกอง`,'bad');
+      }
       checkLose();render();Online.broadcastState();
     });return;
   }
@@ -1511,7 +1522,10 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
   if(id===32){spend();showActionQueue(`${mysticCard.name} → ${fc.card.name} At-${fc.card.lv} (1 Turn)`,()=>doAttach(-fc.card.lv));return;}
   if(id===33){
     const el33=extraData?.element||'fire';
-    spend();showActionQueue(`${mysticCard.name} → ${fc.card.name} ธาตุ ${el33}`,()=>{fc.magicalEl=el33;doAttach(0,0,0,{elFusion:el33});});
+    spend();showActionQueue(`${mysticCard.name} → ${fc.card.name} ธาตุ ${el33}`,()=>{
+      if(!_mwBenefitsFromEl(fc,el33)){log(`Magical World: ${fc.card.name} ไม่มีเงื่อนไขธาตุ ${el33} — Magical World ถูกทำลาย!`,'bad');checkLose();render();Online.broadcastState();return;}
+      fc.magicalEl=el33;if(fc.fused)fc.fusionAtks=getUnlockedAtks(fc);doAttach(0,0,0,{elFusion:el33});
+    });
     return;
   }
   if(id===36){spend();showActionQueue(`${mysticCard.name} → ${fc.card.name} ป้องกัน 1 Turn`,()=>doAttach(0,0,0,{protects:true}));return;}
@@ -2226,7 +2240,9 @@ function _unlockedAtksForStack(fuseEntries, stackCards){
 }
 
 function getUnlockedAtks(mainFC){
-  return _unlockedAtksForStack(mainFC.card.fuse||[], mainFC.fusionStack.map(m=>m.card));
+  const stack=mainFC.fusionStack.map(m=>m.card);
+  if(mainFC.magicalEl)stack.push({el:mainFC.magicalEl,tribe:'',name:''});
+  return _unlockedAtksForStack(mainFC.card.fuse||[],stack);
 }
 
 // Used by GUEST (step-by-step) and AI — considers only mainFC.fusionStack
@@ -2578,6 +2594,10 @@ function _isThunderiaFused(fc){
 }
 function getActiveAtks(fc){
   if(fc.fused&&fc.fusionAtks.length>0)return fc.fusionAtks;
+  if(!fc.fused&&fc.magicalEl&&fc.card.fuse?.length){
+    const atks=_unlockedAtksForStack(fc.card.fuse,[{el:fc.magicalEl,tribe:'',name:''}]);
+    if(atks.length)return atks;
+  }
   if(fc.willMind&&fc.card.fuse?.length)return fc.card.fuse.map(f=>f.atk).filter(Boolean);
   if(_isThunderiaFused(fc)&&fc.card.fuse?.length)return fc.card.fuse.map(f=>f.atk).filter(Boolean);
   return [];
@@ -2943,6 +2963,10 @@ function getEffectiveAt(fc){
     const best=fc.fusionAtks.filter(a=>a.at).sort((a,b)=>b.at-a.at)[0];
     if(best)base=best.at;
   }
+  if(!fc.fused&&fc.magicalEl&&fc.card.fuse?.length){
+    const atks=_unlockedAtksForStack(fc.card.fuse,[{el:fc.magicalEl,tribe:'',name:''}]).filter(a=>a.at);
+    if(atks.length){const best=atks.sort((a,b)=>b.at-a.at)[0];if(best.at>base)base=best.at;}
+  }
   if(_isThunderiaFused(fc)&&fc.card.fuse?.length){
     const fuseAtks=(fc.card.fuse).map(f=>f.atk).filter(a=>a?.at);
     if(fuseAtks.length){const best=fuseAtks.sort((a,b)=>b.at-a.at)[0];base=best.at;}
@@ -2963,12 +2987,12 @@ function getEffectiveAt(fc){
     if(fc.card.id===86)base+=oppField.length;
     // Golden Fur Griffin (79): +N other own Beasts
     if(fc.card.id===79)base+=ownField.filter(x=>x.uid!==fc.uid&&x.card.tribe==='Beast').length;
-    // Undine (81) passive: other own seals +At 1
-    if(fc.card.id!==81&&ownField.some(x=>x.card.id===81))base+=1;
-    // Black Night Griffin (55): other own Beast seals +At 1
-    if(fc.card.id!==55&&fc.card.tribe==='Beast'&&ownField.some(x=>x.card.id===55))base+=1;
-    // Nerimor Princess Wands (92): own Fire +At 1 when Nerimor in Df Line
-    if(fc.card.id!==92&&fc.card.el==='fire'&&own.dfLine.some(x=>x.card.id===92))base+=1;
+    // Undine (81) passive: other own seals +At 1 per Undine
+    if(fc.card.id!==81)base+=ownField.filter(x=>x.card.id===81).length;
+    // Black Night Griffin (55): other own Beast seals +At 1 per Griffin
+    if(fc.card.id!==55&&fc.card.tribe==='Beast')base+=ownField.filter(x=>x.card.id===55).length;
+    // Nerimor Princess Wands (92): own Fire +At 1 per Nerimor in Df Line
+    if(fc.card.id!==92&&fc.card.el==='fire')base+=own.dfLine.filter(x=>x.card.id===92).length;
   }
   base+=getMysticAtBonus(fc);
   return Math.max(0,base);
@@ -2991,10 +3015,10 @@ function getEffectiveDf(fc){
     const ownField=[...own.atLine,...own.dfLine];
     // Golden Fur Griffin (79): -N other own Beasts
     if(fc.card.id===79)base-=ownField.filter(x=>x.uid!==fc.uid&&x.card.tribe==='Beast').length;
-    // Undine (81) passive: other own seals +Df 2
-    if(fc.card.id!==81&&ownField.some(x=>x.card.id===81))base+=2;
-    // Nerimor Princess Wands (92): own Fire -Df 3 when Nerimor in Df Line
-    if(fc.card.id!==92&&fc.card.el==='fire'&&own.dfLine.some(x=>x.card.id===92))base-=3;
+    // Undine (81) passive: other own seals +Df 2 per Undine
+    if(fc.card.id!==81)base+=ownField.filter(x=>x.card.id===81).length*2;
+    // Nerimor Princess Wands (92): own Fire -Df 3 per Nerimor in Df Line
+    if(fc.card.id!==92&&fc.card.el==='fire')base-=own.dfLine.filter(x=>x.card.id===92).length*3;
     // Yggdrasil (77): other seals in same Df Line get Df=11
     if(fc.card.id!==77&&own.dfLine.some(x=>x.uid===fc.uid)&&own.dfLine.some(x=>x.card.id===77))base=11;
   }
@@ -4216,6 +4240,16 @@ function hideDrawModal(){
   document.getElementById('draw-modal').style.display='none';
 }
 
+function showDeltaDDrawModal(cb){
+  _deltaDDrawCb=cb;
+  document.getElementById('deltad-draw-modal').style.display='block';
+}
+
+function onDeltaDDrawChoice(type){
+  document.getElementById('deltad-draw-modal').style.display='none';
+  if(_deltaDDrawCb){const cb=_deltaDDrawCb;_deltaDDrawCb=null;cb(type);}
+}
+
 function doDrawChoice(type){
   const p=G.players[0];
   if(type==='seal'){
@@ -4333,6 +4367,14 @@ function showMysticAction(mysticCard,mysticIdx){
   }
 }
 
+function _mwBenefitsFromEl(fc,el){
+  // Check fusion attack conditions (dynamic from card DB)
+  if((fc.card.fuse||[]).some(f=>(f.reqs||[]).includes(el)))return true;
+  // Check skill conditions (cards with fusedWith[element] in skills.js)
+  const skillMap={darkness:[6,12,28,44,58],water:[48,84],wind:[94],light:[54,65],earth:[48]};
+  return(skillMap[el]||[]).includes(fc.card.id);
+}
+
 function attachPSMystic(mysticCard,mysticIdx,targetFC){
   updateAIPreview(mysticCard,'🃏 Mystic');
   const p=G.players[0];
@@ -4369,6 +4411,7 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
 
   let _spd=false;
   function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);broadcastSound('Spell');}
+  function _mwDestroy(el){log(`Magical World: ${fc.card.name} ไม่มีเงื่อนไขธาตุ ${el} — Magical World ถูกทำลาย!`,'bad');checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();}
   function doAttach(atBonus=0,dfBonus=0,spBonus=0,flags={}){
     const expires=mysticCard.turns===999?Infinity:subTurnNum+(mysticCard.turns*2);
     if(mysticCard.turns!==0){
@@ -4489,12 +4532,14 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
     spend();showActionQueue(`${mysticCard.name} → ${fc.card.name} At-${fc.card.lv} (1 Turn)`,()=>doAttach(-fc.card.lv));
     return;
   }
-  if(id===33){ // Magical World: change element (display + fusion + bonuses)
-    const elements=['fire','water','earth','wind','light','darkness'].filter(e=>e!==fc.card.el);
+  if(id===33){ // Magical World: seal acts as fused with chosen element; destroyed if seal has no condition for it
+    const elements=['fire','water','earth','wind','light','darkness'];
     showMysticPicker(`Magical World — เลือกธาตุสำหรับ ${fc.card.name}`,
       elements.map(el=>({label:el,data:el})),
       el=>{spend();showActionQueue(`${mysticCard.name} → ${fc.card.name} ธาตุ ${el}`,()=>{
+        if(!_mwBenefitsFromEl(fc,el)){_mwDestroy(el);return;}
         fc.magicalEl=el;
+        if(fc.fused)fc.fusionAtks=getUnlockedAtks(fc);
         doAttach(0,0,0,{elFusion:el});
       });});
     return;

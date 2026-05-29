@@ -1122,8 +1122,8 @@ const CARDS_METADATA = {
       "path": "OGcarddbseal/card_49.jpg",
       "lv": 2,
       "at": 7,
-      "df": 6,
-      "spd": 4,
+      "df": 8,
+      "spd": 2,
       "mp_deploy": 3,
       "mp_attack": 2,
       "element": [

@@ -40,7 +40,7 @@ function _getCardSkillsRaw(fc){
   }
   // ── Infernos (id=6): Last Dance Curse At+2 / 2 Turn — fused with Dark + At Line ──
   if(fc.card.id===6){
-    const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind;
+    const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind||fc.magicalEl==='darkness';
     if(fusedWithDark&&isOnAtLine(fc)){
       return [{
         label:'✦ [Skill] Last Dance Curse At+2 / 2 Turn (Mp 2)',
@@ -84,7 +84,7 @@ function _getCardSkillsRaw(fc){
   }
   // ── Jiu Wei Hu Le (id=12): Charm Curse 3 Turn — fused with Dark ──
   if(fc.card.id===12){
-    const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind;
+    const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind||fc.magicalEl==='darkness';
     if(fusedWithDark){
       return [{
         label:'✦ [Skill] ติด Charm Curse 3 Turn บน Seal ศัตรู (Mp 2)',
@@ -121,13 +121,13 @@ function _getCardSkillsRaw(fc){
   // ── Delta-D (id=22): draw 1 card — Df Line, Mp 3 ──
   if(fc.card.id===22){
     if(p.dfLine.some(x=>x.uid===fc.uid)){
-      return [{label:'✦ [Skill] จั่วการ์ด 1 ใบ (Mp 3)',mp:3,type:'selfSkill',effect:'drawCard'}];
+      return [{label:'✦ [Skill] จั่วการ์ด 1 ใบ (Seal/Mystic) (Mp 3)',mp:3,type:'selfSkill',effect:'drawCardChoice'}];
     }
     return[];
   }
   // ── Banshee (id=28): Death Curse Sp 1-3 — fused+Dark+At Line, Mp 3 ──
   if(fc.card.id===28){
-    const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind;
+    const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind||fc.magicalEl==='darkness';
     if(fusedWithDark&&isOnAtLine(fc)){
       return [{
         label:'✦ [Skill] Death Curse บน Seal Sp 1-3 ของศัตรู (Mp 3)',
@@ -191,7 +191,7 @@ function _getCardSkillsRaw(fc){
   }
   // ── Jormungand (id=84): Freeze Curse ALL enemy 1 Turn — fused+water+At Line, Mp 4 ──
   if(fc.card.id===84){
-    if(((fc.fused&&fc.fusionStack.some(m=>m.card.el==='water'))||fc.willMind)&&isOnAtLine(fc)){
+    if(((fc.fused&&fc.fusionStack.some(m=>m.card.el==='water'))||fc.willMind||fc.magicalEl==='water')&&isOnAtLine(fc)){
       return [{label:'✦ [Skill] Freeze Curse (ALL) ศัตรู 1 Turn (Mp 4)',mp:4,type:'selfSkill',effect:'freezeAll'}];
     }
     return[];
@@ -217,7 +217,7 @@ function _getCardSkillsRaw(fc){
   }
   // ── Regina Princess Swords (id=94): all own seals move to At Line, fused+wind+At Line, Mp 1 ──
   if(fc.card.id===94){
-    const fusedWithWind=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='wind'))||fc.willMind;
+    const fusedWithWind=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='wind'))||fc.willMind||fc.magicalEl==='wind';
     if(fusedWithWind&&isOnAtLine(fc)){
       return [{label:'✦ [Skill] Seal ทุกใบย้ายไป At Line (Mp 1)',mp:1,type:'selfSkill',effect:'allToAtLine'}];
     }
@@ -281,7 +281,7 @@ function _getCardSkillsRaw(fc){
   }
   // ── Titania (id=54): destroy 1 mystic on field — fused+Light, Mp 2 ──
   if(fc.card.id===54){
-    const fusedWithLight=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='light'))||fc.willMind;
+    const fusedWithLight=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='light'))||fc.willMind||fc.magicalEl==='light';
     if(fusedWithLight){
       const allField=[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
       if(allField.some(t=>getActiveMystics(t).length>0)){
@@ -296,7 +296,7 @@ function _getCardSkillsRaw(fc){
   }
   // ── Sphinx (id=65): mass reset — all seals to deck, redeploy from hand — fused+Light+AtLine, Mp 4 ──
   if(fc.card.id===65){
-    const fusedWithLight=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='light'))||fc.willMind;
+    const fusedWithLight=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='light'))||fc.willMind||fc.magicalEl==='light';
     if(fusedWithLight&&isOnAtLine(fc)){
       return [{label:'✦ [Skill] Reset สนาม — Seal ทุกใบกลับกอง จากนั้นทุกคนวางจากมือ (Mp 4)',mp:4,type:'selfSkill',effect:'massReset'}];
     }
@@ -314,7 +314,7 @@ function _getCardSkillsRaw(fc){
   if(fc.card.id===44){
     const skills=[];
     const fusedWithBW=(fc.fused&&fc.fusionStack.some(m=>m.card.id===41))||fc.willMind;
-    const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind;
+    const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind||fc.magicalEl==='darkness';
     if(fusedWithBW&&isOnAtLine(fc))skills.push({label:'✦ [Skill] Last Dance Curse At+3 / 2 Turn (Black Wiser) (Mp 3)',mp:3,type:'fieldTarget',effect:'lastDanceCurse',atBonus:3,turns:2,filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance')});
     if(fusedWithDark&&isOnAtLine(fc))skills.push({label:'✦ [Skill] Last Dance Curse At+2 / 3 Turn (Dark) (Mp 2)',mp:2,type:'fieldTarget',effect:'lastDanceCurse',atBonus:2,turns:3,filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance')});
     return skills;
@@ -327,8 +327,8 @@ function _getCardSkillsRaw(fc){
   // ── Medusa (id=48): Stone ∞ (Earth,Mp3) or Poison 3T (Water,Mp2) — fused ──
   if(fc.card.id===48){
     const skills=[];
-    const fusedWithEarth=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='earth'))||fc.willMind;
-    const fusedWithWater=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='water'))||fc.willMind;
+    const fusedWithEarth=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='earth'))||fc.willMind||fc.magicalEl==='earth';
+    const fusedWithWater=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='water'))||fc.willMind||fc.magicalEl==='water';
     const allField=[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
     if(fusedWithEarth)skills.push({label:'✦ [Skill] Stone Curse ∞ — Seal Sp 1-4 (Mp 3)',mp:3,type:'fieldTarget',effect:'stoneCurse',turns:Infinity,filter:t=>allField.some(x=>x.uid===t.uid)&&t.uid!==fc.uid&&[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone')});
     if(fusedWithWater)skills.push({label:'✦ [Skill] Poison Curse 3 Turn — Seal Sp 1-3 (Mp 2)',mp:2,type:'fieldTarget',effect:'poisonCurse',turns:3,filter:t=>allField.some(x=>x.uid===t.uid)&&t.uid!==fc.uid&&[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison')});
@@ -336,7 +336,7 @@ function _getCardSkillsRaw(fc){
   }
   // ── Siren (id=58): Charm Curse 2 Turn — fused+Dark+At Line, Sp 3-5 ──
   if(fc.card.id===58){
-    const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind;
+    const fusedWithDark=(fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness'))||fc.willMind||fc.magicalEl==='darkness';
     if(fusedWithDark&&isOnAtLine(fc))return[{label:'✦ [Skill] Charm Curse 2 Turn — Seal ศัตรู Sp 3-5 (Mp 2)',mp:2,type:'fieldTarget',effect:'charmCurse',turns:2,filter:t=>[...opp.atLine,...opp.dfLine].some(x=>x.uid===t.uid)&&[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='charm')}];
     return[];
   }
@@ -467,13 +467,22 @@ function executeSelfSkill(skillFC,skillIdx){
   if(!skill||p.mp<skill.mp){logErr('Mp ไม่พอ');return;}
   updateAIPreview(skillFC.card,'✦ Skill');
   broadcastSound('Skill');
-  if(skill.effect==='drawCard'){
+  if(skill.effect==='drawCardChoice'){
     showActionQueue(`${skillFC.card.name} [Skill] จั่วการ์ด 1 ใบ`,()=>{
       if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      if(p.deck.length){p.hand.push(p.deck.pop());log(`${skillFC.card.name} [Skill]: จั่วการ์ด 1 ใบ!`,'good');}
-      else log(`${skillFC.card.name} [Skill]: ไม่มีการ์ดในกอง`,'bad');
-      checkLose();render();
+      showDeltaDDrawModal((type)=>{
+        const p2=G.players[0];
+        if(type==='mystic'){
+          if((p2.mysticDeck||[]).length){drawMysticCard(0,true,true);log(`${skillFC.card.name} [Skill]: จั่ว Mystic 1 ใบ!`,'good');}
+          else log(`${skillFC.card.name} [Skill]: ไม่มี Mystic ในกอง`,'bad');
+        } else {
+          if(p2.deck.length){drawCard(0,true,true);log(`${skillFC.card.name} [Skill]: จั่ว Seal 1 ใบ!`,'good');}
+          else log(`${skillFC.card.name} [Skill]: ไม่มีการ์ดในกอง`,'bad');
+        }
+        checkLose();render();
+        if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
+      });
     });
     return;
   }
