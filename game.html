@@ -249,14 +249,58 @@
       <button id="btn-start-game" onclick="doStartOnlineGame()" style="margin-top:10px;width:100%;padding:10px;background:#16a34a;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">▶ เริ่มเกม</button>
     </div>
 
-    <!-- Debug Log (collapsed by default) -->
+    <!-- Advanced / Debug (collapsed by default) -->
     <div id="adv-toggle" onclick="toggleAdv()" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:12px;padding:7px 0 0;border-top:1px solid #1e3a5f;user-select:none">
       <span id="adv-arrow" style="color:#475569;font-size:11px">▶</span>
-      <span style="font-size:12px;color:#475569">📋 Debug Log</span>
+      <span style="font-size:12px;color:#475569">⚙ ขั้นสูง / Debug</span>
     </div>
-    <div id="adv-panel" style="display:none;margin-top:8px">
+    <div id="adv-panel" style="display:none;margin-top:10px">
+
+      <!-- Connection mode -->
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;color:#64748b;margin-bottom:5px">โหมดเชื่อมต่อ:</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+          <button id="ipm-auto"  onclick="setIpMode('auto')"  style="padding:5px 4px;border-radius:6px;background:#7c3aed;border:1px solid #7c3aed;color:#fff;font-size:11px;font-weight:600;cursor:pointer">🔀 อัตโนมัติ</button>
+          <button id="ipm-ipv4"  onclick="setIpMode('ipv4')"  style="padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer">4️⃣ IPv4 เท่านั้น</button>
+          <button id="ipm-ipv6"  onclick="setIpMode('ipv6')"  style="padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer">6️⃣ IPv6 เท่านั้น</button>
+          <button id="ipm-relay" onclick="setIpMode('relay')" style="padding:5px 4px;border-radius:6px;background:#0f172a;border:1px solid #334155;color:#64748b;font-size:11px;font-weight:600;cursor:pointer">🔁 Force Relay</button>
+        </div>
+        <div style="font-size:10px;color:#475569;margin-top:4px" id="ipm-desc">อัตโนมัติ: ลอง IPv6 → IPv4 (browser จัดการ)</div>
+      </div>
+
+      <!-- Timeout -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:11px;color:#64748b;width:72px;flex-shrink:0">หมดเวลา:</span>
+        <select id="adv-timeout" onchange="applyAdvTimeout()" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:6px;padding:3px 8px;font-size:12px">
+          <option value="15000">15 วินาที</option>
+          <option value="30000" selected>30 วินาที</option>
+          <option value="60000">60 วินาที</option>
+        </select>
+      </div>
+
+      <!-- Custom TURN -->
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;color:#64748b;margin-bottom:4px">เพิ่ม TURN Server:</div>
+        <select id="adv-turn-tpl" onchange="applyTurnTemplate()" style="width:100%;box-sizing:border-box;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px;margin-bottom:4px">
+          <option value="">-- เลือก template หรือกรอกเอง --</option>
+          <option value="turn:openrelay.metered.ca:80|openrelayproject|openrelayproject">openrelay.metered.ca:80 UDP</option>
+          <option value="turn:openrelay.metered.ca:443?transport=tcp|openrelayproject|openrelayproject">openrelay.metered.ca:443 TCP</option>
+          <option value="turn:freestun.net:3479|free|free">freestun.net:3479 (free)</option>
+          <option value="turn:freestun.net:3478|free|free">freestun.net:3478 (free)</option>
+          <option value="custom">✏ กรอกเอง…</option>
+        </select>
+        <input id="adv-turn-url" placeholder="turn:your-server.com:3478" style="width:100%;box-sizing:border-box;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px;margin-bottom:4px">
+        <div style="display:flex;gap:4px">
+          <input id="adv-turn-user" placeholder="username" style="flex:1;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px">
+          <input id="adv-turn-pass" placeholder="password" type="password" style="flex:1;padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:11px">
+          <button onclick="doAddCustomTurn()" style="padding:5px 10px;background:#334155;border:none;border-radius:6px;color:#e2e8f0;font-size:12px;cursor:pointer;font-weight:700">+</button>
+        </div>
+        <div id="adv-turn-list" style="margin-top:4px"></div>
+      </div>
+
+      <!-- System Log -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-        <span style="font-size:11px;color:#64748b">System Log</span>
+        <span style="font-size:11px;color:#64748b">📋 System Log</span>
         <div style="display:flex;gap:6px">
           <button onclick="copyOnlineLog()" style="padding:2px 8px;background:#1e3a5f;border:none;border-radius:4px;color:#94a3b8;font-size:10px;cursor:pointer">Copy</button>
           <button onclick="clearOnlineLog()" style="padding:2px 8px;background:#1e3a5f;border:none;border-radius:4px;color:#94a3b8;font-size:10px;cursor:pointer">ล้าง</button>
@@ -324,10 +368,6 @@ function toggleAdv(){
 function applyAdvTimeout(){
   const ms=+document.getElementById('adv-timeout').value;
   if(typeof Online!=='undefined') Online.setConnTimeout(ms);
-}
-function applyAutoSwap(){
-  const on=document.getElementById('adv-autoswap').checked;
-  if(typeof Online!=='undefined') Online.setAutoSwap(on);
 }
 function applyTurnTemplate(){
   const val=document.getElementById('adv-turn-tpl').value;
@@ -414,13 +454,6 @@ function doCreateRoom(forceCode){
   document.getElementById('create-status').textContent='กำลังเชื่อมต่อ…';
   document.getElementById('guest-connected-box').style.display='none';
   Online.onStatusChange=(status,msg)=>{
-    if(status==='swap-starting'){
-      document.getElementById('create-status').textContent='กำลังเชื่อมต่อ…';
-      document.getElementById('btn-create-room').disabled=true;
-      document.getElementById('room-code-box').style.display='none';
-      document.getElementById('guest-connected-box').style.display='none';
-      return;
-    }
     if(status==='guest-ready'){
       document.getElementById('guest-connected-box').style.display='block';
       document.getElementById('btn-start-game').disabled=false;
@@ -458,12 +491,6 @@ function doJoinRoom(){
   document.getElementById('btn-join-room').disabled=true;
   document.getElementById('join-status').textContent='กำลังเชื่อมต่อ…';
   Online.onStatusChange=(status,msg)=>{
-    if(status==='swap-starting'){
-      document.getElementById('join-status').textContent='กำลังเชื่อมต่อ…';
-      document.getElementById('join-status').style.color='';
-      document.getElementById('btn-join-room').disabled=true;
-      return;
-    }
     if(status==='guest-ready'){
       document.getElementById('guest-connected-box').style.display='block';
       document.getElementById('btn-start-game').disabled=false;

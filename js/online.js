@@ -9,27 +9,7 @@ var Online = (() => {
   let _ipMode = 'auto';       // 'auto'|'ipv4'|'ipv6'|'relay'
   let _connTimeout = 30000;   // ms — configurable via setConnTimeout()
   let _extraTurnServers = []; // user-added TURN entries
-  let _autoSwap = true;       // auto role-swap on connection failure (default ON)
-  let _swapping = false;      // guard: prevent double-trigger of swap
-  let _swapPhase = 0;         // 0=none, 1=phase-1 swap in progress, 2=phase-2 final swap
 
-  // Double-swap: phase-1 swaps roles so connection can form; phase-2 swaps back to
-  // restore original HOST/GUEST roles. Net result: same person is HOST in the game.
-  function _doAutoSwap() {
-    const code = E.roomCode;
-    if (!code || E.isOnline || _swapping || _swapPhase > 0) return;
-    _swapping = true;
-    _swapPhase = 1;
-    _log(`🔄 Auto-swap: กำลังลองเชื่อมต่อใหม่ (โค้ด ${code})…`, 'info');
-    E._setStatus('swap-starting', null); // neutral "connecting" UI — no tab switch
-    if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
-    conn = null; E.isOnline = false;
-    if (E.isHost) {
-      setTimeout(() => E.joinRoom(code, () => {}), 2000);
-    } else {
-      setTimeout(() => E.createRoom(() => {}, () => {}, code), 500);
-    }
-  }
 
   function _log(msg, level) {
     if (E.onLog) E.onLog(msg, level || 'info');
@@ -62,9 +42,8 @@ var Online = (() => {
         pc.addEventListener('iceconnectionstatechange', () => {
           const s = pc.iceConnectionState;
           _log(`ICE → ${s}`, s === 'connected' || s === 'completed' ? 'ok' : s === 'failed' || s === 'disconnected' ? 'error' : 'info');
-          // Trigger auto-swap immediately on ICE failure — don't wait for 30s timeout
-          if ((s === 'failed' || s === 'disconnected') && _autoSwap && !E.isOnline && !_swapping) {
-            setTimeout(_doAutoSwap, 800);
+          if ((s === 'failed' || s === 'disconnected') && !E.isOnline) {
+            _log('💡 ICE ล้มเหลว — ลองเปลี่ยนโหมดเชื่อมต่อ หรือให้อีกฝ่ายสร้างห้องแทน', 'warn');
           }
         });
         pc.addEventListener('connectionstatechange', () => {
@@ -140,7 +119,6 @@ var Online = (() => {
     },
 
     setConnTimeout(ms) { _connTimeout = ms; },
-    setAutoSwap(v) { _autoSwap = v; },
 
 
 
@@ -174,9 +152,6 @@ var Online = (() => {
         const win = document.getElementById('win-screen');
         if (ov && !(win && win.classList.contains('show'))) ov.style.display = 'flex';
       }
-      // During behind-the-scenes swap phases, suppress UI status changes except
-      // the initial 'swap-starting' nudge, errors, and disconnect notifications.
-      if (_swapPhase > 0 && s !== 'swap-starting' && s !== 'error' && s !== 'disconnected') return;
       if (E.onStatusChange) E.onStatusChange(s, msg);
     },
 
@@ -202,44 +177,23 @@ var Online = (() => {
           _log('Guest กำลังเชื่อมต่อ…', 'info');
           conn = c;
           conn.on('open', () => {
-            if (_swapPhase === 1) {
-              // Phase-1 connection formed. Tell GUEST to swap back so original HOST
-              // ends up as HOST again in phase-2. Don't mark isOnline yet.
-              _log('🔄 Auto-swap phase-2: สลับกลับสู่บทบาทเดิม…', 'info');
-              _swapPhase = 2;
-              try { conn.send({ type: 'swap-again', code: E.roomCode }); } catch(e) {}
-              // After a short delay, become GUEST and join original HOST's new room.
-              setTimeout(() => {
-                try { if(conn){conn.close();}  } catch(e){}
-                try { if(peer){peer.destroy();} } catch(e){} peer = null; conn = null;
-                E.isOnline = false; E.isHost = false; E.localPlayerIdx = 1;
-                setTimeout(() => E.joinRoom(E.roomCode, () => {}), 200);
-              }, 300);
-              return;
-            }
             _log('DataChannel เปิด — Host+Guest เชื่อมต่อสำเร็จ!', 'ok');
-            _swapping = false; E.isOnline = true;
+            E.isOnline = true;
             E._setStatus('connected', null);
             if(typeof log==='function')log('🌐 Online: Guest เชื่อมต่อแล้ว!','good');
           });
           conn.on('data', data => {
             if (data.type === 'deck') {
-              if (_swapPhase === 1) {
-                // Phase-1 HOST received GUEST's deck — ignore it; swap-again is coming
-                return;
-              }
               E.guestDeckData = data.deck;
-              if (_swapPhase === 2) _swapPhase = 0; // phase-2 complete — allow UI
               if (onGuestConnected) onGuestConnected(data.deck);
-              E._setStatus('guest-ready', null); // always fire — UI shows Start Game btn
+              E._setStatus('guest-ready', null);
             } else if (data.type === 'action') {
               E._handleGuestAction(data);
             }
           });
-          conn.on('close', () => { _log('Connection ปิด', 'warn'); if(_swapPhase===0)E._setStatus('disconnected', null); });
+          conn.on('close', () => { _log('Connection ปิด', 'warn'); E._setStatus('disconnected', null); });
           conn.on('error', err => {
             _log(`Conn error: ${err}`, 'error');
-            if (!E.isOnline && _autoSwap) { _doAutoSwap(); return; }
             console.error('PeerJS conn error:', err);
           });
         });
@@ -277,21 +231,16 @@ var Online = (() => {
           let connectTimer = setTimeout(() => {
             connectTimer = null;
             if (!E.isOnline) {
-              _log(`หมดเวลา (${_connTimeout/1000}s)${_autoSwap?' — กำลัง auto-swap…':' — ลอง Force Relay หรือให้เพื่อนสร้างห้องแทน'}`, _autoSwap?'info':'error');
+              _log(`หมดเวลา (${_connTimeout/1000}s) — ต่อไม่ได้ ลอง Force Relay หรือให้อีกฝ่ายสร้างห้องแทน`, 'error');
               if (conn) { try { conn.close(); } catch(e){} conn = null; }
-              if (_autoSwap) { _doAutoSwap(); return; }
-              E._setStatus('error', 'หมดเวลา — NAT/Firewall ขัดขวาง ลอง Force Relay หรือให้เพื่อนสร้างห้องแทน');
+              E._setStatus('error', 'หมดเวลา — ลองให้อีกฝ่ายสร้างห้อง (สลับ Host/Guest) หรือเปลี่ยนโหมดเชื่อมต่อ');
             }
           }, _connTimeout);
 
           conn.on('open', () => {
             if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
-            if (_swapPhase === 2) {
-              // Phase-2 GUEST connected — swap complete on GUEST side
-              _swapPhase = 0; _swapping = false;
-            }
             _log('DataChannel เปิด — เชื่อมต่อกับ Host สำเร็จ!', 'ok');
-            _swapping = false; E.isOnline = true;
+            E.isOnline = true;
             E._setStatus('connected', null);
             if(typeof log==='function')log('🌐 Online: เชื่อมต่อกับ Host สำเร็จ!','good');
             const deckData = localStorage.getItem('mm_playerDeck') || '{}';
@@ -299,42 +248,21 @@ var Online = (() => {
             if (onConnected) onConnected();
           });
           conn.on('data', data => {
-            if (data.type === 'swap-again') {
-              // Phase-1 HOST signals us to swap back to our original role.
-              // We become HOST; the other side will join us as GUEST.
-              _log('🔄 Auto-swap phase-2: กลับเป็น Host…', 'info');
-              if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
-              _swapPhase = 2; E.isOnline = false;
-              try { conn.close(); } catch(e){} conn = null;
-              try { peer.destroy(); } catch(e){} peer = null;
-              E.isHost = true; E.localPlayerIdx = 0;
-              setTimeout(() => E.createRoom(() => {}, () => {}, E.roomCode), 500);
-              return;
-            }
             if (data.type === 'anim') E._playAnim(data);
             else E._applyHostState(data);
           });
           conn.on('close', () => {
-            if (_swapPhase > 0) { _log('Connection ปิด (swap)', 'info'); return; }
-            if (!E.isOnline && _autoSwap) { if(connectTimer){clearTimeout(connectTimer);connectTimer=null;} _doAutoSwap(); return; }
+            if (!E.isOnline) { if(connectTimer){clearTimeout(connectTimer);connectTimer=null;} }
             _log('Connection ปิด', 'warn'); E._setStatus('disconnected', null);
           });
           conn.on('error', err => {
             if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
             _log(`Conn error: ${err.type || err}`, 'error');
-            if (!E.isOnline && _autoSwap) { _doAutoSwap(); return; }
             E._setStatus('error', 'เชื่อมต่อไม่ได้ — ตรวจสอบอินเทอร์เน็ตหรือลองใหม่');
           });
         });
         peer.on('error', err => {
           _log(`PeerJS error: ${err.type || err}`, err.type === 'peer-unavailable' ? 'info' : 'error');
-          // Auto-swap retry: new Host (original Guest) may not have room ready yet
-          if (_autoSwap && !E.isOnline && err.type === 'peer-unavailable') {
-            _log('🔄 Auto-swap: ห้องยังไม่พร้อม — รอ 4s แล้วลองใหม่…', 'info');
-            if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
-            setTimeout(() => E.joinRoom(code, onConnected), 4000);
-            return;
-          }
           const msg = err.type === 'peer-unavailable'
             ? 'ไม่พบห้อง — Room Code ผิด หรือเพื่อนยังไม่ได้สร้างห้อง'
             : err.type === 'network'
