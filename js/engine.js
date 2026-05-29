@@ -1475,7 +1475,7 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
     if(!fc.fused||!fc.fusionStack?.length){log(`${fc.card.name} ไม่ได้รวมร่าง`,'bad');render();Online.broadcastState();return;}
     spend();(p.mysticGrave=p.mysticGrave||[]).push(mysticCard);
     showActionQueue(`${mysticCard.name} → แยกการรวมร่าง ${fc.card.name}`,()=>{
-      const owner=findFCOwner(fc);if(owner)fc.fusionStack.forEach(m=>{owner.p.atLine.push(m);});
+      const owner=findFCOwner(fc);if(owner){const mainLine=owner.p.atLine.some(x=>x.uid===fc.uid)?'atLine':'dfLine';fc.fusionStack.forEach(m=>{owner.p[mainLine].push(m);});}
       fc.fusionStack=[];fc.fusionAtks=[];fc.fused=false;fc.fusedSinceTurn=null;fc.wasMainFusedTurn=turnNum;
       log(`${mysticCard.name}: ${fc.card.name} แยกรวมร่าง!`,'good');checkLose();render();Online.broadcastState();
     });return;
@@ -3075,12 +3075,12 @@ function getEffectiveAt(fc){
     if(fc.card.id===86)base+=oppField.length;
     // Golden Fur Griffin (79): +N other own Beasts
     if(fc.card.id===79)base+=ownField.filter(x=>x.uid!==fc.uid&&x.card.tribe==='Beast').length;
-    // Undine (81) passive: other own seals +At 1 per Undine
-    if(fc.card.id!==81)base+=ownField.filter(x=>x.card.id===81).length;
-    // Black Night Griffin (55): other own Beast seals +At 1 per Griffin
-    if(fc.card.id!==55&&fc.card.tribe==='Beast')base+=ownField.filter(x=>x.card.id===55).length;
-    // Nerimor Princess Wands (92): own Fire +At 1 per Nerimor in Df Line
-    if(fc.card.id!==92&&fc.card.el==='fire')base+=own.dfLine.filter(x=>x.card.id===92).length;
+    // Undine (81) passive: other own seals +At 1 per Undine (each Undine buffs others, not itself)
+    base+=ownField.filter(x=>x.card.id===81&&x.uid!==fc.uid).length;
+    // Black Night Griffin (55): other own Beast seals +At 1 per Griffin (Beasts including other Griffins)
+    if(fc.card.tribe==='Beast')base+=ownField.filter(x=>x.card.id===55&&x.uid!==fc.uid).length;
+    // Nerimor Princess Wands (92): all own Fire seals +At 1 per Nerimor in Df Line (including other Nerimors)
+    if(fc.card.el==='fire')base+=own.dfLine.filter(x=>x.card.id===92&&x.uid!==fc.uid).length;
   }
   base+=getMysticAtBonus(fc);
   return Math.max(0,base);
@@ -3103,10 +3103,10 @@ function getEffectiveDf(fc){
     const ownField=[...own.atLine,...own.dfLine];
     // Golden Fur Griffin (79): -N other own Beasts
     if(fc.card.id===79)base-=ownField.filter(x=>x.uid!==fc.uid&&x.card.tribe==='Beast').length;
-    // Undine (81) passive: other own seals +Df 2 per Undine
-    if(fc.card.id!==81)base+=ownField.filter(x=>x.card.id===81).length*2;
-    // Nerimor Princess Wands (92): own Fire -Df 3 per Nerimor in Df Line
-    if(fc.card.id!==92&&fc.card.el==='fire')base-=own.dfLine.filter(x=>x.card.id===92).length*3;
+    // Undine (81) passive: other own seals +Df 2 per Undine (each Undine buffs others, not itself)
+    base+=ownField.filter(x=>x.card.id===81&&x.uid!==fc.uid).length*2;
+    // Nerimor Princess Wands (92): all own Fire seals -Df 3 per Nerimor in Df Line (including other Nerimors)
+    if(fc.card.el==='fire')base-=own.dfLine.filter(x=>x.card.id===92&&x.uid!==fc.uid).length*3;
     // Yggdrasil (77): other seals in same Df Line get Df=11
     if(fc.card.id!==77&&own.dfLine.some(x=>x.uid===fc.uid)&&own.dfLine.some(x=>x.card.id===77))base=11;
   }
@@ -3372,7 +3372,10 @@ function aiTurn(){
         if(m.uid===mainFC.uid||m.fused||usedUids.has(m.uid)||newFromHand(m)||hasPSMystic(m))return false;
         if(m.wasMainFusedTurn===turnNum)return false;
         if(m.curses?.some(c=>c.type==='charm'))return false;
-        return fuseMaterialHelps(mainFC,m.card);
+        if(!fuseMaterialHelps(mainFC,m.card))return false;
+        // Only fuse if this material actually unlocks at least one attack
+        const testStack=[...mainFC.fusionStack.map(x=>x.card),m.card];
+        return _unlockedAtksForStack(mainFC.card.fuse||[],testStack).length>0;
       });
       if(!mats.length)continue;
       pairs.push({mainFC,mat:mats[0]});
@@ -3717,7 +3720,7 @@ function aiTurn(){
           ai.mp-=_mc37.mc;ai.mysticHand.splice(_mi37,1);(ai.mysticGrave=ai.mysticGrave||[]).push(_mc37);broadcastSound('Spell');
           showActionQueue(`🤖 ${_mc37.name} → แยกรวมร่าง ${t.card.name}`,()=>{
             const owner=findFCOwner(t);
-            if(owner)t.fusionStack.forEach(m=>owner.p.atLine.push(m));
+            if(owner){const mainLine=owner.p.atLine.some(x=>x.uid===t.uid)?'atLine':'dfLine';t.fusionStack.forEach(m=>{owner.p[mainLine].push(m);});}
             t.fusionStack=[];t.fusionAtks=[];t.fused=false;t.fusedSinceTurn=null;t.wasMainFusedTurn=turnNum;
             log(`AI: ${_mc37.name} → ${t.card.name} แยกรวมร่าง!`,'bad');
             checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
@@ -4108,7 +4111,7 @@ function _maybeAIInterfere(){
         showActionQueue(`🤖 [Interfere] ${_mc.name} → แยกรวมร่าง ${t.card.name}`,()=>{
           _pendingMysticCard=null;
           const owner=findFCOwner(t);
-          if(owner)t.fusionStack.forEach(m=>owner.p.atLine.push(m));
+          if(owner){const mainLine=owner.p.atLine.some(x=>x.uid===t.uid)?'atLine':'dfLine';t.fusionStack.forEach(m=>{owner.p[mainLine].push(m);});}
           t.fusionStack=[];t.fusionAtks=[];t.fused=false;t.fusedSinceTurn=null;t.wasMainFusedTurn=turnNum;
           log(`AI [Interfere]: ${_mc.name} → ${t.card.name} แยกรวมร่าง!`,'bad');
           checkLose();render();
