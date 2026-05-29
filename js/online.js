@@ -11,24 +11,22 @@ var Online = (() => {
   let _extraTurnServers = []; // user-added TURN entries
   let _autoSwap = true;       // auto role-swap on connection failure (default ON)
   let _swapping = false;      // guard: prevent double-trigger of swap
+  let _swapPhase = 0;         // 0=none, 1=phase-1 swap in progress, 2=phase-2 final swap
 
-  // Swap roles using the same room code:
-  // Guest-that-failed  → creates room (becomes Host)
-  // Host-that-got-err  → joins room  (becomes Guest)
+  // Double-swap: phase-1 swaps roles so connection can form; phase-2 swaps back to
+  // restore original HOST/GUEST roles. Net result: same person is HOST in the game.
   function _doAutoSwap() {
     const code = E.roomCode;
-    if (!code || E.isOnline || _swapping) return;
+    if (!code || E.isOnline || _swapping || _swapPhase > 0) return;
     _swapping = true;
-    _log(`🔄 Auto-swap: สลับบทบาท โค้ด ${code}…`, 'info');
+    _swapPhase = 1;
+    _log(`🔄 Auto-swap: กำลังลองเชื่อมต่อใหม่ (โค้ด ${code})…`, 'info');
+    E._setStatus('swap-starting', null); // neutral "connecting" UI — no tab switch
     if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
     conn = null; E.isOnline = false;
     if (E.isHost) {
-      // Host becomes Guest: wait for the (now-Host) guest to register, then join
-      E._setStatus('swap-to-guest', code);
       setTimeout(() => E.joinRoom(code, () => {}), 2000);
     } else {
-      // Guest becomes Host: create room with same code after a brief pause
-      E._setStatus('swap-to-host', code);
       setTimeout(() => E.createRoom(() => {}, () => {}, code), 500);
     }
   }
@@ -144,38 +142,7 @@ var Online = (() => {
     setConnTimeout(ms) { _connTimeout = ms; },
     setAutoSwap(v) { _autoSwap = v; },
 
-    async checkNATType() {
-      _log('กำลังตรวจสอบ NAT type (ใช้ STUN 3 เซิร์ฟเวอร์)…', 'info');
-      const srflxPorts = new Set();
-      let done = false;
-      let pc;
-      try {
-        pc = new RTCPeerConnection({ iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-        ]});
-        pc.createDataChannel('nat');
-        pc.onicecandidate = e => {
-          if (!e.candidate) {
-            if (!done) { done = true; try{pc.close();}catch(e){} _analyzeNAT(); }
-          } else if (e.candidate.type === 'srflx') {
-            const p = e.candidate.candidate.split(' ');
-            srflxPorts.add(p[5]); // external port
-          }
-        };
-        await pc.setLocalDescription(await pc.createOffer());
-        setTimeout(() => { if (!done) { done = true; try{pc.close();}catch(e){} _analyzeNAT(); } }, 6000);
-      } catch(err) { _log(`NAT check error: ${err}`, 'error'); }
-      function _analyzeNAT() {
-        if (!srflxPorts.size) { _log('NAT check: ไม่พบ srflx — STUN ถูก block ทั้งหมด → ต้องใช้ Force Relay', 'error'); return; }
-        const ports = [...srflxPorts].join(', ');
-        if (srflxPorts.size > 1)
-          _log(`NAT type: Symmetric NAT ❌ (ports: ${ports}) — hole-punch ไม่ได้ ต้องใช้ Force Relay + TURN server ที่เชื่อถือได้`, 'error');
-        else
-          _log(`NAT type: Cone NAT ✅ (port: ${ports}) — น่าจะ hole-punch ได้ ถ้าจอยไม่ได้อาจเป็นเรื่อง TURN`, 'ok');
-      }
-    },
+
 
     addCustomTurn(url, username, credential) {
       _extraTurnServers.push(credential
@@ -207,6 +174,9 @@ var Online = (() => {
         const win = document.getElementById('win-screen');
         if (ov && !(win && win.classList.contains('show'))) ov.style.display = 'flex';
       }
+      // During behind-the-scenes swap phases, suppress UI status changes except
+      // the initial 'swap-starting' nudge, errors, and disconnect notifications.
+      if (_swapPhase > 0 && s !== 'swap-starting' && s !== 'error' && s !== 'disconnected') return;
       if (E.onStatusChange) E.onStatusChange(s, msg);
     },
 
@@ -232,6 +202,21 @@ var Online = (() => {
           _log('Guest กำลังเชื่อมต่อ…', 'info');
           conn = c;
           conn.on('open', () => {
+            if (_swapPhase === 1) {
+              // Phase-1 connection formed. Tell GUEST to swap back so original HOST
+              // ends up as HOST again in phase-2. Don't mark isOnline yet.
+              _log('🔄 Auto-swap phase-2: สลับกลับสู่บทบาทเดิม…', 'info');
+              _swapPhase = 2;
+              try { conn.send({ type: 'swap-again', code: E.roomCode }); } catch(e) {}
+              // After a short delay, become GUEST and join original HOST's new room.
+              setTimeout(() => {
+                try { if(conn){conn.close();}  } catch(e){}
+                try { if(peer){peer.destroy();} } catch(e){} peer = null; conn = null;
+                E.isOnline = false; E.isHost = false; E.localPlayerIdx = 1;
+                setTimeout(() => E.joinRoom(E.roomCode, () => {}), 200);
+              }, 300);
+              return;
+            }
             _log('DataChannel เปิด — Host+Guest เชื่อมต่อสำเร็จ!', 'ok');
             _swapping = false; E.isOnline = true;
             E._setStatus('connected', null);
@@ -239,14 +224,19 @@ var Online = (() => {
           });
           conn.on('data', data => {
             if (data.type === 'deck') {
+              if (_swapPhase === 1) {
+                // Phase-1 HOST received GUEST's deck — ignore it; swap-again is coming
+                return;
+              }
               E.guestDeckData = data.deck;
+              if (_swapPhase === 2) _swapPhase = 0; // phase-2 complete — allow UI
               if (onGuestConnected) onGuestConnected(data.deck);
               E._setStatus('guest-ready', null); // always fire — UI shows Start Game btn
             } else if (data.type === 'action') {
               E._handleGuestAction(data);
             }
           });
-          conn.on('close', () => { _log('Connection ปิด', 'warn'); E._setStatus('disconnected', null); });
+          conn.on('close', () => { _log('Connection ปิด', 'warn'); if(_swapPhase===0)E._setStatus('disconnected', null); });
           conn.on('error', err => {
             _log(`Conn error: ${err}`, 'error');
             if (!E.isOnline && _autoSwap) { _doAutoSwap(); return; }
@@ -296,6 +286,10 @@ var Online = (() => {
 
           conn.on('open', () => {
             if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+            if (_swapPhase === 2) {
+              // Phase-2 GUEST connected — swap complete on GUEST side
+              _swapPhase = 0; _swapping = false;
+            }
             _log('DataChannel เปิด — เชื่อมต่อกับ Host สำเร็จ!', 'ok');
             _swapping = false; E.isOnline = true;
             E._setStatus('connected', null);
@@ -305,10 +299,23 @@ var Online = (() => {
             if (onConnected) onConnected();
           });
           conn.on('data', data => {
+            if (data.type === 'swap-again') {
+              // Phase-1 HOST signals us to swap back to our original role.
+              // We become HOST; the other side will join us as GUEST.
+              _log('🔄 Auto-swap phase-2: กลับเป็น Host…', 'info');
+              if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+              _swapPhase = 2; E.isOnline = false;
+              try { conn.close(); } catch(e){} conn = null;
+              try { peer.destroy(); } catch(e){} peer = null;
+              E.isHost = true; E.localPlayerIdx = 0;
+              setTimeout(() => E.createRoom(() => {}, () => {}, E.roomCode), 500);
+              return;
+            }
             if (data.type === 'anim') E._playAnim(data);
             else E._applyHostState(data);
           });
           conn.on('close', () => {
+            if (_swapPhase > 0) { _log('Connection ปิด (swap)', 'info'); return; }
             if (!E.isOnline && _autoSwap) { if(connectTimer){clearTimeout(connectTimer);connectTimer=null;} _doAutoSwap(); return; }
             _log('Connection ปิด', 'warn'); E._setStatus('disconnected', null);
           });
