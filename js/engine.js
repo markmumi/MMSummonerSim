@@ -3689,9 +3689,9 @@ function aiTurn(){
         // Re-validate: temporarily restore MP and re-check conditions (e.g. Thunder Bolt unfused during AQ)
         ai.mp+=skill.mp;
         const recheck=getAICardSkill(fc);
-        if(!recheck){
+        if(!recheck||fc.curses?.some(c=>c.type==='stone'||c.type==='freeze')){
           if(skill._dcTarget)skill._dcTarget.curses=(skill._dcTarget.curses||[]).filter(c=>c.type!=='death');
-          log(`${fc.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');
+          log(`${fc.card.name} [Skill] ยกเลิก — ติด Curse ระหว่างประกาศ`,'bad');
           render();doAISkill(callback);return;
         }
         ai.mp=Math.max(0,ai.mp-skill.mp);
