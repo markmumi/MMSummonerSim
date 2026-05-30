@@ -249,6 +249,7 @@ function _getCardSkillsRaw(fc){
   }
   // ── Phoenix (id=78): Interfere deploy from shrine (one-time), Mp 2 ──
   if(fc.card.id===78){
+    if(fc.card._hasRevived)return[];
     return [{label:'✦ [Skill/Interfere] ลง Phoenix จาก Shrine (Mp 2)',mp:2,type:'phoenixInterfere',interfere:false}];
   }
   if(fc.card.id===3){

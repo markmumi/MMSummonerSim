@@ -22,7 +22,7 @@ function cancelAction(){
     pendingFusionMaterials.forEach(m=>{p[m._stagedLine||'atLine'].push(m);delete m._stagedLine;});
     pendingFusionMaterials=[];
   }
-  fusionMode=false;fusionMainFC=null;handTargetMode=false;skillMode=null;handDiscardMode=null;handPickMode=null;mysticPlayMode=null;sacrificeTargetMode=null;
+  fusionMode=false;fusionMainFC=null;handTargetMode=false;skillMode=null;handDiscardMode=null;handPickMode=null;mysticPlayMode=null;sacrificeTargetMode=null;holyPrayerCureMode=null;
   // Clear guest-side state vars (if online guest)
   if(window.Online?.isOnline&&!Online.isHost){
     if(guestFusionMainFC){Online.sendGuestAction({action:'guestCancelFusion'});}
@@ -102,6 +102,7 @@ function cardEl(fc,pi,lineKey,isField){
   if(guestFusionMainFC&&pi===lpi&&canBeGuestFusionMaterial(fc))div.classList.add('fusion-target');
   if(skillMode&&isSkillTarget(fc))div.classList.add('skill-target');
   if(guestSkillMode&&pi!==lpi){const s=(getCardSkills(guestSkillMode.fc)||[])[guestSkillMode.skillIdx];if(s&&s.filter&&s.filter(fc))div.classList.add('skill-target');}
+  if(holyPrayerCureMode&&holyPrayerCureMode.targets.some(t=>t.uid===fc.uid))div.classList.add('skill-target');
   if(sacrificeTargetMode&&!(sacrificeTargetMode.mysticCard.exception_tribes||[]).includes(fc.card.tribe))div.classList.add('skill-target');
   if(mysticPlayMode&&canAttachMystic(mysticPlayMode.mysticCard,fc))div.classList.add('mystic-attach');
   if(guestMysticPlayMode&&canAttachMystic(guestMysticPlayMode.mysticCard,fc))div.classList.add('mystic-attach');
@@ -497,7 +498,7 @@ function render(){
   if(phase==='battle'){btnNext.textContent='✓ End Battle';btnNext.className=myTurn?'btn btn-blue':'btn btn-gray';}
   else if(phase==='main2'){btnNext.textContent='⏹ End Turn';btnNext.className=myTurn?'btn btn-red':'btn btn-gray';}
   else{btnNext.textContent='▶ Next Phase';btnNext.className='btn btn-gray';}
-  document.getElementById('btn-cancel').style.display=(attackerSeal||pendingDeploy||fusionMode||handTargetMode||skillMode||handDiscardMode||mysticPlayMode||sacrificeTargetMode||guestFusionMainFC||guestSkillMode||guestMysticPlayMode||guestHandDiscardMode)?'inline-block':'none';
+  document.getElementById('btn-cancel').style.display=(attackerSeal||pendingDeploy||fusionMode||handTargetMode||skillMode||handDiscardMode||mysticPlayMode||sacrificeTargetMode||holyPrayerCureMode||guestFusionMainFC||guestSkillMode||guestMysticPlayMode||guestHandDiscardMode)?'inline-block':'none';
   const btnCF=document.getElementById('btn-confirm-fusion');
   if(btnCF){
     const hasPending=typeof pendingFusionMaterials!=='undefined'&&pendingFusionMaterials.length>0;
@@ -916,7 +917,10 @@ document.addEventListener('click',()=>{
 
 // Right-click to cancel active selection modes
 document.addEventListener('contextmenu',e=>{
-  if(sacrificeTargetMode){
+  if(holyPrayerCureMode){
+    e.preventDefault();
+    holyPrayerCureMode=null;render();
+  } else if(sacrificeTargetMode){
     e.preventDefault();
     sacrificeTargetMode=null;render();
   } else if(mysticPlayMode){

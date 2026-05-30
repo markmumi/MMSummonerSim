@@ -330,6 +330,34 @@ if (attFC.card.id === 43 && !attFC.curses?.some(c => c.type === 'stone')) {
 }
 ```
 
+**Tier-based passive fusion (Thunderia pattern):**
+When an ability gives other seals access to fusion attacks based on a third card's fusion tier, limit by that card's `fusionStack.length`:
+```js
+// _getThunderiaFuseAtks(fc) — returns only attacks whose reqs.length <= Thunderia's stack size
+// 1 material fused → only single-req attacks (double combination tier)
+// 2 materials fused → up to 2-req attacks (triple combination tier)
+function _getThunderiaFuseAtks(fc){
+  const maxReqs = thunderia.fused ? thunderia.fusionStack.length : (thunderia.magicalEl ? 1 : 0);
+  return fc.card.fuse.filter(f => f.reqs.length <= maxReqs).map(f => f.atk).filter(Boolean);
+}
+```
+Use this in `getActiveAtks`, `getEffectiveAt`, `getEffectiveDf`, `getEffectiveSp` wherever `_isThunderiaFused` applies.
+
+**One-time-per-game ability (Phoenix pattern):**
+Mark the card object (not the FieldCard) with a flag that persists through shrine/field cycles:
+```js
+// On revival: mark the raw card object
+phoenix._hasRevived = true;
+// In getCardSkills: hide skill if already used
+if (fc.card.id === 78) {
+  if (fc.card._hasRevived) return [];  // already used revival
+  return [{ label: '✦ [Skill/Interfere] ลง Phoenix จาก Shrine', ... }];
+}
+// In button visibility and executePhoenixInterfere: check !c._hasRevived
+p.shrine.some(c => c.id === 78 && !c._hasRevived) && p.mp >= 2
+```
+`fc.card` is the same object reference whether the card is in shrine, hand, or field — the flag persists automatically.
+
 ---
 
 ## 5. Mystic Cards — PS, PA, nonP
@@ -364,6 +392,9 @@ if (id === N) {
 3. `showActionQueue(desc, () => doAttach(...))`
 4. `return;`
 
+**Mystic `casterPi` — shrine routing:**
+Each `fc.mystics[]` entry automatically stores `casterPi: G.players.indexOf(p)` when created via `addMysticEntry`/`doAttach` (already built in). When a seal dies, `_drainAllMystics` routes each mystic to `G.players[m.casterPi ?? ownerPi].mysticGrave`. This ensures player-cast mystics on enemy seals return to the PLAYER's shrine, not the enemy's. **Do not** push mystic entries manually without `casterPi`.
+
 **Multi-option PS mystic (player chooses bonus):**
 ```js
 if (id === N) {
@@ -386,7 +417,8 @@ spend(); showActionQueue(`…`, () => doAttach(0, 0, 0, { curseType: 'stone' }))
 ### 5c. nonP Mystic — `playNonPMystic` pattern
 
 Structure: `if(id===N){ ... }` block that calls `spend()` then fires the effect.
-- `spend()` deducts Mp and removes from mysticHand
+- `spend()` deducts Mp, removes from mysticHand, and **automatically pushes to `mysticGrave`** (already built into `spend()` in both `playNonPMystic` and `guestPlayNonPMystic` — no manual grave push needed for nonP mystics)
+- `spend()` for PA mystics (`playPAMystic`) does NOT auto-push to grave — only do so manually for `turns:0` PA effects (like Cunning Clown)
 - End with `Online.broadcastState()` (HOST only — already called by the outer wrapper in most cases, but add it inside nested callbacks)
 
 ```js
@@ -441,6 +473,8 @@ if (fc.card.id === 82) { log(`Heaven Knight ป้องกัน Mystic!`, 'bad
 
 Add a block for each skill the AI should use. Returns `{mp, label, execute}` or `undefined`.
 
+**CRITICAL — always include target name in `label`**: The label is shown verbatim in the AQ description during the interfere window so the player knows who the AI is targeting.
+
 ```js
 // MyCard (id=N): skill description
 if (id === N && /* conditions */ && ai.mp >= COST) {
@@ -448,7 +482,7 @@ if (id === N && /* conditions */ && ai.mp >= COST) {
     && t.card.id !== 82 && t.card.id !== 22 && t.card.id !== 20); // skip immune cards
   if (t) return {
     mp: COST,
-    label: 'Skill label',
+    label: `Freeze Curse → ${t.card.name}`,  // ← include target name always
     execute: () => {
       t.curses = (t.curses || []);
       t.curses.push({ type: 'freeze', expiresAtSubTurn: subTurnNum + 2 });
@@ -472,6 +506,35 @@ The AI calls `attachPSMystic(fc, mysticCard, extraData)` after choosing a target
 
 The AI only fuses ONE material per main card per turn.
 The AI only fuses if `_unlockedAtksForStack(fuse, [mat.card]).length > 0` — i.e., the fusion actually unlocks an attack. **Never** rely on partial/accumulation fusion for AI (it creates broken "fused with no attacks" state).
+
+---
+
+### 6d. Field-click target selection (not popup) for mystic effects
+
+When a mystic effect requires picking a field seal target but a popup list is undesirable, use the `holyPrayerCureMode` pattern:
+
+```js
+// 1. Set the mode (in playNonPMystic or similar):
+holyPrayerCureMode = {
+  targets: validSealArray,
+  onSelect: (tfc) => {
+    holyPrayerCureMode = null;
+    spend();
+    // ... apply effect on tfc ...
+    render();
+  }
+};
+log('คลิก Seal ที่ต้องการ (คลิกขวาเพื่อยกเลิก)', 'hi');
+render(); // triggers skill-target highlights
+```
+
+Required wiring (already done for holyPrayerCureMode):
+- `clickFieldSeal`: check `holyPrayerCureMode` BEFORE `pendingCb` (so it works during AQ windows too)
+- `cardEl` in `ui.js`: `if(holyPrayerCureMode?.targets.some(t=>t.uid===fc.uid))div.classList.add('skill-target')`
+- `cancelAction()` + contextmenu handler: set `holyPrayerCureMode=null`
+- `btn-cancel` visibility: include `||holyPrayerCureMode`
+
+To add a NEW field-click mode for a different card effect, create a separate global variable (e.g., `let myCardTargetMode = null`) and wire it up in the same 4 places.
 
 ---
 
@@ -557,3 +620,10 @@ The AI only fuses if `_unlockedAtksForStack(fuse, [mat.card]).length > 0` — i.
 | Using `t.card.sp` for "Sp range" checks without array | Use `[min,...,max].includes(t.card.sp)` |
 | `fc.card.id !== N` as self-exclusion in passive | Use `x.uid !== fc.uid` on the SOURCE filter — `id!==N` blocks all copies from buffing each other |
 | Thunder Bolt unfuse: support seals go to `atLine` always | Detect main seal's current line first: `const mainLine = owner.p.atLine.some(x=>x.uid===fc.uid)?'atLine':'dfLine'` |
+| AI skill AQ label missing target name | Always `label: \`CurseType → ${t.card.name}\`` so player sees the target during interfere window |
+| Mystic goes to wrong player's shrine on seal death | Each `fc.mystics[]` entry stores `casterPi: G.players.indexOf(p)` at creation; `_drainAllMystics` uses `m.casterPi ?? ownerPi` |
+| nonP mystic not reaching `mysticGrave` | `spend()` in `playNonPMystic` / `guestPlayNonPMystic` already auto-pushes; PA mystic `spend()` does NOT — add manual push for `turns:0` PA cards |
+| Thunderia giving all beast fusion attacks regardless of tier | Use `_getThunderiaFuseAtks(fc)` which filters by `f.reqs.length <= thunderia.fusionStack.length` |
+| One-time ability re-usable across shrine/field cycles | Store flag on `fc.card` (the raw card object, not the FieldCard) — it persists through `makeFieldCard`, shrine, etc. |
+| Silent Prohibitor not protecting from AI attacks | Filter protected seals from AI target list: `const filterSP=t=>!hasMysticProtect(t.fc)` in `doAIBattle`; also check `hasMysticProtect(defFC)` in `dealDamage` `if(attWins)` branch |
+| Freeze cure leaving seal in DfLine | After `tfc.curses=[]`, if seal had freeze AND `wasInAtLine` (captured before chain), move back: find in dfLine → push to atLine |
