@@ -1461,7 +1461,7 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
     const expires=mysticCard.turns===999?Infinity:subTurnNum+(mysticCard.turns*2);
     if(mysticCard.turns!==0){
       fc.mystics=(fc.mystics||[]);
-      fc.mystics.push({mystic:mysticCard,atBonus,dfBonus,spBonus,...flags,expiresBeforeSubTurn:expires});
+      fc.mystics.push({mystic:mysticCard,atBonus,dfBonus,spBonus,...flags,expiresBeforeSubTurn:expires,casterPi:G.players.indexOf(p)});
       if(flags.curseType){fc.curses=(fc.curses||[]);fc.curses.push({type:flags.curseType,expiresAtSubTurn:Infinity,fromPS:mysticCard.id});playSound(flags.curseType==='stone'?'Stone':flags.curseType==='freeze'?'Freeze':flags.curseType==='poison'?'Poison':flags.curseType==='charm'?'Charm':'Skill');}
     } else {
       (p.mysticGrave=p.mysticGrave||[]).push(mysticCard);
@@ -1564,7 +1564,7 @@ function guestPlayNonPMystic(mysticCard,mysticIdx){
   const p=G.players[1];
   const id=mysticCard.id;
   _nextChainCard=mysticCard;
-  let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);broadcastSound('Spell');}
+  let _spd=false;function spend(){if(_spd)return;_spd=true;p.mp-=mysticCard.mc;p.mysticHand.splice(mysticIdx,1);(p.mysticGrave=p.mysticGrave||[]).push(mysticCard);broadcastSound('Spell');}
   const allField=()=>[...G.players[0].atLine,...G.players[0].dfLine,...G.players[1].atLine,...G.players[1].dfLine];
   if(id===17){ // Holy Prayer — pick target first, THEN enter interfere chain
     const inInterfere=!!pendingCb;
@@ -1702,7 +1702,7 @@ function guestPlayPAMystic(mysticCard,mysticIdx){
     p.areaMystics.push({mystic:mysticCard,ownerPi:1,expiresBeforeSubTurn:expires});
   }
   if(id===34){
-    spend();log(`Cunning Clown [Guest] → สลับ Line Host (non-Machine)!`,'good');
+    spend();(p.mysticGrave=p.mysticGrave||[]).push(mysticCard);log(`Cunning Clown [Guest] → สลับ Line Host (non-Machine)!`,'good');
     showActionQueue(`Cunning Clown → สลับ Line Host (non-Machine)`,()=>{
       const mv_at=opp.atLine.filter(fc=>fc.card.tribe!=='Machine');
       const mv_df=opp.dfLine.filter(fc=>fc.card.tribe!=='Machine');
@@ -2255,7 +2255,8 @@ function triggerGregoryCancel(ownerPi){
     if(!seal.mystics?.length)return;
     seal.mystics.forEach(m=>{
       log(`Gregory [Ability]: ยกเลิก ${m.mystic.name} บน ${seal.card.name}`,'bad');
-      (p.mysticGrave=p.mysticGrave||[]).push(m.mystic);
+      const _gcpi=m.casterPi??ownerPi;
+      (G.players[_gcpi].mysticGrave=G.players[_gcpi].mysticGrave||[]).push(m.mystic);
     });
     seal.mystics=[];
     seal.magicalEl=null;
@@ -2669,7 +2670,7 @@ function _isThunderiaFused(fc){
   const owner=findFCOwner(fc);
   if(!owner)return false;
   const p=G.players[owner.pi];
-  return[...p.atLine,...p.dfLine].some(x=>x.card.id===64&&x.fused);
+  return[...p.atLine,...p.dfLine].some(x=>x.card.id===64&&(x.fused||x.magicalEl));
 }
 function getActiveAtks(fc){
   if(fc.fused&&fc.fusionAtks.length>0)return fc.fusionAtks;
@@ -3036,13 +3037,29 @@ function animateAllTargets(attFC,targets,attAt,atkName,attPi,defPi,onDone){
 
 function getEffectiveEl(fc){return fc.magicalEl||fc.card.el;}
 
+function _passiveAtBonus(fc){
+  let ownerPi=-1;
+  for(let pi=0;pi<2;pi++){if([...G.players[pi].atLine,...G.players[pi].dfLine].some(x=>x.uid===fc.uid)){ownerPi=pi;break;}}
+  if(ownerPi<0)return 0;
+  const own=G.players[ownerPi],opp=G.players[1-ownerPi];
+  const ownField=[...own.atLine,...own.dfLine],oppField=[...opp.atLine,...opp.dfLine];
+  let bonus=0;
+  if(fc.card.id===62){if(oppField.length>ownField.length)bonus+=3;else if(oppField.length<ownField.length)bonus-=3;}
+  if(fc.card.id===83)bonus+=own.atLine.length-opp.atLine.length;
+  if(fc.card.id===86)bonus+=oppField.length;
+  if(fc.card.id===79)bonus+=ownField.filter(x=>x.uid!==fc.uid&&x.card.tribe==='Beast').length;
+  bonus+=ownField.filter(x=>x.card.id===81&&x.uid!==fc.uid).length;
+  if(fc.card.tribe==='Beast')bonus+=ownField.filter(x=>x.card.id===55&&x.uid!==fc.uid).length;
+  if(fc.card.el==='fire')bonus+=own.dfLine.filter(x=>x.card.id===92&&x.uid!==fc.uid).length;
+  return bonus;
+}
 function _fusionAtkAt(atkAt,fc){
   // If seal was unfused during AQ (Thunder Bolt interfere), ignore the pre-captured fusion AT
   if(atkAt!=null&&!fc.fused&&!fc.willMind&&!_isThunderiaFused(fc))return getEffectiveAt(fc);
   if(atkAt==null)return getEffectiveAt(fc);
   const boost=(fc.atBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn).reduce((s,b)=>s+b.amount,0);
   const ld=(fc.curses||[]).filter(c=>c.type==='lastDance').reduce((s,c)=>s+(c.atBonus||0),0);
-  return Math.max(0,atkAt+boost+ld+getMysticAtBonus(fc));
+  return Math.max(0,atkAt+boost+ld+getMysticAtBonus(fc)+_passiveAtBonus(fc));
 }
 
 function getEffectiveAt(fc){
@@ -3061,27 +3078,8 @@ function getEffectiveAt(fc){
   }
   if(fc.atBoosts?.length)base+=fc.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn).reduce((s,b)=>s+b.amount,0);
   if(fc.curses?.length)base+=fc.curses.filter(c=>c.type==='lastDance').reduce((s,c)=>s+(c.atBonus||0),0);
-  // Context-sensitive passives
-  let ownerPi=-1;
-  for(let pi=0;pi<2;pi++){if([...G.players[pi].atLine,...G.players[pi].dfLine].some(x=>x.uid===fc.uid)){ownerPi=pi;break;}}
-  if(ownerPi>=0){
-    const own=G.players[ownerPi],opp=G.players[1-ownerPi];
-    const ownField=[...own.atLine,...own.dfLine],oppField=[...opp.atLine,...opp.dfLine];
-    // Evil Fire Warrior (62): +3 if enemy has more seals, -3 if fewer
-    if(fc.card.id===62){if(oppField.length>ownField.length)base+=3;else if(oppField.length<ownField.length)base-=3;}
-    // Salamandera (83): +ownAtLine, -enemyAtLine
-    if(fc.card.id===83)base+=own.atLine.length-opp.atLine.length;
-    // Divine Dragon (86): +enemy count
-    if(fc.card.id===86)base+=oppField.length;
-    // Golden Fur Griffin (79): +N other own Beasts
-    if(fc.card.id===79)base+=ownField.filter(x=>x.uid!==fc.uid&&x.card.tribe==='Beast').length;
-    // Undine (81) passive: other own seals +At 1 per Undine (each Undine buffs others, not itself)
-    base+=ownField.filter(x=>x.card.id===81&&x.uid!==fc.uid).length;
-    // Black Night Griffin (55): other own Beast seals +At 1 per Griffin (Beasts including other Griffins)
-    if(fc.card.tribe==='Beast')base+=ownField.filter(x=>x.card.id===55&&x.uid!==fc.uid).length;
-    // Nerimor Princess Wands (92): all own Fire seals +At 1 per Nerimor in Df Line (including other Nerimors)
-    if(fc.card.el==='fire')base+=own.dfLine.filter(x=>x.card.id===92&&x.uid!==fc.uid).length;
-  }
+  // Context-sensitive passives (shared with _fusionAtkAt via _passiveAtBonus)
+  base+=_passiveAtBonus(fc);
   base+=getMysticAtBonus(fc);
   return Math.max(0,base);
 }
@@ -3197,14 +3195,18 @@ function dealDamage(attFC,defFC,attAt,label,attPi=0,defPi=1,defLine='at',isAll=f
   const attSp=getEffectiveSp(attFC), defSp=getEffectiveSp(defFC);
   const attWins=attAt>defStat||(attAt===defStat&&attSp>defSp);
   if(attWins){
-    const spdStr=attAt===defStat?` Spd${attSp}>${defSp}`:'';
-    log(`${att.name}[At${attAt}]${spdStr} > ${def.name}[${defLabel}] ${lineNote} → ${def.name} Shrine! +Lv${def.lv}`,'good');
-    sendToShrine(defFC,defPi);
-    // Stone Lizard (id=43): after successful attack → Stone Curse self until next battle sub-turn
-    if(attFC.card.id===43){
-      attFC.curses=(attFC.curses||[]);
-      if(!attFC.curses.some(c=>c.type==='stone'))attFC.curses.push({type:'stone',expiresAtSubTurn:subTurnNum+4});
-      log(`🪨 Stone Lizard ติด Stone Curse หลังโจมตีสำเร็จ`,'');
+    if(hasMysticProtect(defFC)){
+      log(`${att.name}[At${attAt}] > ${def.name}[${defLabel}] ${lineNote} → blocked (Silent Prohibitor ป้องกันการโจมตี!)`,'');
+    } else {
+      const spdStr=attAt===defStat?` Spd${attSp}>${defSp}`:'';
+      log(`${att.name}[At${attAt}]${spdStr} > ${def.name}[${defLabel}] ${lineNote} → ${def.name} Shrine! +Lv${def.lv}`,'good');
+      sendToShrine(defFC,defPi);
+      // Stone Lizard (id=43): after successful attack → Stone Curse self until next battle sub-turn
+      if(attFC.card.id===43){
+        attFC.curses=(attFC.curses||[]);
+        if(!attFC.curses.some(c=>c.type==='stone'))attFC.curses.push({type:'stone',expiresAtSubTurn:subTurnNum+4});
+        log(`🪨 Stone Lizard ติด Stone Curse หลังโจมตีสำเร็จ`,'');
+      }
     }
   } else if(isAll){
     log(`${att.name}[At${attAt}] ≤ ${def.name}[${defLabel}] → blocked`,'');
@@ -3689,7 +3691,7 @@ function aiTurn(){
       _playMC(mc,mi,`${mc.name} → ${targetFC.card.name}${desc?' ('+desc+')':''}`,()=>{
         if(mc.turns!==0){
           targetFC.mystics=(targetFC.mystics||[]);
-          targetFC.mystics.push({mystic:mc,atBonus:atB,dfBonus:dfB,spBonus:spB,...(flags||{}),expiresBeforeSubTurn:expires});
+          targetFC.mystics.push({mystic:mc,atBonus:atB,dfBonus:dfB,spBonus:spB,...(flags||{}),expiresBeforeSubTurn:expires,casterPi:1});
           if(flags&&flags.curseType){
             targetFC.curses=(targetFC.curses||[]);
             targetFC.curses.push({type:flags.curseType,expiresAtSubTurn:Infinity,fromPS:mc.id});
@@ -3857,13 +3859,17 @@ function aiTurn(){
       const filterME=t=>!(t.fc.card.id===42&&afc.fused);
       // Filter Brigitte (51): attackers with lower Sp can't target it
       const filterBrig=t=>!(t.fc.card.id===51&&getEffectiveSp(afc)<getEffectiveSp(t.fc));
-      atT=atT.filter(filterME).filter(filterBrig);
-      dfT=dfT.filter(filterME).filter(filterBrig);
+      // Filter Silent Prohibitor: protected seals cannot be attacked
+      const filterSP=t=>!hasMysticProtect(t.fc);
+      atT=atT.filter(filterME).filter(filterBrig).filter(filterSP);
+      dfT=dfT.filter(filterME).filter(filterBrig).filter(filterSP);
       // Centaur Scout: at→df cross, df→at cross
+      // Use raw At Line count for line enforcement — filtered-out seals still block Df access
+      const rawAtLen=G.players[0].atLine.length;
       let targets;
       if(isCSAt){targets=dfT.length>0?dfT:atT;}
       else if(isCSdf){targets=atT.length>0?atT:dfT;}
-      else targets=atT.length>0?atT:dfT;
+      else targets=rawAtLen>0?atT:dfT;
 
       if(!targets.length){
         // Only hand-attack if player's field is genuinely empty (not just filtered by abilities)
@@ -4046,7 +4052,7 @@ function _enterChainMode(cardName){
   const p=G.players[0];
   document.getElementById('btn-aq-garuda').style.display=(pendingFusionMain&&p.hand.some(c=>c.id===53)&&p.mp>=4)?'inline-block':'none';
   document.getElementById('btn-aq-woolwyvern').style.display=(p.hand.some(c=>c.id===80)&&p.mp>=4)?'inline-block':'none';
-  document.getElementById('btn-aq-phoenix').style.display=(p.shrine.some(c=>c.id===78)&&p.mp>=2)?'inline-block':'none';
+  document.getElementById('btn-aq-phoenix').style.display=(p.shrine.some(c=>c.id===78&&!c._hasRevived)&&p.mp>=2)?'inline-block':'none';
   render();
   if(window.Online?.isOnline&&Online.isHost){Online.broadcastState();_startAQTimer(20000);}
 }
@@ -4186,8 +4192,8 @@ function showActionQueue(desc, onProceed, fusionMainFC=null, previewCard=null, p
   // Wool Wyvern: any action queue window
   const canWyvern=p.hand.some(c=>c.id===80)&&p.mp>=4;
   document.getElementById('btn-aq-woolwyvern').style.display=canWyvern?'inline-block':'none';
-  // Phoenix: in shrine, any action queue window
-  const canPhoenix=p.shrine.some(c=>c.id===78)&&p.mp>=2;
+  // Phoenix: in shrine, any action queue window (one revival per card per game)
+  const canPhoenix=p.shrine.some(c=>c.id===78&&!c._hasRevived)&&p.mp>=2;
   document.getElementById('btn-aq-phoenix').style.display=canPhoenix?'inline-block':'none';
   // Online: when host acted (G.currentPlayer===0), host waits — guest is defender
   const _aqWait=document.getElementById('aq-waiting');
@@ -4249,9 +4255,10 @@ function executeWoolWyvernInterfere(){
 
 function executePhoenixInterfere(){
   const p=G.players[0];
-  const phoenix=p.shrine.find(c=>c.id===78);
+  const phoenix=p.shrine.find(c=>c.id===78&&!c._hasRevived);
   if(!phoenix||p.mp<2){return;}
   p.mp-=2;
+  phoenix._hasRevived=true;
   const si=p.shrine.indexOf(phoenix);
   if(si>=0)p.shrine.splice(si,1);
   const phoenixFC=makeFieldCard(phoenix,false);
@@ -4539,7 +4546,7 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
     const expires=mysticCard.turns===999?Infinity:subTurnNum+(mysticCard.turns*2);
     if(mysticCard.turns!==0){
       fc.mystics=(fc.mystics||[]);
-      fc.mystics.push({mystic:mysticCard,atBonus,dfBonus,spBonus,...flags,expiresBeforeSubTurn:expires});
+      fc.mystics.push({mystic:mysticCard,atBonus,dfBonus,spBonus,...flags,expiresBeforeSubTurn:expires,casterPi:G.players.indexOf(p)});
       // PS curse: apply curse tied to this PS (no own timer — lasts until PS expires/falls)
       if(flags.curseType){
         fc.curses=(fc.curses||[]);
@@ -4907,7 +4914,7 @@ function playPAMystic(mysticCard,mysticIdx){
 
   if(id===34){ // Cunning Clown: swap enemy non-Machine seals
     const ai=G.players[1];
-    spend();log(`Cunning Clown [Host] → สลับ Line Guest (non-Machine)!`,'good');
+    spend();(p.mysticGrave=p.mysticGrave||[]).push(mysticCard);log(`Cunning Clown [Host] → สลับ Line Guest (non-Machine)!`,'good');
     showActionQueue(`Cunning Clown → สลับ Line ศัตรู (non-Machine)`,()=>{
       const movers_at=ai.atLine.filter(fc=>fc.card.tribe!=='Machine');
       const movers_df=ai.dfLine.filter(fc=>fc.card.tribe!=='Machine');
@@ -4949,8 +4956,8 @@ function _mysticSplice(fc,mEntry){
   const i=(fc.mystics||[]).indexOf(mEntry);if(i>=0)fc.mystics.splice(i,1);
   clearPSCurseFromEntry(fc,mEntry);
   if(mEntry.mystic?.id===33)fc.magicalEl=null;
-  const ownerPi=findFCOwner(fc)?.pi??0;
-  (G.players[ownerPi].mysticGrave=G.players[ownerPi].mysticGrave||[]).push(mEntry.mystic);
+  const casterPi=mEntry.casterPi??findFCOwner(fc)?.pi??0;
+  (G.players[casterPi].mysticGrave=G.players[casterPi].mysticGrave||[]).push(mEntry.mystic);
 }
 // Clear all mystics from a field card and send them to ownerPi's mysticGrave.
 function _drainAllMystics(fc,ownerPi){
@@ -4958,7 +4965,8 @@ function _drainAllMystics(fc,ownerPi){
   fc.mystics.forEach(m=>{
     clearPSCurseFromEntry(fc,m);
     if(m.mystic?.id===33)fc.magicalEl=null;
-    (G.players[ownerPi].mysticGrave=G.players[ownerPi].mysticGrave||[]).push(m.mystic);
+    const _cpi=m.casterPi??ownerPi;
+    (G.players[_cpi].mysticGrave=G.players[_cpi].mysticGrave||[]).push(m.mystic);
   });
   fc.mystics=[];
 }
@@ -4972,7 +4980,8 @@ function bounceSealToHand(fc, ownerPi){
     for(const m of (fieldCard.mystics||[])){
       clearPSCurseFromEntry(fieldCard,m);
       if(m.mystic?.id===33)fieldCard.magicalEl=null;
-      (owner.mysticGrave=owner.mysticGrave||[]).push(m.mystic);
+      const _cpi=m.casterPi??ownerPi;
+      (G.players[_cpi].mysticGrave=G.players[_cpi].mysticGrave||[]).push(m.mystic);
       log(`${m.mystic.name} [Mystic] ตก Shrine เนื่องจากสูญเสียเป้าหมาย`,'bad');
     }
     fieldCard.mystics=[];
@@ -5004,7 +5013,8 @@ function tickMystics(){
         fc.mystics=fc.mystics.filter(m=>m.expiresBeforeSubTurn===Infinity||subTurnNum<m.expiresBeforeSubTurn);
         expired.forEach(m=>{
           log(`${m.mystic.name} [Mystic] หมดอายุจาก ${fc.card.name}`,'');
-          (p.mysticGrave=p.mysticGrave||[]).push(m.mystic);
+          const _cpi=m.casterPi??pi;
+          (G.players[_cpi].mysticGrave=G.players[_cpi].mysticGrave||[]).push(m.mystic);
           if(m.mystic?.id===33)fc.magicalEl=null;
           if(m.willMind)fc.willMind=false;
           if(m.curseType){
