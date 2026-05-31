@@ -1493,18 +1493,18 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
   if(id===18){
     const opts=[];
     if(fc.card.tribe==='Knight')opts.push({label:'[Knight] At +2',data:{at:2}});
-    if(fc.card.el==='wind')opts.push({label:'[Wind] At +2 Sp +1',data:{at:2,sp:1}});
+    if(fc.card.el==='wind')opts.push({label:'[Wind] At +2 Sp +1',data:{at:2,sp:1,condEl:'wind'}});
     if(!opts.length){log(`${fc.card.name} ไม่ตรงเงื่อนไข Galahad`,'bad');render();return;}
     const d18=extraData||opts[0].data;
-    spend();showActionQueue(`${mysticCard.name} → ${fc.card.name}`,()=>doAttach(d18.at||0,0,d18.sp||0));return;
+    spend();showActionQueue(`${mysticCard.name} → ${fc.card.name}`,()=>doAttach(d18.at||0,0,d18.sp||0,d18.condEl?{condEl:d18.condEl}:{}));return;
   }
   if(id===19){
     const opts=[];
-    if(fc.card.el==='darkness')opts.push({label:'[Dark] At +2',data:{at:2}});
-    if(fc.card.el==='water')opts.push({label:'[Water] At +1, Ma -1',data:{at:1,maRed:1}});
+    if(fc.card.el==='darkness')opts.push({label:'[Dark] At +2',data:{at:2,condEl:'darkness'}});
+    if(fc.card.el==='water')opts.push({label:'[Water] At +1, Ma -1',data:{at:1,maRed:1,condEl:'water'}});
     if(!opts.length){log(`${fc.card.name} ไม่ตรงเงื่อนไข Crescent`,'bad');render();return;}
     const d19=extraData||opts[0].data;
-    spend();showActionQueue(`${mysticCard.name} → ${fc.card.name}`,()=>doAttach(d19.at||0,0,0,{maReduction:d19.maRed||0}));return;
+    spend();showActionQueue(`${mysticCard.name} → ${fc.card.name}`,()=>doAttach(d19.at||0,0,0,{maReduction:d19.maRed||0,condEl:d19.condEl}));return;
   }
   if(id===21){
     const el=getEffectiveEl(fc);
@@ -1515,10 +1515,10 @@ function guestAttachPSMystic(mysticCard,mysticIdx,targetFC,extraData){
   if(id===24){
     const opts=[];
     if(fc.card.tribe==='Mage')opts.push({label:'[Mage] At +2',data:{at:2}});
-    if(fc.card.el==='earth')opts.push({label:'[Earth] At +2 Df +1',data:{at:2,df:1}});
+    if(fc.card.el==='earth')opts.push({label:'[Earth] At +2 Df +1',data:{at:2,df:1,condEl:'earth'}});
     if(!opts.length){log(`${fc.card.name} ไม่ตรงเงื่อนไข Werrian Wesley`,'bad');render();return;}
     const d24=extraData||opts[0].data;
-    spend();showActionQueue(`${mysticCard.name} → ${fc.card.name}`,()=>doAttach(d24.at||0,d24.df||0));return;
+    spend();showActionQueue(`${mysticCard.name} → ${fc.card.name}`,()=>doAttach(d24.at||0,d24.df||0,0,d24.condEl?{condEl:d24.condEl}:{}));return;
   }
   if(id===25){
     const t=fc.card.tribe;const atB=(t==='Monster'||t==='Beast')?2:t==='Dragon'?1:0;
@@ -1909,15 +1909,17 @@ function _gregoryNegates(fc){
   const pi=_mysticOwnerPi(fc);
   return pi>=0&&G.players[pi].atLine.some(x=>x.card.id===67);
 }
+function _mysticElValid(m,fc){
+  // If the entry was granted for a specific element, check it still holds
+  if(m.condEl&&getEffectiveEl(fc)!==m.condEl)return false;
+  // Holy Sun (id=21): multi-element condition
+  if(m.mystic?.id===21){const el=getEffectiveEl(fc);if(el!=='light'&&el!=='fire'&&el!=='divine'&&fc.card.tribe!=='Divine')return false;}
+  return true;
+}
 function getMysticAtBonus(fc){
   if(_gregoryNegates(fc))return 0;
   return getActiveMystics(fc).reduce((s,m)=>{
-    let b=m.atBonus||0;
-    // Holy Sun (id=21): At+2 is conditional on element — if Chaotic World changed it, invalidate
-    if(m.mystic?.id===21){
-      const el=getEffectiveEl(fc);
-      if(el!=='light'&&el!=='fire'&&el!=='divine'&&fc.card.tribe!=='Divine')b=0;
-    }
+    let b=_mysticElValid(m,fc)?m.atBonus||0:0;
     if(fc.card.id===4&&m.mystic?.subtype_name==='The Moon')b*=2;
     return s+b;
   },0);
@@ -1925,7 +1927,7 @@ function getMysticAtBonus(fc){
 function getMysticDfBonus(fc){
   if(_gregoryNegates(fc))return 0;
   return getActiveMystics(fc).reduce((s,m)=>{
-    let b=m.dfBonus||0;
+    let b=_mysticElValid(m,fc)?m.dfBonus||0:0;
     if(fc.card.id===4&&m.mystic?.subtype_name==='The Moon')b*=2;
     return s+b;
   },0);
@@ -1940,7 +1942,7 @@ function getMysticSpBonus(fc){
 }
 function getMysticMaReduction(fc){
   if(_gregoryNegates(fc))return 0;
-  return getActiveMystics(fc).reduce((s,m)=>s+(m.maReduction||0),0);
+  return getActiveMystics(fc).reduce((s,m)=>s+(_mysticElValid(m,fc)?m.maReduction||0:0),0);
 }
 function hasMysticProtect(fc){
   if(_gregoryNegates(fc))return false;
@@ -4658,19 +4660,19 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
   if(id===18){ // Galahad
     const opts=[];
     if(fc.card.tribe==='Knight')opts.push({label:'[Knight] At +2',data:{at:2}});
-    if(fc.card.el==='wind')opts.push({label:'[Wind] At +2 Sp +1',data:{at:2,sp:1}});
+    if(fc.card.el==='wind')opts.push({label:'[Wind] At +2 Sp +1',data:{at:2,sp:1,condEl:'wind'}});
     if(!opts.length){log(`${fc.card.name} ไม่ตรงเงื่อนไข Galahad`,'bad');render();return;}
-    const apply=d=>{spend();showActionQueue(`${mysticCard.name} → ${fc.card.name}`,()=>doAttach(d.at||0,0,d.sp||0));};
+    const apply=d=>{spend();showActionQueue(`${mysticCard.name} → ${fc.card.name}`,()=>doAttach(d.at||0,0,d.sp||0,d.condEl?{condEl:d.condEl}:{}));};
     if(opts.length===1)apply(opts[0].data);
     else showMysticPicker(mysticCard.name,opts,d=>apply(d));
     return;
   }
   if(id===19){ // Crescent
     const opts=[];
-    if(fc.card.el==='darkness')opts.push({label:'[Dark] At +2',data:{at:2}});
-    if(fc.card.el==='water')opts.push({label:'[Water] At +1, Ma -1',data:{at:1,maRed:1}});
+    if(fc.card.el==='darkness')opts.push({label:'[Dark] At +2',data:{at:2,condEl:'darkness'}});
+    if(fc.card.el==='water')opts.push({label:'[Water] At +1, Ma -1',data:{at:1,maRed:1,condEl:'water'}});
     if(!opts.length){log(`${fc.card.name} ไม่ตรงเงื่อนไข Crescent`,'bad');render();return;}
-    const apply=d=>{spend();showActionQueue(`${mysticCard.name} → ${fc.card.name}`,()=>doAttach(d.at||0,0,0,{maReduction:d.maRed||0}));};
+    const apply=d=>{spend();showActionQueue(`${mysticCard.name} → ${fc.card.name}`,()=>doAttach(d.at||0,0,0,{maReduction:d.maRed||0,condEl:d.condEl}));};
     if(opts.length===1)apply(opts[0].data);
     else showMysticPicker(mysticCard.name,opts,d=>apply(d));
     return;
@@ -4684,9 +4686,9 @@ function attachPSMystic(mysticCard,mysticIdx,targetFC){
   if(id===24){ // Werrian Wesley
     const opts=[];
     if(fc.card.tribe==='Mage')opts.push({label:'[Mage] At +2',data:{at:2}});
-    if(fc.card.el==='earth')opts.push({label:'[Earth] At +2 Df +1',data:{at:2,df:1}});
+    if(fc.card.el==='earth')opts.push({label:'[Earth] At +2 Df +1',data:{at:2,df:1,condEl:'earth'}});
     if(!opts.length){log(`${fc.card.name} ไม่ตรงเงื่อนไข Werrian Wesley`,'bad');render();return;}
-    const apply=d=>{spend();showActionQueue(`${mysticCard.name} → ${fc.card.name}`,()=>doAttach(d.at||0,d.df||0));};
+    const apply=d=>{spend();showActionQueue(`${mysticCard.name} → ${fc.card.name}`,()=>doAttach(d.at||0,d.df||0,0,d.condEl?{condEl:d.condEl}:{}));};
     if(opts.length===1)apply(opts[0].data);
     else showMysticPicker(mysticCard.name,opts,d=>apply(d));
     return;
