@@ -1459,7 +1459,7 @@ const CARDS_METADATA = {
         "fire"
       ],
       "tribe": [
-        "Bandit"
+        "Knight"
       ],
       "fusions": [
         {

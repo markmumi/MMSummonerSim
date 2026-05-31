@@ -509,7 +509,7 @@ var Online = (() => {
           const wyvernBtn=document.getElementById('btn-aq-woolwyvern');
           const phoenixBtn=document.getElementById('btn-aq-phoenix');
           if(garudaBtn){garudaBtn.style.display=canGaruda?'inline-block':'none';if(canGaruda)garudaBtn.onclick=()=>{Online.sendGuestAction({action:'guestGaruda',targetUid:pfmUid});garudaBtn.style.display='none';};}
-          if(wyvernBtn){wyvernBtn.style.display=canWyvern?'inline-block':'none';if(canWyvern)wyvernBtn.onclick=()=>{Online.sendGuestAction({action:'guestWyvern'});wyvernBtn.style.display='none';};}
+          if(wyvernBtn){wyvernBtn.style.display=canWyvern?'inline-block':'none';if(canWyvern)wyvernBtn.onclick=()=>{wyvernBtn.style.display='none';showLineChoicePicker('Wool Wyvern',line=>{Online.sendGuestAction({action:'guestWyvern',line});});};}
           if(phoenixBtn){phoenixBtn.style.display=canPhoenix?'inline-block':'none';if(canPhoenix)phoenixBtn.onclick=()=>{Online.sendGuestAction({action:'guestPhoenix'});phoenixBtn.style.display='none';};};
           // Start/restart guest-side 10s timer on fresh open or chain reset
           if ((!wasAlreadyOpen || (inChain && !guestPassedInChain)) && typeof _startAQTimer === 'function') {
@@ -780,8 +780,9 @@ var Online = (() => {
           p.mp-=4;
           const wyvernFC=makeFieldCard(wyvern,false);
           wyvernFC.deployedTurn=turnNum;
-          p.atLine.push(wyvernFC);
-          log('Wool Wyvern (Guest) [Interfere]: ลงสนาม!','good');
+          const gwLine=data.line||'at';
+          p[gwLine==='at'?'atLine':'dfLine'].push(wyvernFC);
+          log(`Wool Wyvern (Guest) [Interfere]: ลงสนาม (${gwLine==='at'?'At':'Df'} Line)!`,'good');
           checkLose();render();_enterChainMode('Wool Wyvern');
           break;
         }

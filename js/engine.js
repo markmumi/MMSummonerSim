@@ -1237,6 +1237,8 @@ function guestExecuteSelfSkill(skillFC,skillIdx,drawType){
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       const toMove=[...p.dfLine];p.dfLine.length=0;
       toMove.forEach(fc=>{p.atLine.push(fc);});
+      const oppMove2=[...opp.dfLine];opp.dfLine.length=0;
+      oppMove2.forEach(fc=>{opp.atLine.push(fc);});
       log(`${skillFC.card.name} [Skill]: Seal ทุกใบย้ายไป At Line!`,'good');
       checkLose();render();Online.broadcastState();
     });return;
@@ -2279,33 +2281,16 @@ function triggerGregoryCancel(ownerPi){
 
 // ── FUSION ──
 function _unlockedAtksForStack(fuseEntries, stackCards){
-  // Specific entries (have at least one name/tribe req) are processed first.
-  // Cards they consume cannot also satisfy element-only entries, preventing a
-  // card like Hellish Bird (name='Hellish Bird', el='darkness') from simultaneously
-  // unlocking both the "Hellish Bird" fusion attack AND the "darkness" fusion attack.
-  const isElemReq=r=>_ELEMENTS.has(r);
-  const specificIdxs=[],genericIdxs=[];
-  fuseEntries.forEach((f,i)=>(f.reqs.every(r=>isElemReq(r))?genericIdxs:specificIdxs).push(i));
-
-  const usedIdxs=new Set();
+  // Each fusion entry is evaluated independently against the full stack so that
+  // e.g. Sigmund + Delta-D(wind) + Blue Wind Griffin(wind,Beast) correctly unlocks
+  // both the Beast entry AND the wind+wind entry.
   const unlocked=[];
-  // Pass 1: name/tribe-specific entries consume their matched cards
-  for(const i of specificIdxs){
-    const pool=stackCards.map((c,idx)=>({c,idx})).filter(({idx})=>!usedIdxs.has(idx));
-    let ok=true;const used=[];
-    for(const req of fuseEntries[i].reqs){
-      const hit=pool.find(({c})=>matchesReq(req,c));
-      if(hit){used.push(hit.idx);pool.splice(pool.indexOf(hit),1);}else{ok=false;break;}
-    }
-    if(ok){unlocked.push(i);used.forEach(idx=>usedIdxs.add(idx));}
-  }
-  // Pass 2: element-only entries use remaining (unconsumed) cards
-  for(const i of genericIdxs){
-    const pool=stackCards.map((c,idx)=>({c,idx})).filter(({idx})=>!usedIdxs.has(idx));
+  for(let i=0;i<fuseEntries.length;i++){
+    const pool=[...stackCards];
     let ok=true;
     for(const req of fuseEntries[i].reqs){
-      const hit=pool.find(({c})=>matchesReq(req,c));
-      if(hit)pool.splice(pool.indexOf(hit),1);else{ok=false;break;}
+      const hit=pool.findIndex(c=>matchesReq(req,c));
+      if(hit>=0){pool.splice(hit,1);}else{ok=false;break;}
     }
     if(ok)unlocked.push(i);
   }
@@ -2669,8 +2654,8 @@ function showMorMercenaryPicker(attFC,defFC,defLine){
         const maCost=Math.max(0,(att.ma||1)-getMysticMaReduction(attFC));
         if(p.mp<maCost){log(`Mp ไม่พอ (ต้องการ ${maCost})`,'bad');return;}
         p.mp-=maCost;
-        const attAt=getEffectiveAt(attFC);
         showActionQueue(`${att.name} → ⚔ ${defFC.card.name} [Df]`,()=>{
+          const attAt=getEffectiveAt(attFC);
           combatAnim(attFC,defFC,attAt,'df',false,()=>{
             dealDamage(attFC,defFC,attAt,'Mor Mercenary',0,1,'df');
             attFC.exhausted=true;attFC.hasAttacked=true;attackerSeal=null;
@@ -2805,7 +2790,14 @@ function showCerberusPicker(attFC,mainFC,mainLine){
   const mainBtn=document.createElement('button');
   mainBtn.className='atk-opt';
   mainBtn.innerHTML=`${mainFC.card.name} <span>(Main) At${getEffectiveAt(mainFC)} Df${getEffectiveDf(mainFC)}</span>`;
-  mainBtn.onclick=()=>{closeAtkPanel();resolveAttack(attFC,mainFC,pendingAttackIdx,mainLine);pendingAttackIdx=null;};
+  mainBtn.onclick=()=>{
+    closeAtkPanel();
+    // Auto-select fusion attack for the main-seal hit so multi-hit attacks (e.g. Fire Breath×3) work
+    let atkIdx=pendingAttackIdx;
+    if(atkIdx===null){const pool=getActiveAtks(attFC);if(pool.length===1)atkIdx=0;}
+    pendingAttackIdx=null;
+    resolveAttack(attFC,mainFC,atkIdx,mainLine);
+  };
   div.appendChild(mainBtn);
   // Options: attack each support
   mainFC.fusionStack.forEach(matFC=>{
@@ -2925,6 +2917,12 @@ function resolveAttack(attFC,defFC,specialAtkIdx,defLine='at'){
   showActionQueue(`${att.name} → <b>${atkLabel}</b> ⚔ ${defFC.card.name}`,()=>{
     if(attFC.curses?.some(c=>c.type==='stone'||c.type==='freeze')){
       log(`${att.name} ถูก Stone/Freeze Curse — โจมตีถูกยกเลิก!`,'bad');
+      attackerSeal=null;render();return;
+    }
+    // Intercept: Wool Wyvern / Phoenix landed on defender's At Line during the AQ window,
+    // blocking this Df Line attack — player must retarget (Dread Knight exempt)
+    if(defLine==='df'&&attFC.card.id!==63&&G.players[1].atLine.length>0){
+      log(`${att.name}: โจมตีถูกยกเลิก — ${G.players[1].atLine.map(x=>x.card.name).join(', ')} ปรากฏที่ At Line ศัตรู! (เลือกเป้าหมายใหม่)`,'bad');
       attackerSeal=null;render();return;
     }
     attAt=usedAtk?_fusionAtkAt(usedAtk.at,attFC):getEffectiveAt(attFC);
@@ -3208,6 +3206,8 @@ function getDefStatWithPassive(defFC,attFC,defLine){
   // Python (73): always defends with Df regardless of line
   if(defFC.card.id===73)s=getEffectiveDf(defFC);
   if(defFC.card.id===85&&attFC.card.el==='light')s=Math.max(0,s-3);
+  // Jormungand (84): At -3 when fighting Earth — applies whether Jormungand attacks or defends
+  if(defFC.card.id===84&&defLine==='at'&&getEffectiveEl(attFC)==='earth')s=Math.max(0,s-3);
   // Centaur Ranger (id=9): At +2 when fighting a Seal with lower Sp — also applies when defending in At Line
   if(defFC.card.id===9&&defLine==='at'&&getEffectiveSp(attFC)<getEffectiveSp(defFC))s+=2;
   // Magamouth (id=13): Df +1 when fighting a fused attacker
@@ -3995,9 +3995,15 @@ function aiTurn(){
         ai.mp-=maCost;
         showActionQueue(`🤖 ${afc.card.name} ⚔ ${bestTarget.fc.card.name}`,()=>{
           if(afc.curses?.some(c=>c.type==='stone'||c.type==='freeze')){log(`${afc.card.name} ถูก Stone/Freeze Curse — โจมตีถูกยกเลิก!`,'');done();return;}
+          // Intercept: Wool Wyvern / Phoenix appeared on player's At Line during AQ window
+          let tgt=bestTarget;
+          if(tgt.line==='df'&&G.players[0].atLine.length>0){
+            const intercept=G.players[0].atLine.find(x=>!hasMysticProtect(x))||G.players[0].atLine[0];
+            if(intercept){log(`AI: ${afc.card.name} → ${intercept.card.name} ขวาง (At Line ใหม่)!`,'bad');tgt={fc:intercept,line:'at'};}
+          }
           const curAt=getEffectiveAt(afc); // recalculate after interfere window (e.g. Yin debuff)
-          combatAnim(afc,bestTarget.fc,curAt,bestTarget.line,false,()=>{
-            dealDamage(afc,bestTarget.fc,curAt,'normal attack',1,0,bestTarget.line);
+          combatAnim(afc,tgt.fc,curAt,tgt.line,false,()=>{
+            dealDamage(afc,tgt.fc,curAt,'normal attack',1,0,tgt.line);
             afterDD(done);
           });
         });
@@ -4273,15 +4279,18 @@ function executeWoolWyvernInterfere(){
   const p=G.players[0];
   const wyvern=p.hand.find(c=>c.id===80);
   if(!wyvern||p.mp<4){return;}
-  const hi=p.hand.indexOf(wyvern);p.hand.splice(hi,1);
-  p.mp-=4;
-  const wyvernFC=makeFieldCard(wyvern,false);
-  wyvernFC.deployedTurn=turnNum;
-  p.atLine.push(wyvernFC);
   document.getElementById('btn-aq-woolwyvern').style.display='none';
-  log('Wool Wyvern [Interfere]: ลงสนาม! (Fire At −2 passive active)','good');
-  checkLose();render();
-  _enterChainMode('Wool Wyvern');
+  showLineChoicePicker('Wool Wyvern',line=>{
+    const hi=p.hand.indexOf(wyvern);p.hand.splice(hi,1);
+    p.mp-=4;
+    const wyvernFC=makeFieldCard(wyvern,false);
+    wyvernFC.deployedTurn=turnNum;
+    p[line==='at'?'atLine':'dfLine'].push(wyvernFC);
+    log(`Wool Wyvern [Interfere]: ลงสนาม (${line==='at'?'At':'Df'} Line)!`,'good');
+    checkLose();render();
+    _enterChainMode('Wool Wyvern');
+    if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
+  });
 }
 
 function executePhoenixInterfere(){

@@ -356,10 +356,6 @@ function _getCardSkillsRaw(fc){
 function isSkillTarget(fc){
   if(!skillMode)return false;
   if(fc.uid===skillMode.fc.uid)return false;
-  if(skillMode.skillIdx===-99){
-    // Blaze Sage step 2: any own seal (excluding the skill caster which was already removed)
-    return pendingSacrifice&&[...G.players[0].atLine,...G.players[0].dfLine].some(x=>x.uid===fc.uid);
-  }
   const skills=getCardSkills(skillMode.fc);
   const skill=skills[skillMode.skillIdx];
   if(!skill)return false;
@@ -555,9 +551,11 @@ function executeSelfSkill(skillFC,skillIdx){
     showActionQueue(`${skillFC.card.name} [Skill] Seal ทุกใบย้ายไป At Line`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
-      const toMove=[...p.dfLine];
-      p.dfLine.length=0;
+      const toMove=[...p.dfLine];p.dfLine.length=0;
       toMove.forEach(fc=>{p.atLine.push(fc);});
+      const _regOpp=G.players[1];
+      const _regOppMove=[..._regOpp.dfLine];_regOpp.dfLine.length=0;
+      _regOppMove.forEach(fc=>{_regOpp.atLine.push(fc);});
       log(`${skillFC.card.name} [Skill]: Seal ทุกใบย้ายไป At Line!`,'good');
       checkLose();render();
     });
@@ -667,15 +665,6 @@ function executeSelfSkill(skillFC,skillIdx){
 
 function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
   updateAIPreview(skillFC.card,'✦ Skill');
-  // Blaze Sage step 2: apply At boost to the chosen boost target
-  if(skillIdx===-99&&pendingSacrifice){
-    const {skillFC:blazeFC,mc}=pendingSacrifice;
-    targetFC.atBoosts=(targetFC.atBoosts||[]);
-    targetFC.atBoosts.push({amount:mc,expiresBeforeSubTurn:subTurnNum+2});
-    log(`${blazeFC.card.name} [Skill]: ${targetFC.card.name} +At${mc} (1 Turn)!`,'good');
-    pendingSacrifice=null;skillMode=null;render();
-    return;
-  }
   const p=G.players[0];
   const skills=getCardSkills(skillFC);
   const skill=skills[skillIdx];
@@ -905,10 +894,21 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
       if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       destroyByEffect(targetFC,0);
-      pendingSacrifice={skillFC,mc};
-      skillMode={fc:skillFC,skillIdx:-99};
-      log(`${skillFC.card.name} [Skill]: Sacrifice ${targetFC.card.name}! เลือก Seal ที่จะ +At${mc} (1 Turn)...`,'hi');
-      checkLose();render();
+      log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ถูก Sacrifice!`,'bad');
+      checkLose();
+      const boostTargets=[...p.atLine,...p.dfLine].filter(x=>x.uid!==skillFC.uid);
+      if(!boostTargets.length){render();return;}
+      showMysticPicker(
+        `${skillFC.card.name} [Skill]: เลือก Seal ที่จะ +At${mc} (1 Turn)`,
+        boostTargets.map(bfc=>({label:`${bfc.card.name} (At${getEffectiveAt(bfc)})`,data:bfc})),
+        boostFC=>{
+          boostFC.atBoosts=(boostFC.atBoosts||[]);
+          boostFC.atBoosts.push({amount:mc,expiresBeforeSubTurn:subTurnNum+2});
+          log(`${skillFC.card.name} [Skill]: ${boostFC.card.name} +At${mc} (1 Turn)!`,'good');
+          checkLose();render();
+          if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
+        }
+      );
     });
     return;
   }
@@ -939,6 +939,10 @@ function clickAIHandCard(idx){
   if(idx>=ai.hand.length)return;
   const card=ai.hand[idx];
   const attFC=attackerSeal.fc;
+  const p=G.players[0];
+  const maCost=Math.max(0,(attFC.card.ma||1)-getMysticMaReduction(attFC));
+  if(p.mp<maCost){logErr(`Mp ไม่พอ (ต้องการ ${maCost})`);return;}
+  p.mp-=maCost;
   handTargetMode=false;attackerSeal=null;
   handAttackAnim(attFC,card,()=>{
     ai.hand.splice(ai.hand.indexOf(card),1);
@@ -958,6 +962,10 @@ function clickAIHandMystic(idx){
   if(idx>=mh.length)return;
   const mc=mh[idx];
   const attFC=attackerSeal.fc;
+  const p=G.players[0];
+  const maCost=Math.max(0,(attFC.card.ma||1)-getMysticMaReduction(attFC));
+  if(p.mp<maCost){logErr(`Mp ไม่พอ (ต้องการ ${maCost})`);return;}
+  p.mp-=maCost;
   handTargetMode=false;attackerSeal=null;
   handAttackAnim(attFC,mc,()=>{
     mh.splice(idx,1);
