@@ -1913,6 +1913,11 @@ function getMysticAtBonus(fc){
   if(_gregoryNegates(fc))return 0;
   return getActiveMystics(fc).reduce((s,m)=>{
     let b=m.atBonus||0;
+    // Holy Sun (id=21): At+2 is conditional on element — if Chaotic World changed it, invalidate
+    if(m.mystic?.id===21){
+      const el=getEffectiveEl(fc);
+      if(el!=='light'&&el!=='fire'&&el!=='divine'&&fc.card.tribe!=='Divine')b=0;
+    }
     if(fc.card.id===4&&m.mystic?.subtype_name==='The Moon')b*=2;
     return s+b;
   },0);
