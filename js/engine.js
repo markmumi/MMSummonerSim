@@ -776,8 +776,8 @@ function guestDeclareAttack(atkIdx){
   if(fusionAtks.length>0&&guestPendingAtkIdx!==null){
     log(`${fc.card.name}: ${fusionAtks[guestPendingAtkIdx].name} — คลิก Seal ของ Host เพื่อโจมตี`,'hi');
   } else if(fusionAtks.length>0){
-    log(`${fc.card.name}: ${fusionAtks[0].name} — คลิก Seal ของ Host เพื่อโจมตี`,'hi');
-    guestPendingAtkIdx=0;
+    guestPendingAtkIdx=pickBestAtkIdx(fc,fusionAtks,1);
+    log(`${fc.card.name}: ${fusionAtks[guestPendingAtkIdx].name} — คลิก Seal ของ Host เพื่อโจมตี`,'hi');
   } else {
     log(`${fc.card.name} — คลิก Seal ของ Host เพื่อโจมตี`,'hi');
   }
@@ -793,7 +793,7 @@ function guestResolveAttack(attFC,defFC,defLine){
   const fusionAtks=getActiveAtks(attFC);
   let usedAtk=null;
   if(fusionAtks.length>0){
-    const atkIdx=(guestPendingAtkIdx!=null&&fusionAtks[guestPendingAtkIdx])?guestPendingAtkIdx:0;
+    const atkIdx=(guestPendingAtkIdx!=null&&fusionAtks[guestPendingAtkIdx])?guestPendingAtkIdx:pickBestAtkIdx(attFC,fusionAtks,attPi);
     usedAtk=fusionAtks[atkIdx];
     guestPendingAtkIdx=null;
     const usedAtkNetMp=Math.max(0,usedAtk.mp-getMysticMaReduction(attFC));
@@ -2198,7 +2198,8 @@ function showFieldAction(fc,line){
 
   const isCharmedCard=!!fc.charmed;
 
-  // Fuse: has fuse data and still has materials to absorb (skip for charmed/exhausted/used-skill/already fused this turn)
+  // Fuse: has fuse data and still has materials to absorb (skip for charmed/exhausted/used-skill/already fused this turn).
+  // Magical World seals only see materials that progress an entry using their chosen element (handled by findFusionMaterials).
   if(!isCharmedCard&&!fc.exhausted&&!fc.hasUsedSkill&&fc.fusedAtTurn!==turnNum&&fc.card.fuse&&fc.card.fuse.length>0){
     const materials=findFusionMaterials(fc);
     const fuseBtn=addFAOpt('⚡ Fuse',()=>{closeFAModal();startFusionMode(fc);});
@@ -2239,7 +2240,7 @@ function addFAOpt(label,fn){
 }
 
 function closeFAModal(){
-  if(G._ddDiscardPending)return; // forced discard — cannot cancel
+  if(G._ddDiscardPending||G._pendingGuestDDShrine)return; // forced discard — cannot cancel
   document.getElementById('fa-modal').classList.remove('show');
   const sc=document.getElementById('fa-cancel-btn');if(sc)sc.style.display='';
   fieldActionTarget=null;
@@ -2319,41 +2320,56 @@ function _unlockedAtksForStack(fuseEntries, stackCards){
   return result;
 }
 
-function getUnlockedAtks(mainFC){
-  const stack=mainFC.fusionStack.map(m=>m.card);
-  if(mainFC.magicalEl)stack.push({el:mainFC.magicalEl,tribe:'',name:''});
-  return _unlockedAtksForStack(mainFC.card.fuse||[],stack);
+// Fuse entries valid for this seal. A Magical World seal "counts as already fused with its
+// chosen element", so it may only fuse toward entries that actually USE that element — plus any
+// entry already satisfied by its real fusionStack (so attaching Magical World to an already-fused
+// seal never strips legitimately-unlocked attacks).
+function _validFuseEntries(mainFC){
+  const fuse=mainFC.card.fuse||[];
+  if(!mainFC.magicalEl)return fuse;
+  const realStack=mainFC.fusionStack.map(m=>m.card);
+  return fuse.filter(f=>f.reqs.includes(mainFC.magicalEl)||_unlockedAtksForStack([f],realStack).length>0);
 }
+// Stack cards as seen by fusion logic, including the Magical World virtual element (counts as 1 of its element).
+function _fuseStackCards(mainFC,extra=[]){
+  const s=[...mainFC.fusionStack.map(m=>m.card),...extra];
+  if(mainFC.magicalEl)s.push({el:mainFC.magicalEl,tribe:'',name:''});
+  return s;
+}
+
+function getUnlockedAtks(mainFC){
+  return _unlockedAtksForStack(_validFuseEntries(mainFC),_fuseStackCards(mainFC));
+}
+
+const _countSat=(cards,reqs)=>{let n=0;const rem=[...cards];for(const req of reqs){const i=rem.findIndex(c=>matchesReq(req,c));if(i>=0){rem.splice(i,1);n++;}}return n;};
 
 // Used by GUEST (step-by-step) and AI — considers only mainFC.fusionStack
 function fuseMaterialHelps(mainFC,card){
-  const fuse=mainFC.card.fuse||[];
-  const stack=mainFC.fusionStack.map(m=>m.card);
-  const countSat=(cards,reqs)=>{let n=0;const rem=[...cards];for(const req of reqs){const i=rem.findIndex(c=>matchesReq(req,c));if(i>=0){rem.splice(i,1);n++;}}return n;};
+  const fuse=_validFuseEntries(mainFC);
+  const stack=_fuseStackCards(mainFC);
   for(const f of fuse){
     if(_unlockedAtksForStack([f],stack).length>0)continue;
-    if(countSat([...stack,card],f.reqs)>countSat(stack,f.reqs))return true;
+    if(_countSat([...stack,card],f.reqs)>_countSat(stack,f.reqs))return true;
   }
   return false;
 }
 
 // Used by HOST batch system — also considers already-staged pendingFusionMaterials
 function fuseMaterialHelpsForStaging(mainFC,card){
-  const fuse=mainFC.card.fuse||[];
-  const stack=[...mainFC.fusionStack.map(m=>m.card),...pendingFusionMaterials.map(m=>m.card)];
-  const countSat=(cards,reqs)=>{let n=0;const rem=[...cards];for(const req of reqs){const i=rem.findIndex(c=>matchesReq(req,c));if(i>=0){rem.splice(i,1);n++;}}return n;};
+  const fuse=_validFuseEntries(mainFC);
+  const stack=_fuseStackCards(mainFC,pendingFusionMaterials.map(m=>m.card));
   for(const f of fuse){
     if(_unlockedAtksForStack([f],stack).length>0)continue;
-    if(countSat([...stack,card],f.reqs)>countSat(stack,f.reqs))return true;
+    if(_countSat([...stack,card],f.reqs)>_countSat(stack,f.reqs))return true;
   }
   return false;
 }
 
 function checkPendingFusionValid(){
   if(!fusionMainFC||!pendingFusionMaterials.length)return false;
-  const fuse=fusionMainFC.card.fuse||[];
-  const cur=fusionMainFC.fusionStack.map(m=>m.card);
-  const withP=[...cur,...pendingFusionMaterials.map(m=>m.card)];
+  const fuse=_validFuseEntries(fusionMainFC);
+  const cur=_fuseStackCards(fusionMainFC);
+  const withP=_fuseStackCards(fusionMainFC,pendingFusionMaterials.map(m=>m.card));
   const curNames=_unlockedAtksForStack(fuse,cur).map(a=>a.name);
   const newNames=_unlockedAtksForStack(fuse,withP).map(a=>a.name);
   // Valid if any newly unlocked attack wasn't already available (handles subsumption upgrades)
@@ -2633,11 +2649,10 @@ function clickFieldSeal(fc,pi,line){
       // Mor Mercenary: choose At or Df comparison
       showMorMercenaryPicker(attFC,fc,line);
     } else {
-      // Auto-select fusion attack if player clicked target directly without pressing Attack/Special
+      // Auto-select strongest fusion attack if player clicked target directly without pressing Attack/Special
       if(pendingAttackIdx===null){
         const pool=getActiveAtks(attFC);
-        if(pool.length===1){pendingAttackIdx=0;}
-        else if(pool.length>1){openFusionPicker(pool);return;}
+        if(pool.length>=1)pendingAttackIdx=pickBestAtkIdx(attFC,pool,0);
       }
       resolveAttack(attFC,fc,pendingAttackIdx,line);
     }
@@ -2698,7 +2713,7 @@ function _getThunderiaFuseAtks(fc){
 function getActiveAtks(fc){
   if(fc.fused&&fc.fusionAtks.length>0)return fc.fusionAtks;
   if(!fc.fused&&fc.magicalEl&&fc.card.fuse?.length){
-    const atks=_unlockedAtksForStack(fc.card.fuse,[{el:fc.magicalEl,tribe:'',name:''}]);
+    const atks=_unlockedAtksForStack(_validFuseEntries(fc),[{el:fc.magicalEl,tribe:'',name:''}]);
     if(atks.length)return atks;
   }
   if(fc.willMind&&fc.card.fuse?.length)return fc.card.fuse.map(f=>f.atk).filter(Boolean);
@@ -2710,8 +2725,11 @@ function executeAllAttack(attFC,atk){
   const p=G.players[0];
   const atkNetMp=Math.max(0,atk.mp-getMysticMaReduction(attFC));
   if(p.mp<atkNetMp){log(`Mp ไม่พอสำหรับ ${atk.name} (ต้องการ ${atkNetMp})`,'bad');return;}
+  // Reserve Mp up-front (before the interfere window) so interfere mystics played during the AQ
+  // can't double-spend the same Mp and drive it negative — matches all other attack paths.
+  p.mp-=atkNetMp;
   showActionQueue(`${attFC.card.name} → <b>${atk.name}</b> (ALL)`,()=>{
-    p.mp-=atkNetMp;
+    if(attFC.curses?.some(c=>c.type==='stone'||c.type==='freeze')){log(`${attFC.card.name} ถูก Stone/Freeze Curse — โจมตีถูกยกเลิก!`,'bad');attackerSeal=null;render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();return;}
     const attAt=_fusionAtkAt(atk.at,attFC);
     log(`${attFC.card.name} ใช้ ${atk.name}! (ALL)`,'hi');
     const allTargets=[...G.players[1].atLine.map(fc=>({fc,line:'at'})),...G.players[1].dfLine.map(fc=>({fc,line:'df'}))];
@@ -2720,27 +2738,31 @@ function executeAllAttack(attFC,atk){
   });
 }
 
+// Auto-select the attack to use (no picker). Prefer ALL attacks (sweep every enemy) when available;
+// otherwise pick the highest At. Prefer affordable attacks, falling back to all attacks if none affordable.
+function pickBestAtkIdx(fc,atks,pi){
+  const reduction=getMysticMaReduction(fc);
+  const idx=atks.map((a,i)=>i);
+  const affordable=idx.filter(i=>G.players[pi].mp>=Math.max(0,(atks[i].mp||0)-reduction));
+  const pool=affordable.length?affordable:idx;
+  // If any ALL attack is available, choose among ALL attacks; else among single-target attacks.
+  const allIdx=pool.filter(i=>atks[i].all);
+  const group=allIdx.length?allIdx:pool;
+  return group.reduce((best,i)=>((atks[i].at||0)>(atks[best].at||0)?i:best),group[0]);
+}
+
 function declareAttack(){
   if(window.Online?.isOnline&&!Online.isHost){
     if(!attackerSeal)return;
     const fc=attackerSeal.fc;
     const fusionAtks=getActiveAtks(fc);
-    if(fusionAtks.length>1){
-      // Show picker on guest side before sending
-      const div=document.getElementById('atk-opts');
-      div.innerHTML='<div style="font-size:9px;color:#fde68a;margin-bottom:4px">⚡ เลือกท่าโจมตี</div>';
-      fusionAtks.forEach((atk,i)=>{
-        const btn=document.createElement('button');
-        btn.className='atk-opt';
-        const v=[atk.at?'At'+atk.at:'',atk.df?'Df'+atk.df:''].filter(Boolean).join('/');
-        btn.innerHTML=`⚡${atk.name}<span style="color:#fde68a;margin-left:4px">${v} Mp${atk.mp}${atk.all?' ALL':''}</span>`;
-        btn.onclick=()=>{closeAtkPanel();Online.sendGuestAction({action:'declareAttack',atkIdx:i});};
-        div.appendChild(btn);
-      });
-      document.getElementById('atk-panel').classList.add('show');
+    if(fusionAtks.length>=1){
+      // Auto-pick strongest attack (no picker) and send it
+      const bi=pickBestAtkIdx(fc,fusionAtks,1);
+      Online.sendGuestAction({action:'declareAttack',atkIdx:bi});
       return;
     }
-    Online.sendGuestAction({action:'declareAttack',atkIdx:fusionAtks.length===1?0:null});
+    Online.sendGuestAction({action:'declareAttack',atkIdx:null});
     return;
   }
   if(!attackerSeal){log('Select a Seal first','');return;}
@@ -2750,13 +2772,12 @@ function declareAttack(){
     render();return;
   }
   const fusionAtks=getActiveAtks(fc);
-  if(fusionAtks.length>1){
-    openFusionPicker(fusionAtks);
-    return;
-  } else if(fusionAtks.length===1){
-    const atk=fusionAtks[0];
+  if(fusionAtks.length>=1){
+    // Auto-pick strongest attack (no picker) — highest At the player can afford
+    const bi=pickBestAtkIdx(fc,fusionAtks,0);
+    const atk=fusionAtks[bi];
     if(atk.all){executeAllAttack(fc,atk);return;}
-    pendingAttackIdx=0;
+    pendingAttackIdx=bi;
     log(`${fc.card.name} → ${atk.name}! เลือกเป้าหมาย`,'hi');
   } else if(fc.sevenSilverFree){
     log(`${fc.card.name} [Seven Silver 2nd] — คลิก Seal ศัตรูเพื่อโจมตีฟรี!`,'hi');
@@ -2826,7 +2847,12 @@ function showCerberusPicker(attFC,mainFC,mainLine){
           if(attWins){
             log(`${attFC.card.name}[At${attAt}] > ${matFC.card.name}[At${defAt}] → Support ถูกทำลาย!`,'good');
             const i=mainFC.fusionStack.findIndex(x=>x.uid===matFC.uid);
-            if(i>=0){mainFC.fusionStack.splice(i,1);G.players[1].shrine.push(matFC.card);}
+            if(i>=0){
+              mainFC.fusionStack.splice(i,1);
+              _drainAllMystics(matFC,1);
+              G.players[1].shrine.push(matFC.card);
+              runShrineAbility(matFC.card,1);
+            }
             mainFC.fusionAtks=getUnlockedAtks(mainFC);
             if(mainFC.fusionStack.length===0){mainFC.fused=false;mainFC.fusedSinceTurn=null;mainFC.wasMainFusedTurn=turnNum;}
           } else {
@@ -3105,7 +3131,7 @@ function getEffectiveAt(fc){
     if(best)base=best.at;
   }
   if(!fc.fused&&fc.magicalEl&&fc.card.fuse?.length){
-    const atks=_unlockedAtksForStack(fc.card.fuse,[{el:fc.magicalEl,tribe:'',name:''}]).filter(a=>a.at);
+    const atks=_unlockedAtksForStack(_validFuseEntries(fc),[{el:fc.magicalEl,tribe:'',name:''}]).filter(a=>a.at);
     if(atks.length){const best=atks.sort((a,b)=>b.at-a.at)[0];if(best.at>base)base=best.at;}
   }
   if(_isThunderiaFused(fc)){
@@ -3293,8 +3319,17 @@ function sendToShrine(fc,ownerPi){
       log(`${mfc.card.name} also sent to shrine (fusion collapse)`,'bad');
     });
   }
+  // On-shrine abilities fire for the main seal AND every support seal that collapsed with it.
+  runShrineAbility(fc.card,ownerPi);
+  if(fc.fused&&fc.fusionStack.length>0){
+    fc.fusionStack.forEach(mfc=>runShrineAbility(mfc.card,ownerPi));
+  }
+}
+
+// Run a seal's "when sent to shrine from field" ability. Works for both main and support seals.
+function runShrineAbility(card,ownerPi){
   // Dark Destiny (72): when sent to shrine, owner must discard 1 mystic from hand immediately
-  if(fc.card.id===72){
+  if(card.id===72){
     const owner=G.players[ownerPi];
     if((owner.mysticHand||[]).length>0){
       if(ownerPi===0){
@@ -3330,7 +3365,7 @@ function sendToShrine(fc,ownerPi){
     }
   }
   // Volcanic Minotaur (id=8): when sent to shrine from field, all opponent Seals break fusion
-  if(fc.card.id===8){
+  if(card.id===8){
     const opponent=G.players[1-ownerPi];
     let broke=false;
     [...opponent.atLine,...opponent.dfLine].forEach(ofc=>{
@@ -3413,9 +3448,8 @@ function aiTurn(){
         if(m.wasMainFusedTurn===turnNum)return false;
         if(m.curses?.some(c=>c.type==='charm'))return false;
         if(!fuseMaterialHelps(mainFC,m.card))return false;
-        // Only fuse if this material actually unlocks at least one attack
-        const testStack=[...mainFC.fusionStack.map(x=>x.card),m.card];
-        return _unlockedAtksForStack(mainFC.card.fuse||[],testStack).length>0;
+        // Only fuse if this material actually unlocks at least one attack (Magical World element counted in)
+        return _unlockedAtksForStack(_validFuseEntries(mainFC),_fuseStackCards(mainFC,[m.card])).length>0;
       });
       if(!mats.length)continue;
       pairs.push({mainFC,mat:mats[0]});
@@ -3904,6 +3938,17 @@ function aiTurn(){
       // Centaur Scout: at→df cross, df→at cross
       // Use raw At Line count for line enforcement — filtered-out seals still block Df access
       const rawAtLen=G.players[0].atLine.length;
+      // Recompute the line-enforced target list fresh each call — seals and stats can change
+      // during the interfere window (e.g. Yin debuff, a seal moving lines), and fusion-attack
+      // hit loops must keep respecting "clear At Line before hitting Df Line".
+      function enforcedTargets(){
+        const a=G.players[0].atLine.map(fc=>({fc,line:'at'})).filter(filterME).filter(filterBrig).filter(filterSP);
+        const d=G.players[0].dfLine.map(fc=>({fc,line:'df'})).filter(filterME).filter(filterBrig).filter(filterSP);
+        const rawAt=G.players[0].atLine.length;
+        if(isCSAt)return d.length>0?d:a;
+        if(isCSdf)return a.length>0?a:d;
+        return rawAt>0?a:d;
+      }
       let targets;
       if(isCSAt){targets=dfT.length>0?dfT:atT;}
       else if(isCSdf){targets=atT.length>0?atT:dfT;}
@@ -3978,7 +4023,7 @@ function aiTurn(){
         const hitCount=winSp.hits||1;
         let hitsDone=0;
         function doHit(){
-          const curT=[...G.players[0].atLine.map(f=>({fc:f,line:'at'})),...G.players[0].dfLine.map(f=>({fc:f,line:'df'}))].filter(filterME).filter(filterBrig);
+          const curT=enforcedTargets();
           if(!curT.length||hitsDone>=hitCount){done();return;}
           const effAt=_fusionAtkAt(winSp.at,afc); // recalculate — includes mystic debuffs applied during interfere
           const htgt=curT.find(({fc:d,line:dl})=>effAt>(dl==='at'?getEffectiveAt(d):getEffectiveDf(d)))||curT.reduce((b,{fc:d,line:dl})=>{const ds=dl==='at'?getEffectiveAt(d):getEffectiveDf(d);return(!b||ds<b.ds)?{fc:d,line:dl,ds}:b;},null);
@@ -3990,7 +4035,7 @@ function aiTurn(){
           } else {hitsDone++;doHit();}
         }
         {
-          const preT=[...G.players[0].atLine.map(f=>({fc:f,line:'at'})),...G.players[0].dfLine.map(f=>({fc:f,line:'df'}))].filter(filterME).filter(filterBrig);
+          const preT=enforcedTargets();
           const firstTgt=preT.find(({fc:d,line:dl})=>winSp.at>(dl==='at'?getEffectiveAt(d):getEffectiveDf(d)))||preT.reduce((b,{fc:d,line:dl})=>{const ds=dl==='at'?getEffectiveAt(d):getEffectiveDf(d);return(!b||ds<b.ds)?{fc:d,line:dl,ds}:b;},null);
           showActionQueue(`🤖 ${afc.card.name} → <b>${winSp.name}</b>${hitCount>1?' ×'+hitCount:''} ⚔ ${firstTgt?.fc.card.name||'?'}`,()=>{
             if(afc.curses?.some(c=>c.type==='stone'||c.type==='freeze')){log(`${afc.card.name} ถูก Stone/Freeze Curse — โจมตีถูกยกเลิก!`,'');done();return;}
@@ -4122,7 +4167,7 @@ function _maybeAIInterfere(){
     _spendInterfere(mc,mi,`${mc.name} → ${targetFC.card.name}${desc?' ('+desc+')':''}`,()=>{
       if(mc.turns!==0){
         targetFC.mystics=(targetFC.mystics||[]);
-        targetFC.mystics.push({mystic:mc,atBonus:atB,dfBonus:dfB,spBonus:spB,...(flags||{}),expiresBeforeSubTurn:expires});
+        targetFC.mystics.push({mystic:mc,atBonus:atB,dfBonus:dfB,spBonus:spB,...(flags||{}),expiresBeforeSubTurn:expires,casterPi:1});
         if(flags&&flags.curseType){
           targetFC.curses=(targetFC.curses||[]);
           targetFC.curses.push({type:flags.curseType,expiresAtSubTurn:Infinity,fromPS:mc.id});

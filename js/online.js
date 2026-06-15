@@ -544,7 +544,10 @@ var Online = (() => {
         if (faModal && !faModal.classList.contains('show')) {
           const faTitle = document.getElementById('fa-title');
           const faOpts = document.getElementById('fa-opts');
+          const faCancelBtn = document.getElementById('fa-cancel-btn');
           if (faTitle) faTitle.textContent = 'Dark Destiny [Ability]: ต้องทิ้ง Mystic 1 ใบ';
+          // Forced discard — no Cancel allowed. Hide the cancel button while the modal is up.
+          if (faCancelBtn) faCancelBtn.style.display = 'none';
           if (faOpts) {
             faOpts.innerHTML = '';
             hand.forEach((mc, i) => {
@@ -552,6 +555,7 @@ var Online = (() => {
               btn.className = 'btn btn-red';
               btn.textContent = `ทิ้ง ${mc.name}`;
               btn.onclick = () => {
+                if (faCancelBtn) faCancelBtn.style.display = '';
                 faModal.classList.remove('show');
                 Online.sendGuestAction({ action: 'guestDarkDestinyDiscard', handIdx: i });
               };

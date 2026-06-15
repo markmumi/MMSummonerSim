@@ -489,7 +489,7 @@ function executeSelfSkill(skillFC,skillIdx){
       const ghostLine=p.atLine.some(x=>x.uid===skillFC.uid)?'atLine':'dfLine';
       skillFC.fusionStack.forEach(mfc=>{p[ghostLine].push(mfc);});
       // Drain mystics from Ghost Ship before returning to deck
-      _drainAllMystics(skillFC,pi);
+      _drainAllMystics(skillFC,0);
       // Remove Ghost Ship from field
       const rmA=p.atLine.findIndex(x=>x.uid===skillFC.uid);
       if(rmA>=0)p.atLine.splice(rmA,1);
@@ -567,7 +567,7 @@ function executeSelfSkill(skillFC,skillIdx){
       if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
       const rmA=p.atLine.findIndex(x=>x.uid===skillFC.uid);if(rmA>=0)p.atLine.splice(rmA,1);
       const rmD=p.dfLine.findIndex(x=>x.uid===skillFC.uid);if(rmD>=0)p.dfLine.splice(rmD,1);
-      const ok=bounceSealToHand(skillFC,pi);
+      const ok=bounceSealToHand(skillFC,0);
       log(`${skillFC.card.name} [Skill]: ${ok?'กลับสู่มือ!':'ลง Shrine (มือเต็ม)!'}`,ok?'good':'bad');
       checkLose();render();
     });
