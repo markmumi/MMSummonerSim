@@ -2134,7 +2134,7 @@ const CARDS_METADATA = {
           "atk_all": false
         },
         {
-          "reqs": ["Dragon"],
+          "reqs": ["wind", "wind"],
           "atk_name": "Soar Charge",
           "atk_at": 12,
           "atk_df": null,
