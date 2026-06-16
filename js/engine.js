@@ -525,12 +525,12 @@ function tickCurses(){
         if(!expired.length)continue;
         // Poison / LastDance → destroy
         if(expired.some(c=>c.type==='poison'||c.type==='lastDance')){
-          arr.splice(i,1);
-          broadcastSound('Card destroyed by effect');
-          if(fc.fusionStack?.length)fc.fusionStack.forEach(m=>G.players[pi].shrine.push(m.card));
-          G.players[pi].shrine.push(fc.card);
           const cname=expired.find(c=>c.type==='lastDance')?'Last Dance Curse':'Poison Curse';
           log(`☠ ${fc.card.name} ถูกทำลายจาก ${cname}!`,'bad');
+          broadcastSound('Card destroyed by effect');
+          // Route through sendToShrine so on-shrine abilities fire (Volcanic Minotaur, Dark Destiny)
+          // and attached PS mystics drain to mysticGrave — matches every other death path.
+          sendToShrine(fc,pi);
           needCheck=true;
         }
         // Charm → just release control, card stays in place
@@ -543,6 +543,18 @@ function tickCurses(){
     });
   });
   if(needCheck)checkLose();
+}
+
+// Thor (76) / Dread Knight (63) auto-position to At Line at the start of pi's turn.
+// Works for either player so the ability functions for the AI/GUEST too, not just player 0.
+function enforceForcedAtLine(pi){
+  const owner=G.players[pi], enemy=G.players[1-pi];
+  // Thor Thunder God (76): move to At Line when the enemy has At Line seals
+  const thor=owner.dfLine.find(s=>s.card.id===76);
+  if(thor&&enemy.atLine.length>0){owner.dfLine.splice(owner.dfLine.findIndex(s=>s.uid===thor.uid),1);owner.atLine.push(thor);log('Thor [Ability]: ย้ายไป At Line อัตโนมัติ','');}
+  // Dread Knight (63): always At Line
+  const dk=owner.dfLine.find(s=>s.card.id===63);
+  if(dk){owner.dfLine.splice(owner.dfLine.findIndex(s=>s.uid===dk.uid),1);owner.atLine.push(dk);log('Dread Knight [Ability]: ย้ายไป At Line อัตโนมัติ','');}
 }
 
 function endTurn(){
@@ -565,6 +577,7 @@ function endTurn(){
   subTurnNum++;
   G.players[pi].atLine.forEach(s=>{s.exhausted=false;s.hasAttacked=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
   G.players[pi].dfLine.forEach(s=>{s.exhausted=false;s.hasAttacked=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
+  enforceForcedAtLine(pi);
   tickCurses();
   tickMystics();
   if(pi===0){
@@ -682,10 +695,7 @@ function endGuestTurn(){
     G.players[rpi].atLine.forEach(s=>{s.exhausted=false;s.hasAttacked=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
     G.players[rpi].dfLine.forEach(s=>{s.exhausted=false;s.hasAttacked=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
   });
-  {const p=G.players[0];const thor=p.dfLine.find(s=>s.card.id===76);
-  if(thor&&G.players[1].atLine.length>0){p.dfLine.splice(p.dfLine.findIndex(s=>s.uid===thor.uid),1);p.atLine.push(thor);log('Thor [Ability]: ย้ายไป At Line อัตโนมัติ','');}}
-  {const p=G.players[0];const dk=p.dfLine.find(s=>s.card.id===63);
-  if(dk){p.dfLine.splice(p.dfLine.findIndex(s=>s.uid===dk.uid),1);p.atLine.push(dk);log('Dread Knight [Ability]: ย้ายไป At Line อัตโนมัติ','');}}
+  enforceForcedAtLine(0);
   {for(let rpi=0;rpi<2;rpi++){const owner=G.players[rpi];
     for(const lk of['atLine','dfLine']){
       const idx=owner[lk].findIndex(s=>s.card.id===82&&turnNum-s.deployedTurn>=3);
@@ -706,7 +716,7 @@ function guestDeploy(card,idx,line){
   if(pendingCb){logErr('ไม่สามารถลงการ์ดระหว่าง Interfere Step');Online.broadcastState();return;}
   if(phase!=='main'&&phase!=='main2'){logErr('Deploy ได้เฉพาะ Main Phase');Online.broadcastState();return;}
   const p=G.players[1];
-  const mc=getEffectiveMc(card);
+  const mc=getEffectiveMc(card,1);
   if(p.mp<mc){logErr(`Mp ไม่พอ (ต้องการ ${mc})`);Online.broadcastState();return;}
   if(card.id===63)line='at';
   const target=line==='at'?p.atLine:p.dfLine;
@@ -858,7 +868,7 @@ function _clickFieldSealGuest(fc,pi,line){
     if(guestHandDiscardMode)return; // hand-card picker active
     // Unified choice modal for guest: interfere skills (own, unused) + view + cancel
     const p=G.players[localPi];
-    const avail=(pi===localPi&&!fc.hasUsedSkill&&G.currentPlayer!==localPi)
+    const avail=(pi===localPi&&!fc.hasUsedSkill&&!fc.exhausted&&G.currentPlayer!==localPi)
       ? getCardSkills(fc).filter(s=>s.interfere&&p.mp>=s.mp&&(s.type!=='handDiscard'||p.hand.length>0))
       : [];
     document.getElementById('fa-title').textContent=fc.card.name;
@@ -1194,7 +1204,9 @@ function guestExecuteSelfSkill(skillFC,skillIdx,drawType){
   if(skill.effect==='returnSelfToDeck'){
     showActionQueue(`${skillFC.card.name} [Skill] คืนตัวเองสู่กอง + สลับ`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      skillFC.fusionStack.forEach(mfc=>{p.atLine.push(mfc);});
+      // Return support seals to Ghost Ship's own line, not always At Line
+      const ghostLine=p.atLine.some(x=>x.uid===skillFC.uid)?p.atLine:p.dfLine;
+      skillFC.fusionStack.forEach(mfc=>{ghostLine.push(mfc);});
       const rmA=p.atLine.findIndex(x=>x.uid===skillFC.uid);if(rmA>=0)p.atLine.splice(rmA,1);
       const rmD=p.dfLine.findIndex(x=>x.uid===skillFC.uid);if(rmD>=0)p.dfLine.splice(rmD,1);
       p.deck.push(skillFC.card);shuffle(p.deck);
@@ -1304,7 +1316,7 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
   const _done=()=>{checkLose();render();Online.broadcastState();};
   if(skill.effect==='healCurse'){
     showActionQueue(`${skillFC.card.name} [Skill] → รักษา Curse ${targetFC.card.name}`,()=>{
-      p.mp-=skill.mp;skillFC.hasUsedSkill=true;targetFC.curses=[];
+      p.mp-=skill.mp;skillFC.hasUsedSkill=true;targetFC.curses=[];targetFC.charmed=null;
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} หาย Curse!`,'good');_done();
     });return;
   }
@@ -1592,7 +1604,7 @@ function guestPlayNonPMystic(mysticCard,mysticIdx){
           const _hpDesc=`Holy Prayer → รักษา ${tfc.card.name}`;
           const _hpCb=()=>{
             const _hadFreeze=(tfc.curses||[]).some(c=>c.type==='freeze');
-            tfc.curses=[];
+            tfc.curses=[];tfc.charmed=null;
             if(_hadFreeze&&_wasAtLine){
               const _cpi=findFCOwner(tfc)?.pi??0;const _cp=G.players[_cpi];
               const _di=_cp.dfLine.findIndex(x=>x.uid===tfc.uid);
@@ -1850,7 +1862,7 @@ function guestPlayNonPMysticResolved(mysticCard,mysticIdx,resolution){
   if(resolution.id===17){ // Holy Prayer
     if(resolution.type==='cure'){
       const tfc=allF.find(fc=>fc.uid===resolution.targetUid);if(!tfc)return;
-      spend();showActionQueue(`Holy Prayer → รักษา ${tfc.card.name}`,()=>{tfc.curses=[];log(`Holy Prayer: รักษา Curse!`,'good');checkLose();render();Online.broadcastState();});
+      spend();showActionQueue(`Holy Prayer → รักษา ${tfc.card.name}`,()=>{tfc.curses=[];tfc.charmed=null;log(`Holy Prayer: รักษา Curse!`,'good');checkLose();render();Online.broadcastState();});
     } else {
       const tfc=allF.find(fc=>fc.uid===resolution.targetUid);if(!tfc)return;
       const actMys=getActiveMystics(tfc);const mEntry=actMys[resolution.mIdx];if(!mEntry)return;
@@ -2003,10 +2015,11 @@ function showLineChoicePicker(cardName,onPick){
   document.getElementById('fa-modal').classList.add('show');
 }
 
-function getEffectiveMc(card){
+function getEffectiveMc(card,pi=0){
   let mc=card.mc;
-  const p=G.players[0];
-  // Albino Gryption (75): own Beasts in hand cost mc -1
+  const p=G.players[pi];
+  // Albino Gryption (75): own Beasts in hand cost mc -1 — must check the DEPLOYING player's
+  // field, not always player 0 (otherwise GUEST/AI deploys read the wrong side).
   if(card.tribe==='Beast'&&[...p.atLine,...p.dfLine].some(x=>x.card.id===75))mc=Math.max(0,mc-1);
   return mc;
 }
@@ -2497,7 +2510,7 @@ function clickFieldSeal(fc,pi,line){
     if(handDiscardMode)return; // hand-card picker active
     // Unified choice modal: interfere skills (own pi=0, unused) + view card + cancel
     const p=G.players[0];
-    const avail=(pi===0&&!fc.hasUsedSkill)
+    const avail=(pi===0&&!fc.hasUsedSkill&&!fc.exhausted)
       ? getCardSkills(fc).map((s,i)=>({s,i}))
           .filter(({s})=>s.interfere&&p.mp>=s.mp&&(s.type!=='handDiscard'||p.hand.length>0))
       : [];
@@ -2677,12 +2690,15 @@ function showMorMercenaryPicker(attFC,defFC,defLine){
         if(p.mp<maCost){log(`Mp ไม่พอ (ต้องการ ${maCost})`,'bad');return;}
         p.mp-=maCost;
         showActionQueue(`${att.name} → ⚔ ${defFC.card.name} [Df]`,()=>{
+          if(attFC.curses?.some(c=>c.type==='stone'||c.type==='freeze')){log(`${att.name} ถูก Stone/Freeze Curse — โจมตีถูกยกเลิก!`,'bad');attackerSeal=null;render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();return;}
           const attAt=getEffectiveAt(attFC);
-          combatAnim(attFC,defFC,attAt,'df',false,()=>{
-            dealDamage(attFC,defFC,attAt,'Mor Mercenary',0,1,'df');
+          // Compare At vs target's Df, but keep the target's real line for counterattack semantics:
+          // if the target sits on the At Line, Mor still risks a counter when it loses.
+          combatAnim(attFC,defFC,attAt,defLine,false,()=>{
+            dealDamage(attFC,defFC,attAt,'Mor Mercenary',0,1,defLine,false,'df');
             attFC.exhausted=true;attFC.hasAttacked=true;attackerSeal=null;
             checkLose();render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
-          });
+          },'df');
         });
       }
     };
@@ -3019,9 +3035,11 @@ function executeMultiStrikeHit(attFC,defFC,defLine){
   });
 }
 
-function combatAnim(attFC,defFC,attAt,defLine,isAll,callback){
+function combatAnim(attFC,defFC,attAt,defLine,isAll,callback,cmpLine=defLine){
   attAt=applyPassiveAbilities(attFC,defFC,attAt);
-  const defStat=getDefStatWithPassive(defFC,attFC,defLine);
+  // cmpLine = which defender stat to compare against; defLine = physical line governing
+  // counterattack semantics. They differ only for Mor Mercenary (compares Df on At Line).
+  const defStat=getDefStatWithPassive(defFC,attFC,cmpLine);
   const attSp=getEffectiveSp(attFC), defSp=getEffectiveSp(defFC);
   const attWins=attAt>defStat||(attAt===defStat&&attSp>defSp);
   const isTie=attAt===defStat;
@@ -3250,12 +3268,15 @@ function getDefStatWithPassive(defFC,attFC,defLine){
   return s;
 }
 
-function dealDamage(attFC,defFC,attAt,label,attPi=0,defPi=1,defLine='at',isAll=false){
+function dealDamage(attFC,defFC,attAt,label,attPi=0,defPi=1,defLine='at',isAll=false,cmpLine=defLine){
   const att=attFC.card, def=defFC.card;
   attAt=applyPassiveAbilities(attFC,defFC,attAt);
-  const defStat=getDefStatWithPassive(defFC,attFC,defLine);
-  const defLabel=defLine==='at'?`At${defStat}`:`Df${defStat}`;
-  const lineNote=defLine==='at'?'(At↔At)':'(At↔Df)';
+  // cmpLine = which defender stat to compare against (At/Df); defLine = the physical line,
+  // which governs counterattack semantics. They differ only for Mor Mercenary, which compares
+  // against the target's Df while standing on the At Line, so it still risks a counterattack.
+  const defStat=getDefStatWithPassive(defFC,attFC,cmpLine);
+  const defLabel=cmpLine==='at'?`At${defStat}`:`Df${defStat}`;
+  const lineNote=cmpLine==='at'?'(At↔At)':'(At↔Df)';
   const attSp=getEffectiveSp(attFC), defSp=getEffectiveSp(defFC);
   const attWins=attAt>defStat||(attAt===defStat&&attSp>defSp);
   if(attWins){
@@ -3370,7 +3391,9 @@ function runShrineAbility(card,ownerPi){
     let broke=false;
     [...opponent.atLine,...opponent.dfLine].forEach(ofc=>{
       if(!ofc.fused)return;
-      ofc.fusionStack.forEach(mfc=>{opponent.atLine.push(mfc);});
+      // Return support seals to the same line the main seal sits on (matches doUnfuse), not always At.
+      const lineArr=opponent.atLine.some(x=>x.uid===ofc.uid)?opponent.atLine:opponent.dfLine;
+      ofc.fusionStack.forEach(mfc=>{lineArr.push(mfc);});
       ofc.fusionStack=[];ofc.fusionAtks=[];ofc.fused=false;ofc.fusedSinceTurn=null;ofc.wasMainFusedTurn=turnNum;
       broke=true;
     });
@@ -3432,8 +3455,9 @@ function aiTurn(){
   let tempMp=ai.mp, atLen=ai.atLine.length;
   const sorted=[...ai.hand].sort((a,b)=>b.lv-a.lv);
   for(const card of sorted){
-    if(tempMp<card.mc)continue;
-    toPlay.push({card,line:'at'});tempMp-=card.mc;atLen++;
+    const mc=getEffectiveMc(card,1);
+    if(tempMp<mc)continue;
+    toPlay.push({card,line:'at'});tempMp-=mc;atLen++;
   }
 
   function doAIFuse(callback){
@@ -3550,7 +3574,7 @@ function aiTurn(){
     }
     // Assassin Doll (id=46): Death Curse on lowest-At player card, At Line, 2+ player seals
     if(id===46&&ai.atLine.some(x=>x.uid===fc.uid)&&allPlayer.length>=2&&ai.mp>=2){
-      const _dc46=allPlayer.filter(x=>x.card.id!==82&&x.card.id!==22);
+      const _dc46=allPlayer.filter(x=>x.card.id!==82&&x.card.id!==22&&x.card.id!==20);
       const minAt=_dc46.length?Math.min(..._dc46.map(x=>getEffectiveAt(x))):Infinity;
       const t=_dc46.find(x=>getEffectiveAt(x)===minAt);
       if(t)return{mp:2,label:`Death Curse → ${t.card.name}`,_dcTarget:t,execute:()=>{
@@ -3571,7 +3595,8 @@ function aiTurn(){
     // Ghost Ship (id=16): return self to deck, Double Combination (1 material), Mp 0
     if(id===16&&fc.fused&&fc.fusionStack.length>=1){
       return{mp:0,label:'Return to deck',execute:()=>{
-        fc.fusionStack.forEach(mfc=>{ai.atLine.push(mfc);});
+        const ghostLine=ai.atLine.some(x=>x.uid===fc.uid)?ai.atLine:ai.dfLine;
+        fc.fusionStack.forEach(mfc=>{ghostLine.push(mfc);});
         _drainAllMystics(fc,1);
         const rmA=ai.atLine.findIndex(x=>x.uid===fc.uid);if(rmA>=0)ai.atLine.splice(rmA,1);
         const rmD=ai.dfLine.findIndex(x=>x.uid===fc.uid);if(rmD>=0)ai.dfLine.splice(rmD,1);
@@ -3583,7 +3608,7 @@ function aiTurn(){
     if(id===2&&ai.mp>=1){
       const t=allAI.find(t=>t.curses?.length>0);
       if(t)return{mp:1,label:`Heal Curse → ${t.card.name}`,execute:()=>{
-        t.curses=[];
+        t.curses=[];t.charmed=null;
         broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} หาย Curse ทุกชนิด!`,'');
       }};
     }
@@ -3808,7 +3833,7 @@ function aiTurn(){
       if(id===17){
         const cursed=[...ai.atLine,...ai.dfLine].find(fc=>fc.curses?.length>0);
         if(cursed){
-          _playMC(mc,mi,`Holy Prayer → รักษา ${cursed.card.name}`,()=>{cursed.curses=[];log(`AI: Holy Prayer → รักษา ${cursed.card.name}!`,'bad');});
+          _playMC(mc,mi,`Holy Prayer → รักษา ${cursed.card.name}`,()=>{cursed.curses=[];cursed.charmed=null;log(`AI: Holy Prayer → รักษา ${cursed.card.name}!`,'bad');});
           return;
         }
         const psT=[...player.atLine,...player.dfLine].filter(fc=>getActiveMystics(fc).length&&!hasMysticProtect(fc));
@@ -3895,12 +3920,13 @@ function aiTurn(){
   function doDeployStep(idx){
     if(idx>=toPlay.length){doAIMystic(()=>doAIFuse(()=>doAISkill(()=>setTimeout(doAIBattle,200))));return;}
     const {card,line}=toPlay[idx];
+    const mc=getEffectiveMc(card,1);
     updateAIPreview(card,`⬇ Deploying to ${line==='at'?'At':'Df'} Line`);
-    showActionQueue(`🤖 ลงการ์ด <b>${card.name}</b> → ${line==='at'?'At':'Df'} Line (ลง ${card.mc} Mp)`,()=>{
-      if(ai.mp<card.mc){log(`AI: ${card.name} ลงไม่ได้ — Mp ไม่พอ`,'');doDeployStep(idx+1);return;}
+    showActionQueue(`🤖 ลงการ์ด <b>${card.name}</b> → ${line==='at'?'At':'Df'} Line (ลง ${mc} Mp)`,()=>{
+      if(ai.mp<mc){log(`AI: ${card.name} ลงไม่ได้ — Mp ไม่พอ`,'');doDeployStep(idx+1);return;}
       const hi=ai.hand.findIndex(c=>c===card||c.id===card.id);
       if(hi>=0)ai.hand.splice(hi,1);
-      ai.mp-=card.mc;
+      ai.mp-=mc;
       (line==='at'?ai.atLine:ai.dfLine).push(makeFieldCard(card,true));
       broadcastSound('Deploy');
       log(`AI deployed ${card.name}`);
@@ -3911,8 +3937,8 @@ function aiTurn(){
   }
 
   function doAIBattle(){
-    // Also include Centaur Scout (52) in Df Line as attacker
-    const attackers=[...ai.atLine,...ai.dfLine.filter(s=>s.card.id===52)].filter(s=>!s.exhausted&&!s.curses?.some(c=>c.type==='stone'||c.type==='freeze'||c.type==='charm'));
+    // Also include Centaur Scout (52) and Scalo (10) in Df Line as attackers (both can attack from Df Line)
+    const attackers=[...ai.atLine,...ai.dfLine.filter(s=>s.card.id===52||s.card.id===10)].filter(s=>!s.exhausted&&!s.curses?.some(c=>c.type==='stone'||c.type==='freeze'||c.type==='charm'));
     if(!attackers.length){endAITurn();return;}
     log('AI: BATTLE PHASE','hi');
     render();if(window.Online?.isOnline&&Online.isHost)Online.broadcastState();
@@ -3957,7 +3983,10 @@ function aiTurn(){
       if(!targets.length){
         // Only hand-attack if player's field is genuinely empty (not just filtered by abilities)
         const playerHasFieldSeals=G.players[0].atLine.length>0||G.players[0].dfLine.length>0;
-        if(!playerHasFieldSeals&&!handAttackedThisTurn&&G.players[0].hand.length>0&&turnNum>1){
+        const handMaCost=Math.max(0,(afc.card.ma||1)-getMysticMaReduction(afc));
+        if(!playerHasFieldSeals&&!handAttackedThisTurn&&G.players[0].hand.length>0&&turnNum>1&&ai.mp>=handMaCost){
+          // Reserve the ma cost up-front, matching the player's hand-attack path (clickAIHandCard).
+          ai.mp-=handMaCost;
           const hand=G.players[0].hand;
           const ridx=Math.floor(Math.random()*hand.length);
           const card=hand[ridx];
@@ -4097,13 +4126,8 @@ function aiTurn(){
       G.players[rpi].atLine.forEach(s=>{s.exhausted=false;s.hasAttacked=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
       G.players[rpi].dfLine.forEach(s=>{s.exhausted=false;s.hasAttacked=false;s.hasUsedSkill=false;s.willMind=false;s.sevenSilverFree=false;s.atBoosts=s.atBoosts.filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.spBoosts=(s.spBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);s.dfBoosts=(s.dfBoosts||[]).filter(b=>subTurnNum<b.expiresBeforeSubTurn);});
     });
-    // Thor Thunder God (76): enforce At Line if enemy has At Line seals
-    {const ai=G.players[1];const p=G.players[0];
-    const thor=p.dfLine.find(s=>s.card.id===76);
-    if(thor&&ai.atLine.length>0){p.dfLine.splice(p.dfLine.findIndex(s=>s.uid===thor.uid),1);p.atLine.push(thor);log('Thor [Ability]: ย้ายไป At Line อัตโนมัติ','');}}
-    // Dread Knight (63): always in At Line
-    {const p=G.players[0];const dk=p.dfLine.find(s=>s.card.id===63);
-    if(dk){p.dfLine.splice(p.dfLine.findIndex(s=>s.uid===dk.uid),1);p.atLine.push(dk);log('Dread Knight [Ability]: ย้ายไป At Line อัตโนมัติ','');}}
+    // Thor (76) / Dread Knight (63): auto-position to At Line for the player whose turn begins
+    enforceForcedAtLine(0);
     // Heaven Knight (82): return to deck after 3 turns on field
     {for(let pi=0;pi<2;pi++){const owner=G.players[pi];
       for(const lk of['atLine','dfLine']){
@@ -4220,7 +4244,7 @@ function _maybeAIInterfere(){
       const cursed=[...ai.atLine,...ai.dfLine].find(fc=>fc.curses?.length>0);
       if(cursed){
         _spendInterfere(mc,mi,`Holy Prayer → รักษา ${cursed.card.name}`,()=>{
-          cursed.curses=[];log(`AI [Interfere]: Holy Prayer → รักษา ${cursed.card.name}!`,'bad');
+          cursed.curses=[];cursed.charmed=null;log(`AI [Interfere]: Holy Prayer → รักษา ${cursed.card.name}!`,'bad');
         });
         return;
       }
@@ -4536,8 +4560,9 @@ function aiDrawCards(pi,onDone){
     if(type==='seal')drawCard(pi,true,true);
     else drawMysticCard(pi,true,true);
   }
-  // AI Discard Step: trim to combined HAND_COMBINED_MAX
-  const excess=p.hand.length+(p.mysticHand||[]).length-HAND_COMBINED_MAX;
+  // AI Discard Step: trim to combined limit — use the effective max so the AI's own
+  // Nebuchadnezzar (+1) / Marie Antoinette (-1) area mystics are respected.
+  const excess=p.hand.length+(p.mysticHand||[]).length-getEffectiveCombinedMax(pi);
   if(excess>0){
     for(let i=0;i<excess;i++){
       if((p.mysticHand||[]).length>0){const c=p.mysticHand.pop();(p.mysticGrave=p.mysticGrave||[]).push(c);}
@@ -4830,7 +4855,7 @@ function playNonPMystic(mysticCard,mysticIdx){
           const _hpDesc=`Holy Prayer → รักษา ${tfc.card.name}`;
           const _hpCb=()=>{
             const _hadFreeze=(tfc.curses||[]).some(c=>c.type==='freeze');
-            tfc.curses=[];
+            tfc.curses=[];tfc.charmed=null;
             if(_hadFreeze&&_wasAtLine){
               const _cpi=findFCOwner(tfc)?.pi??0;const _cp=G.players[_cpi];
               const _di=_cp.dfLine.findIndex(x=>x.uid===tfc.uid);

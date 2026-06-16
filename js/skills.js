@@ -182,11 +182,12 @@ function _getCardSkillsRaw(fc){
       filter:t=>[...p.atLine,...p.dfLine].some(x=>x.uid===t.uid)
     }];
   }
-  // ── Blue Wind Griffin (id=59): +Sp 1 any seal, 1 subturn, Interfere, Mp 2 ──
+  // ── Blue Wind Griffin (id=59): +Sp 1 own seal, 1 subturn, Mp 2 ──
   if(fc.card.id===59){
     return [{
-      label:'✦ [Skill/Interfere] Seal ใบใด +Sp 1 จนจบ Subturn (Mp 2)',
-      mp:2, type:'fieldTarget', effect:'spBoost1SubTurn', interfere:false
+      label:'✦ [Skill] Seal ฝ่ายเรา +Sp 1 จนจบ Subturn (Mp 2)',
+      mp:2, type:'fieldTarget', effect:'spBoost1SubTurn', interfere:false,
+      filter:t=>[...p.atLine,...p.dfLine].some(x=>x.uid===t.uid)
     }];
   }
   // ── Jormungand (id=84): Freeze Curse ALL enemy 1 Turn — fused+water+At Line, Mp 4 ──
@@ -359,7 +360,8 @@ function isSkillTarget(fc){
   const skills=getCardSkills(skillMode.fc);
   const skill=skills[skillMode.skillIdx];
   if(!skill)return false;
-  return skill.filter(fc);
+  // Guard against a fieldTarget skill defined without a filter — never crash the render loop.
+  return typeof skill.filter==='function' ? skill.filter(fc) : false;
 }
 
 function startSkillMode(fc,skillIdx){
@@ -514,8 +516,10 @@ function executeSelfSkill(skillFC,skillIdx){
         if(!t.curses.some(c=>c.type==='freeze'))t.curses.push({type:'freeze',expiresAtSubTurn:subTurnNum+2});
       });
       broadcastSound('Freeze');
-      // Move frozen At Line seals to Df Line
+      // Move frozen At Line seals to Df Line — only the ones that actually got frozen
+      // (immune seals like Heaven Knight/Delta-D/Angel resisted the curse and must stay put).
       [...ai.atLine].forEach(t=>{
+        if(!t.curses?.some(c=>c.type==='freeze'))return;
         const i=ai.atLine.findIndex(x=>x.uid===t.uid);
         if(i<0)return;
         ai.atLine.splice(i,1);ai.dfLine.push(t);
@@ -677,7 +681,7 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       p.mp-=skill.mp;
       skillFC.hasUsedSkill=true;
       if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
-      targetFC.curses=[];
+      targetFC.curses=[];targetFC.charmed=null;
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} หาย Curse ทุกชนิด!`,'good');
       checkLose();render();
     });
@@ -869,13 +873,8 @@ function executeSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       showActionQueue(`${skillFC.card.name} [Skill] → ทำลาย Mystic <b>${mEntry.mystic.name}</b> บน ${targetFC.card.name}`,()=>{
         p.mp-=skill.mp;skillFC.hasUsedSkill=true;
         if(!_skillStillValid(skillFC,skill)){log(`${skillFC.card.name} [Skill] ยกเลิก — เงื่อนไขไม่ตรงแล้ว`,'bad');render();return;}
-        const mIdx=(targetFC.mystics||[]).indexOf(mEntry);
-        if(mIdx>=0){
-          targetFC.mystics.splice(mIdx,1);clearPSCurseFromEntry(targetFC,mEntry);
-          if(mEntry.mystic?.id===33)targetFC.magicalEl=null;
-          const tOwner=findFCOwner(targetFC);
-          if(tOwner)(G.players[tOwner.pi].mysticGrave=G.players[tOwner.pi].mysticGrave||[]).push(mEntry.mystic);
-        }
+        // Use the shared helper so the mystic returns to its caster's grave (not the seal owner's).
+        if((targetFC.mystics||[]).includes(mEntry))_mysticSplice(targetFC,mEntry);
         log(`${skillFC.card.name} [Skill]: ทำลาย ${mEntry.mystic.name} บน ${targetFC.card.name}!`,'good');
         checkLose();render();
       });
