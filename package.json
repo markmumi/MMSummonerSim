@@ -1,0 +1,9 @@
+{
+  "name": "mmsummonermastersim",
+  "version": "1.33.0",
+  "description": "Browser TCG simulator (MMSummonerMasterSim)",
+  "private": true,
+  "scripts": {
+    "test": "node test/run.js"
+  }
+}

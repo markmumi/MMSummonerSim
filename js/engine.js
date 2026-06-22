@@ -1176,8 +1176,7 @@ function guestExecuteHandDiscard(cardIdx){
   p.mp-=skill.mp;fc.hasUsedSkill=true;
   p.hand.splice(cardIdx,1);p.shrine.push(card);
   broadcastSound('Flip');
-  fc.atBoosts=(fc.atBoosts||[]);
-  fc.atBoosts.push({amount:card.lv,expiresBeforeSubTurn:subTurnNum+2});
+  applyBoost(fc,'at',card.lv,2);
   log(`${fc.card.name} [Interfere]: ทิ้ง ${card.name} (Lv${card.lv}) → At +${card.lv}!`,'good');
   guestHandDiscardMode=null;
   checkLose();render();Online.broadcastState();
@@ -1313,10 +1312,13 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
   if(!skill)return;
   if(p.mp<skill.mp){logErr('Mp ไม่พอ');guestSkillMode=null;render();Online.broadcastState();return;}
   guestSkillMode=null;
+  // Silent Prohibitor: protected seals cannot be targeted by skills (HOST enforces this in clickFieldSeal).
+  if(hasMysticProtect(targetFC)){logErr(`${targetFC.card.name} ถูกป้องกัน Silent Prohibitor — Skill ไม่ได้!`);render();Online.broadcastState();return;}
   const _done=()=>{checkLose();render();Online.broadcastState();};
+  // Curse immunity is enforced inside applyCurse() (shared with player/AI); death handled in its block.
   if(skill.effect==='healCurse'){
     showActionQueue(`${skillFC.card.name} [Skill] → รักษา Curse ${targetFC.card.name}`,()=>{
-      p.mp-=skill.mp;skillFC.hasUsedSkill=true;targetFC.curses=[];targetFC.charmed=null;
+      p.mp-=skill.mp;skillFC.hasUsedSkill=true;healAllCurses(targetFC);
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} หาย Curse!`,'good');_done();
     });return;
   }
@@ -1327,6 +1329,7 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     });return;
   }
   if(skill.effect==='deathCurse'){
+    if(isCurseImmune(targetFC)){log(`${targetFC.card.name} [Ability]: ยกเลิก Curse!`,'bad');render();Online.broadcastState();return;}
     targetFC.curses=(targetFC.curses||[]);
     targetFC.curses.push({type:'death',expiresAtSubTurn:Infinity});
     broadcastSound('Skill');
@@ -1344,58 +1347,53 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     const turns=skill.turns||3;
     showActionQueue(`${skillFC.card.name} [Skill] → ${targetFC.card.name} ☠Poison ${turns}T`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      targetFC.curses=(targetFC.curses||[]);targetFC.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+(turns*2)});
-      broadcastSound('Poison');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ☠Poison!`,'good');_done();
+      if(applyCurse(targetFC,targetPi,targetLine,'poison',{turns})){broadcastSound('Poison');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ☠Poison!`,'good');}
+      _done();
     });return;
   }
   if(skill.effect==='stoneCurse'){
     const turns=skill.turns||1;const tl=turns===Infinity?'∞':turns+'';
     showActionQueue(`${skillFC.card.name} [Skill] → ${targetFC.card.name} 🪨Stone ${tl}T`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      targetFC.curses=(targetFC.curses||[]);targetFC.curses.push({type:'stone',expiresAtSubTurn:turns===Infinity?Infinity:subTurnNum+(turns*2)});
-      broadcastSound('Stone');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} 🪨Stone!`,'good');_done();
+      if(applyCurse(targetFC,targetPi,targetLine,'stone',{turns})){broadcastSound('Stone');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} 🪨Stone!`,'good');}
+      _done();
     });return;
   }
   if(skill.effect==='freezeCurse'){
     const turns=skill.turns||1;
     showActionQueue(`${skillFC.card.name} [Skill] → ${targetFC.card.name} ❄Freeze ${turns}T`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      targetFC.curses=(targetFC.curses||[]);targetFC.curses.push({type:'freeze',expiresAtSubTurn:subTurnNum+(turns*2)});
-      broadcastSound('Freeze');
-      const owner=G.players[targetPi];
-      if(targetLine==='at'){const i=owner.atLine.findIndex(x=>x.uid===targetFC.uid);if(i>=0){owner.atLine.splice(i,1);owner.dfLine.push(targetFC);}}
-      log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ❄Freeze!`,'good');_done();
+      if(applyCurse(targetFC,targetPi,targetLine,'freeze',{turns})){broadcastSound('Freeze');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} ❄Freeze!`,'good');}
+      _done();
     });return;
   }
   if(skill.effect==='charmCurse'){
     const turns=skill.turns||3;
     showActionQueue(`${skillFC.card.name} [Skill] → ${targetFC.card.name} 💗Charm ${turns}T`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      targetFC.charmed={originalPi:targetPi,originalLine:targetLine+'Line'};
-      targetFC.curses=(targetFC.curses||[]);targetFC.curses.push({type:'charm',expiresAtSubTurn:subTurnNum+(turns*2)});
-      targetFC.exhausted=false;targetFC.hasUsedSkill=false;
-      broadcastSound('Charm');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} 💗Charm!`,'good');_done();
+      if(applyCurse(targetFC,targetPi,targetLine,'charm',{turns})){broadcastSound('Charm');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} 💗Charm!`,'good');}
+      _done();
     });return;
   }
   if(skill.effect==='lastDanceCurse'){
     const turns=skill.turns||2,atBonus=skill.atBonus||0;
     showActionQueue(`${skillFC.card.name} [Skill] → ${targetFC.card.name} Last Dance`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      targetFC.curses=(targetFC.curses||[]);targetFC.curses.push({type:'lastDance',atBonus,expiresAtSubTurn:subTurnNum+(turns*2)});
-      broadcastSound('Skill');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} Last Dance!`,'good');_done();
+      if(applyCurse(targetFC,targetPi,targetLine,'lastDance',{turns,atBonus})){broadcastSound('Skill');log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} Last Dance!`,'good');}
+      _done();
     });return;
   }
   if(skill.effect==='atBoost1SubTurn'){
     showActionQueue(`${skillFC.card.name} [Skill] → ${targetFC.card.name} +At1`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      targetFC.atBoosts=(targetFC.atBoosts||[]);targetFC.atBoosts.push({amount:1,expiresBeforeSubTurn:subTurnNum+1});
+      applyBoost(targetFC,'at',1,1);
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} +At1!`,'good');_done();
     });return;
   }
   if(skill.effect==='spBoost1SubTurn'){
     showActionQueue(`${skillFC.card.name} [Skill] → ${targetFC.card.name} +Sp1`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      targetFC.spBoosts=(targetFC.spBoosts||[]);targetFC.spBoosts.push({amount:1,expiresBeforeSubTurn:subTurnNum+1});
+      applyBoost(targetFC,'sp',1,1);
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} +Sp1!`,'good');_done();
     });return;
   }
@@ -1403,7 +1401,7 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
     const boostAmt=targetFC.card.mc;
     showActionQueue(`${skillFC.card.name} [Skill] → ${targetFC.card.name} +Df${boostAmt}`,()=>{
       p.mp-=skill.mp;skillFC.hasUsedSkill=true;
-      targetFC.dfBoosts=(targetFC.dfBoosts||[]);targetFC.dfBoosts.push({amount:boostAmt,expiresBeforeSubTurn:subTurnNum+1});
+      applyBoost(targetFC,'df',boostAmt,1);
       log(`${skillFC.card.name} [Skill]: ${targetFC.card.name} +Df${boostAmt}!`,'good');_done();
     });return;
   }
@@ -1438,8 +1436,7 @@ function guestExecuteSkill(skillFC,skillIdx,targetFC,targetPi,targetLine){
       const remaining=[...G.players[1].atLine,...G.players[1].dfLine];
       if(!remaining.length){log(`${skillFC.card.name} [Skill]: ไม่มี Seal ให้ +At`,'');_done();return;}
       showMysticPicker(`Blaze Sage — เลือก Seal ที่จะ +At${mc} (1 Turn)`,remaining.map(bfc=>({label:bfc.card.name,data:bfc})),boostFC=>{
-        boostFC.atBoosts=(boostFC.atBoosts||[]);
-        boostFC.atBoosts.push({amount:mc,expiresBeforeSubTurn:subTurnNum+2});
+        applyBoost(boostFC,'at',mc,2);
         log(`${skillFC.card.name} [Skill]: Sacrifice ${targetFC.card.name}! +At${mc} → ${boostFC.card.name}!`,'hi');
         _done();
       });
@@ -3526,51 +3523,41 @@ function aiTurn(){
     if(id===6&&fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness')&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
       const t=allPlayer.find(t=>[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t)return{mp:2,label:`Last Dance Curse → ${t.card.name}`,execute:()=>{
-        t.curses=(t.curses||[]);t.curses.push({type:'lastDance',atBonus:2,expiresAtSubTurn:subTurnNum+4});
-        broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance Curse At+2 / 2 Turn!`,'bad');
+        if(applyCurse(t,0,player.atLine.includes(t)?'at':'df','lastDance',{turns:2,atBonus:2})){
+          broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance Curse At+2 / 2 Turn!`,'bad');}
       }};
     }
     // Desert Chimera (id=7): Poison on player card, fused + at line
     if(id===7&&fc.fused&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
       const t=allPlayer.find(t=>!t.curses?.some(c=>c.type==='poison')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t)return{mp:2,label:`Poison Curse → ${t.card.name}`,execute:()=>{
-        t.curses=(t.curses||[]);t.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+6});
-        broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 3 Turn!`,'bad');
+        if(applyCurse(t,0,player.atLine.includes(t)?'at':'df','poison',{turns:3})){
+          broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 3 Turn!`,'bad');}
       }};
     }
     // Cockatrice (id=11): Stone on player card sp 1-4, fused
     if(id===11&&fc.fused&&ai.mp>=2){
       const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t)return{mp:2,label:`Stone Curse → ${t.card.name}`,execute:()=>{
-        t.curses=(t.curses||[]);t.curses.push({type:'stone',expiresAtSubTurn:subTurnNum+2});
-        broadcastSound('Stone');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Stone Curse 1 Turn!`,'bad');
+        if(applyCurse(t,0,player.atLine.includes(t)?'at':'df','stone',{turns:1})){
+          broadcastSound('Stone');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Stone Curse 1 Turn!`,'bad');}
       }};
     }
     // Jiu Wei Hu Le (id=12): Charm on player card sp 1-3, fused with dark
     if(id===12&&fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness')&&ai.mp>=2){
       const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='charm')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
-      if(t){
-        const fromLine=player.atLine.includes(t)?'atLine':'dfLine';
-        return{mp:2,label:`Charm Curse → ${t.card.name}`,execute:()=>{
-          t.charmed={originalPi:0,originalLine:fromLine};
-          t.curses=(t.curses||[]);t.curses.push({type:'charm',expiresAtSubTurn:subTurnNum+6});
-          t.exhausted=false;t.hasUsedSkill=false;
-          broadcastSound('Charm');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 3 Turn!`,'bad');
-        }};
-      }
+      if(t)return{mp:2,label:`Charm Curse → ${t.card.name}`,execute:()=>{
+        if(applyCurse(t,0,player.atLine.includes(t)?'at':'df','charm',{turns:3})){
+          broadcastSound('Charm');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 3 Turn!`,'bad');}
+      }};
     }
     // Armadillon (id=15): Freeze on player card sp 2-4, fused + at line
     if(id===15&&fc.fused&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
       const t=allPlayer.find(t=>[2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='freeze')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
-      if(t){
-        const fromLine=player.atLine.includes(t)?'atLine':'dfLine';
-        return{mp:2,label:`Freeze Curse → ${t.card.name}`,execute:()=>{
-          t.curses=(t.curses||[]);t.curses.push({type:'freeze',expiresAtSubTurn:subTurnNum+2});
-          if(fromLine==='atLine'){const i=player.atLine.findIndex(x=>x.uid===t.uid);
-            if(i>=0){player.atLine.splice(i,1);player.dfLine.push(t);}}
-          broadcastSound('Freeze');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Freeze Curse 1 Turn!`,'bad');
-        }};
-      }
+      if(t)return{mp:2,label:`Freeze Curse → ${t.card.name}`,execute:()=>{
+        if(applyCurse(t,0,player.atLine.includes(t)?'at':'df','freeze',{turns:1})){
+          broadcastSound('Freeze');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Freeze Curse 1 Turn!`,'bad');}
+      }};
     }
     // Assassin Doll (id=46): Death Curse on lowest-At player card, At Line, 2+ player seals
     if(id===46&&ai.atLine.some(x=>x.uid===fc.uid)&&allPlayer.length>=2&&ai.mp>=2){
@@ -3608,7 +3595,7 @@ function aiTurn(){
     if(id===2&&ai.mp>=1){
       const t=allAI.find(t=>t.curses?.length>0);
       if(t)return{mp:1,label:`Heal Curse → ${t.card.name}`,execute:()=>{
-        t.curses=[];t.charmed=null;
+        healAllCurses(t);
         broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} หาย Curse ทุกชนิด!`,'');
       }};
     }
@@ -3626,16 +3613,16 @@ function aiTurn(){
     if(id===42&&fc.fused&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=3){
       const t=allPlayer.find(t=>[2,3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t)return{mp:3,label:`Poison Curse 1 Turn → ${t.card.name}`,execute:()=>{
-        t.curses=(t.curses||[]);t.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+2});
-        broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 1 Turn!`,'bad');
+        if(applyCurse(t,0,player.atLine.includes(t)?'at':'df','poison',{turns:1})){
+          broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 1 Turn!`,'bad');}
       }};
     }
     // Hydra of Warok (id=50): Poison 2 Turn Sp 3-5, fused+at line, Mp 2
     if(id===50&&fc.fused&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
       const t=allPlayer.find(t=>[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
       if(t)return{mp:2,label:`Poison Curse 2 Turn → ${t.card.name}`,execute:()=>{
-        t.curses=(t.curses||[]);t.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+4});
-        broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 2 Turn!`,'bad');
+        if(applyCurse(t,0,player.atLine.includes(t)?'at':'df','poison',{turns:2})){
+          broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 2 Turn!`,'bad');}
       }};
     }
     // Black Wiser (41): drain player Mp, prefer 2-drain if fused with Hellish Bird
@@ -3658,58 +3645,50 @@ function aiTurn(){
       if(fusedBW&&atLine&&ai.mp>=3){
         const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
         if(t)return{mp:3,label:`Last Dance At+3/2T → ${t.card.name}`,execute:()=>{
-          t.curses=(t.curses||[]);t.curses.push({type:'lastDance',atBonus:3,expiresAtSubTurn:subTurnNum+4});
-          broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance At+3 / 2T!`,'bad');
+          if(applyCurse(t,0,player.atLine.includes(t)?'at':'df','lastDance',{turns:2,atBonus:3})){
+            broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance At+3 / 2T!`,'bad');}
         }};
       }
       if(fusedDark&&atLine&&ai.mp>=2){
         const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='lastDance')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
         if(t)return{mp:2,label:`Last Dance At+2/3T → ${t.card.name}`,execute:()=>{
-          t.curses=(t.curses||[]);t.curses.push({type:'lastDance',atBonus:2,expiresAtSubTurn:subTurnNum+6});
-          broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance At+2 / 3T!`,'bad');
+          if(applyCurse(t,0,player.atLine.includes(t)?'at':'df','lastDance',{turns:3,atBonus:2})){
+            broadcastSound('Skill');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Last Dance At+2 / 3T!`,'bad');}
         }};
       }
     }
     // Succubus (45): Charm Curse 1T on non-Light player seal, fused + at line
     if(id===45&&fc.fused&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
       const t=allPlayer.find(t=>t.card.el!=='light'&&!t.curses?.some(c=>c.type==='charm')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
-      if(t){const fromLine=player.atLine.some(x=>x.uid===t.uid)?'atLine':'dfLine';
-        return{mp:2,label:`Charm Curse 1T → ${t.card.name}`,execute:()=>{
-          t.charmed={originalPi:0,originalLine:fromLine};
-          t.curses=(t.curses||[]);t.curses.push({type:'charm',expiresAtSubTurn:subTurnNum+2});
-          t.exhausted=false;t.hasUsedSkill=false;
-          broadcastSound('Charm');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 1T!`,'bad');
-        }};
-      }
+      if(t)return{mp:2,label:`Charm Curse 1T → ${t.card.name}`,execute:()=>{
+        if(applyCurse(t,0,player.atLine.includes(t)?'at':'df','charm',{turns:1})){
+          broadcastSound('Charm');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 1T!`,'bad');}
+      }};
     }
     // Medusa (48): Stone ∞ (Earth Mp3) or Poison 3T (Water Mp2)
     if(id===48){
       if(fc.fused&&fc.fusionStack.some(m=>m.card.el==='earth')&&ai.mp>=3){
         const t=allPlayer.find(t=>[1,2,3,4].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='stone')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
         if(t)return{mp:3,label:`Stone Curse ∞ → ${t.card.name}`,execute:()=>{
-          t.curses=(t.curses||[]);t.curses.push({type:'stone',expiresAtSubTurn:Infinity});
-          broadcastSound('Stone');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Stone Curse ∞!`,'bad');
+          if(applyCurse(t,0,player.atLine.includes(t)?'at':'df','stone',{turns:Infinity})){
+            broadcastSound('Stone');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Stone Curse ∞!`,'bad');}
         }};
       }
       if(fc.fused&&fc.fusionStack.some(m=>m.card.el==='water')&&ai.mp>=2){
         const t=allPlayer.find(t=>[1,2,3].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='poison')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
         if(t)return{mp:2,label:`Poison Curse 3T → ${t.card.name}`,execute:()=>{
-          t.curses=(t.curses||[]);t.curses.push({type:'poison',expiresAtSubTurn:subTurnNum+6});
-          broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 3T!`,'bad');
+          if(applyCurse(t,0,player.atLine.includes(t)?'at':'df','poison',{turns:3})){
+            broadcastSound('Poison');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Poison Curse 3T!`,'bad');}
         }};
       }
     }
     // Siren (58): Charm Curse 2T on player seal sp 3-5, fused+Dark+at line
     if(id===58&&fc.fused&&fc.fusionStack.some(m=>m.card.el==='darkness')&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=2){
       const t=allPlayer.find(t=>[3,4,5].includes(t.card.sp)&&!t.curses?.some(c=>c.type==='charm')&&t.card.id!==82&&t.card.id!==22&&t.card.id!==20);
-      if(t){const fromLine=player.atLine.some(x=>x.uid===t.uid)?'atLine':'dfLine';
-        return{mp:2,label:`Charm Curse 2T → ${t.card.name}`,execute:()=>{
-          t.charmed={originalPi:0,originalLine:fromLine};
-          t.curses=(t.curses||[]);t.curses.push({type:'charm',expiresAtSubTurn:subTurnNum+4});
-          t.exhausted=false;t.hasUsedSkill=false;
-          broadcastSound('Charm');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 2T!`,'bad');
-        }};
-      }
+      if(t)return{mp:2,label:`Charm Curse 2T → ${t.card.name}`,execute:()=>{
+        if(applyCurse(t,0,player.atLine.includes(t)?'at':'df','charm',{turns:2})){
+          broadcastSound('Charm');log(`AI: ${fc.card.name} [Skill] → ${t.card.name} Charm Curse 2T!`,'bad');}
+      }};
     }
     // Harison (88): destroy Stone-cursed seal, at line, Mp 3 — prefer enemy seals
     if(id===88&&ai.atLine.some(x=>x.uid===fc.uid)&&ai.mp>=3){
